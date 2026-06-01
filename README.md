@@ -263,6 +263,7 @@ Then make `release` the default branch (**Settings → Branches**, or
 bin/aurora.js            entry point
 src/cli.js               REPL loop, slash commands, lifecycle
 src/serve.js             server mode: listener registry (`npm start` / --serve)
+src/setup.js             first-run questionnaire (pick a store, install hints)
 src/bridge/
   telegram.js            two-way Telegram bridge (a listener)
 src/ui.js                banner, markdown rendering, spinner, styling
@@ -276,6 +277,10 @@ src/store/               optional persistence (pluggable, opt-in)
   base.js                Store interface (the contract)
   none.js / json.js / sqlite.js   backends
   index.js               store registry
+  location.js            data-dir resolution (global vs project ./.aurora)
+  session.js             shared "active session" (CLI ⇄ Telegram continuity)
+  persist.js             save a turn exchange (shared by CLI + bridge)
 src/notify/
   telegram.js            optional Telegram notifier
+test/                    node --test specs (env, config, store, session, …)
 ```
