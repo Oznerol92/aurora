@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-01
+
 ### Added
 
 - **Server mode.** `npm start` now runs `aurora --serve`, which starts every
@@ -29,5 +31,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   layer (Claude via the `claude` CLI), optional persistence (`none`/`json`/
   `sqlite`), Telegram notifications, and a two-way Telegram bridge.
 
-[Unreleased]: https://github.com/Oznerol92/aurora/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Oznerol92/aurora/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Oznerol92/aurora/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Oznerol92/aurora/releases/tag/v0.1.0
