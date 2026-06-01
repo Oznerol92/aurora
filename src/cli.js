@@ -3,7 +3,7 @@ import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
-import { runTelegramBridge } from './bridge/telegram.js';
+import { runServer } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { TEMPLATE } from './template.js';
 import {
@@ -42,14 +42,16 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(1);
   }
 
-  // --- Telegram bridge mode (headless, no REPL) -------------------------
-  // `aurora --telegram` listens for messages you send the bot and replies
-  // there. Only your authorized TELEGRAM_CHAT_ID is processed (see bridge).
-  if (argv.includes('--telegram')) {
+  // --- Server / listener mode (headless, no REPL) -----------------------
+  // `aurora --serve` (and what `npm start` runs) starts every configured
+  // inbound listener and keeps them running: the two-way Telegram bridge today,
+  // plus any future webhooks registered in src/serve.js. `aurora --telegram`
+  // is a back-compatible alias that runs the same server.
+  if (argv.includes('--serve') || argv.includes('--telegram')) {
     console.log('\n' + banner());
     console.log(info('  Backend: ') + provider.describe());
     try {
-      await runTelegramBridge({ provider, config, logLine: (m) => console.log(info('  • ') + m) });
+      await runServer({ provider, config, logLine: (m) => console.log(info('  • ') + m) });
     } catch (e) {
       console.error(error('  ✖ ' + e.message));
       process.exit(1);
@@ -439,7 +441,9 @@ function printUsage() {
       'Usage:',
       '  aurora                 start an interactive chat',
       '  aurora --model <name>  start with a specific model',
-      '  aurora --telegram      listen on Telegram and reply there (two-way bridge)',
+      '  aurora --serve         run as a server: start every configured listener',
+      '                         (Telegram bridge + future webhooks). `npm start` runs this.',
+      '  aurora --telegram      alias for --serve (kept for back-compat)',
       '  aurora --help          show this',
       '  aurora --version       print version',
       '',

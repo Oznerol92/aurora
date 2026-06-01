@@ -27,8 +27,12 @@ node bin/aurora.js
 ```bash
 aurora                      # start a chat (shows the research template first)
 aurora --model <name>       # start with a specific model, e.g. claude-sonnet-4-6
+aurora --serve              # run as a server: start every configured listener
 aurora --help
 ```
+
+`npm start` runs `aurora --serve` (server mode); `npm run chat` opens the
+interactive REPL.
 
 ### In-chat commands
 
@@ -85,18 +89,29 @@ then run **`/notify whoami`** — Aurora calls `getUpdates` and prints the chats
 that have messaged your bot, ready to paste into your `.env`. (Aurora never
 writes secrets — token or chat id — to disk; they live only in the environment.)
 
-### Two-way Telegram bridge
+### Server mode (listeners)
 
-Run Aurora as a listener and chat with it entirely from Telegram:
+Run Aurora as a long-running server that accepts inbound messages:
 
 ```bash
-aurora --telegram
+npm start            # = aurora --serve
+aurora --serve
 ```
 
-It long-polls for messages, runs each through the AI, and replies on Telegram.
-Send `/new` to start a fresh conversation. **Security:** only messages from your
-`TELEGRAM_CHAT_ID` are processed — a public bot can be messaged by anyone, so
-every other sender is ignored, and the bridge refuses to start without that id.
+This starts every **listener** that's configured. A listener is any inbound
+channel that feeds messages through the AI. Today there's one — the two-way
+**Telegram bridge** — but the runner (`src/serve.js`) is built so future
+webhooks slot in without touching the CLI: add an entry to the `LISTENERS`
+array with a `name`, an `available()` check, and a `start()` function, and
+`npm start` will pick it up. Listeners whose credentials are missing are skipped
+(logged), not crashed; if nothing is configured, the server exits with an error.
+
+The **Telegram bridge** long-polls for messages, runs each through the AI, and
+replies on Telegram. Send `/new` to start a fresh conversation. **Security:**
+only messages from your `TELEGRAM_CHAT_ID` are processed — a public bot can be
+messaged by anyone, so every other sender is ignored, and the bridge refuses to
+start without that id. (`aurora --telegram` still works as an alias for
+`--serve`.)
 
 ## Security
 
@@ -130,6 +145,9 @@ Nothing in the CLI or UI needs to change — `/provider openai` will just work.
 ```
 bin/aurora.js            entry point
 src/cli.js               REPL loop, slash commands, lifecycle
+src/serve.js             server mode: listener registry (`npm start` / --serve)
+src/bridge/
+  telegram.js            two-way Telegram bridge (a listener)
 src/ui.js                banner, markdown rendering, spinner, styling
 src/template.js          the Aurora Research Method (startup screen)
 src/config.js            load/save ~/.config/aurora/config.json

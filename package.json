@@ -15,7 +15,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "start": "node bin/aurora.js"
+    "start": "node bin/aurora.js --serve",
+    "chat": "node bin/aurora.js"
   },
   "dependencies": {
     "chalk": "^5.3.0",
