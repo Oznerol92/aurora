@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # npm dependencies (runtime + dev). Grouped so Aurora gets one tidy PR a week
+  # instead of a swarm of single-package bumps.
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      dev-dependencies:
+        dependency-type: development
+      production-dependencies:
+        dependency-type: production
+
+  # Keep the GitHub Actions used in our workflows current (security fixes, etc.).
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions:
+        patterns:
+          - '*'

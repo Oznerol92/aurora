@@ -1,23 +1,18 @@
 name: Release
 
-# Fires when a version tag is pushed (e.g. v0.2.0). The release flow is:
+# Runs AFTER a GitHub Release is published. release-please (see
+# release-please.yml) owns the version bump, CHANGELOG, tag, and the Release
+# itself; this workflow's job is to verify the released tag and publish to npm.
 #
-#   npm version patch   # bumps package.json, commits, creates tag v0.x.y
-#   git push --follow-tags
-#
-# This workflow then re-runs the CI checks and, if they pass, publishes a
-# GitHub Release with auto-generated notes. It guards that the tag matches the
-# version in package.json, so a mistyped tag fails loudly instead of shipping a
-# mislabeled release. GitHub-only: no npm publish, no secrets beyond the
-# built-in GITHUB_TOKEN.
+# Triggering on `release: published` (instead of the raw tag push) means this
+# only fires for real, release-please-created releases — not for any stray tag.
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
 
 permissions:
-  contents: write # required to create the GitHub Release
+  contents: read
 
 jobs:
   verify:
@@ -40,7 +35,7 @@ jobs:
           pkg="$(node -p "require('./package.json').version")"
           tag="${GITHUB_REF_NAME#v}"
           if [ "$pkg" != "$tag" ]; then
-            echo "::error::tag v$tag does not match package.json version $pkg"
+            echo "::error::release tag v$tag does not match package.json version $pkg"
             exit 1
           fi
           echo "tag and package.json agree on $pkg"
@@ -50,25 +45,20 @@ jobs:
           set -euo pipefail
           find bin src -name '*.js' -print0 | xargs -0 -n1 node --check
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
+
       - name: Smoke-test CLI
         run: |
           set -euo pipefail
           node bin/aurora.js --version
           node bin/aurora.js --help
-
-  release:
-    name: github release
-    needs: verify
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
 
   npm-publish:
     name: npm publish

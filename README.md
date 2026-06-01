@@ -36,18 +36,18 @@ interactive REPL.
 
 ### In-chat commands
 
-| Command | What it does |
-|---|---|
-| `/help` | show commands |
-| `/template` | show the Aurora Research Method again |
-| `/new` | start a fresh conversation (clears context) |
-| `/provider [id]` | list providers, or switch backend |
-| `/model [name]` | show or set the model (`/model default` to reset) |
-| `/store [id]` | show or switch persistence (`none` / `json` / `sqlite`) |
-| `/notify [on\|off\|test\|whoami]` | Telegram alerts; `whoami` finds your chat id |
-| `/config` | show config path + contents (secrets masked) |
-| `/clear` | clear the screen |
-| `/exit` | quit (or Ctrl-D) |
+| Command                           | What it does                                            |
+| --------------------------------- | ------------------------------------------------------- |
+| `/help`                           | show commands                                           |
+| `/template`                       | show the Aurora Research Method again                   |
+| `/new`                            | start a fresh conversation (clears context)             |
+| `/provider [id]`                  | list providers, or switch backend                       |
+| `/model [name]`                   | show or set the model (`/model default` to reset)       |
+| `/store [id]`                     | show or switch persistence (`none` / `json` / `sqlite`) |
+| `/notify [on\|off\|test\|whoami]` | Telegram alerts; `whoami` finds your chat id            |
+| `/config`                         | show config path + contents (secrets masked)            |
+| `/clear`                          | clear the screen                                        |
+| `/exit`                           | quit (or Ctrl-D)                                        |
 
 ## How it works
 
@@ -65,11 +65,11 @@ Config lives at `~/.config/aurora/config.json`.
 Aurora is **stateless by default** (`store: "none"`). If you want conversations
 to survive restarts, pick a local backend — the choice is yours:
 
-| Backend | Select | Notes |
-|---|---|---|
-| None | `/store none` | Default. Nothing is written. |
-| JSON file | `/store json` | Zero native deps, fully portable. Good for a personal log. |
-| SQLite | `/store sqlite` | Faster at scale. Requires `npm install better-sqlite3` (an optional dependency). |
+| Backend   | Select          | Notes                                                                            |
+| --------- | --------------- | -------------------------------------------------------------------------------- |
+| None      | `/store none`   | Default. Nothing is written.                                                     |
+| JSON file | `/store json`   | Zero native deps, fully portable. Good for a personal log.                       |
+| SQLite    | `/store sqlite` | Faster at scale. Requires `npm install better-sqlite3` (an optional dependency). |
 
 Data is written under the config dir (`~/.config/aurora/data/`), never inside
 the repo. Switching backends is non-destructive — each keeps its own file.
@@ -117,7 +117,7 @@ start without that id. (`aurora --telegram` still works as an alias for
 
 This is an open-source repo, so it's built to be safe to publish and share:
 
-- **Secrets never touch disk.** The bot token and chat id are read *only* from
+- **Secrets never touch disk.** The bot token and chat id are read _only_ from
   the environment (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optionally via a
   gitignored `.env`). Aurora never writes them to `config.json`. `.gitignore`
   covers `.env`, `*.sqlite`, `*.db`, and `data/`.
@@ -127,7 +127,7 @@ This is an open-source repo, so it's built to be safe to publish and share:
   are sent as plain text (no `parse_mode`); the notifier uses HTTPS with a hard
   timeout and fails safe without breaking the chat.
 - **Least privilege at runtime.** The Claude backend runs read-only + web tools
-  only (see *How it works*), so a chat can't modify your files.
+  only (see _How it works_), so a chat can't modify your files.
 
 ## Adding another AI later
 
@@ -143,24 +143,29 @@ Nothing in the CLI or UI needs to change — `/provider openai` will just work.
 ## Versioning & releases
 
 Aurora follows [Semantic Versioning](https://semver.org). `package.json` is the
-single source of truth for the version (`--version` reads it), and releases are
-cut from git tags.
+single source of truth for the version (`--version` reads it), and versioning is
+automated from [Conventional Commits](https://www.conventionalcommits.org/) by
+[release-please](https://github.com/googleapis/release-please).
 
 **Continuous integration** (`.github/workflows/ci.yml`) runs on every push to
-`master` and on pull requests: it byte-checks every source file and smoke-tests
-the CLI across Node 18/20/22.
-
-**Cutting a release** — bump, tag, and push:
+`master` and on pull requests: it lints (`eslint`), checks formatting
+(`prettier`), runs the test suite (`node --test`), byte-checks every source
+file, and smoke-tests the CLI across Node 18/20/22. Run the same checks locally:
 
 ```bash
-npm version patch          # or minor / major — bumps package.json, commits, tags vX.Y.Z
-git push --follow-tags     # pushes the commit and the tag
+npm run lint          # eslint
+npm run format        # prettier --write (or `npm run format:check` to verify)
+npm test              # node --test
 ```
 
-Pushing a `v*` tag triggers `.github/workflows/release.yml`, which re-runs the
-checks, verifies the tag matches `package.json`, and publishes a GitHub Release
-with auto-generated notes. Record notable changes in
-[`CHANGELOG.md`](CHANGELOG.md) as you go.
+**Cutting a release** — you don't bump versions by hand. Just land changes with
+[Conventional Commit](https://www.conventionalcommits.org/) messages
+(`feat:` → minor, `fix:` → patch, `feat!:`/`fix!:` → major). On each push to
+`master`, `.github/workflows/release-please.yml` maintains a standing **release
+PR** that bumps `package.json`, updates [`CHANGELOG.md`](CHANGELOG.md), and
+sets the tag. **Merge that PR when you want to ship** — release-please creates
+the `vX.Y.Z` tag and the GitHub Release, which in turn triggers
+`.github/workflows/release.yml` (re-verify + optional npm publish).
 
 ### Publishing to npm (optional)
 
@@ -179,7 +184,7 @@ workflow change needed. (The package name `aurora-cli` must be available/yours.)
 
 To require green CI before anything lands on `master`, add a branch protection
 rule. Either via **Settings → Branches → Add rule** (branch name `master`,
-enable *Require status checks to pass* and select the `check` jobs), or with the
+enable _Require status checks to pass_ and select the `check` jobs), or with the
 GitHub CLI:
 
 ```bash

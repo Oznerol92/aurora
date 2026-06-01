@@ -64,7 +64,9 @@ export class SqliteStore extends Store {
   async getConversation(sessionId) {
     if (!this.db) return [];
     return this.db
-      .prepare('SELECT role, text, ts, model, cost_usd AS costUsd FROM turns WHERE session_id = ? ORDER BY id')
+      .prepare(
+        'SELECT role, text, ts, model, cost_usd AS costUsd FROM turns WHERE session_id = ? ORDER BY id',
+      )
       .all(sessionId);
   }
 

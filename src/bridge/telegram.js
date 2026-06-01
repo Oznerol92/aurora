@@ -22,17 +22,23 @@ export async function runTelegramBridge({ provider, config, logLine }) {
   const authorizedChatId = process.env.TELEGRAM_CHAT_ID || null;
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not set.');
   if (!authorizedChatId) {
-    throw new Error('TELEGRAM_CHAT_ID is not set — refusing to listen without an authorized chat. Run with the REPL and /notify whoami to find it.');
+    throw new Error(
+      'TELEGRAM_CHAT_ID is not set — refusing to listen without an authorized chat. Run with the REPL and /notify whoami to find it.',
+    );
   }
   const log = logLine || ((m) => console.log(m));
 
   // Skip any backlog so a restart doesn't replay old messages.
   let offset = await drainBacklog(token);
-  log(`Telegram bridge live. Listening for messages from chat ${authorizedChatId}. Ctrl-C to stop.`);
-  await sendTelegram('🟢 Aurora is listening. Send me anything; /new starts a fresh conversation.', config);
+  log(
+    `Telegram bridge live. Listening for messages from chat ${authorizedChatId}. Ctrl-C to stop.`,
+  );
+  await sendTelegram(
+    '🟢 Aurora is listening. Send me anything; /new starts a fresh conversation.',
+    config,
+  );
 
   // Main loop: never let a single failure kill the bridge.
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     let updates;
     try {
@@ -66,7 +72,10 @@ export async function handleUpdate(update, { provider, config, authorizedChatId,
   if (!text) return;
 
   if (text === '/start') {
-    await sendTelegram('👋 Aurora here. Send a question and I will research it. /new clears the conversation.', config);
+    await sendTelegram(
+      '👋 Aurora here. Send a question and I will research it. /new clears the conversation.',
+      config,
+    );
     return;
   }
   if (text === '/new' || text === '/reset') {

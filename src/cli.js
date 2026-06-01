@@ -257,7 +257,13 @@ async function handleCommand(text, ctx) {
     case 'new':
     case 'reset':
       ctx.provider.reset();
-      console.log('\n' + info('Started a fresh conversation.') + ' ' + warn(`(session ${ctx.provider.shortSession?.() ?? 'n/a'})`) + '\n');
+      console.log(
+        '\n' +
+          info('Started a fresh conversation.') +
+          ' ' +
+          warn(`(session ${ctx.provider.shortSession?.() ?? 'n/a'})`) +
+          '\n',
+      );
       return true;
 
     case 'provider':
@@ -304,7 +310,9 @@ function handleProvider(arg, ctx) {
     for (const p of listProviders()) {
       const current = p.id === ctx.config.provider ? warn('  ◀ current') : '';
       const status = p.implemented ? '' : warn(' (planned)');
-      console.log(`  ${p.id === ctx.config.provider ? '●' : '○'} ${p.id} — ${p.label}${status}${current}`);
+      console.log(
+        `  ${p.id === ctx.config.provider ? '●' : '○'} ${p.id} — ${p.label}${status}${current}`,
+      );
     }
     console.log(info('\n  Switch with: ') + '/provider <id>\n');
     return;
@@ -339,7 +347,9 @@ async function handleStore(arg, ctx) {
     console.log('\n' + info('Stores:'));
     for (const s of listStores()) {
       const current = s.id === ctx.config.store;
-      console.log(`  ${current ? '●' : '○'} ${s.id} — ${s.label}${current ? warn('  ◀ current') : ''}`);
+      console.log(
+        `  ${current ? '●' : '○'} ${s.id} — ${s.label}${current ? warn('  ◀ current') : ''}`,
+      );
     }
     console.log(info('\n  Switch with: ') + '/store <id>   (persistence is opt-in)\n');
     return;
@@ -368,10 +378,16 @@ async function handleStore(arg, ctx) {
 }
 
 async function handleNotify(arg, ctx) {
-  const tg = (ctx.config.notify ||= {}).telegram ||= {};
+  const tg = ((ctx.config.notify ||= {}).telegram ||= {});
   if (arg === 'test') {
     if (!telegramEnabled(ctx.config)) {
-      console.log('\n' + warn('Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID, then enable it.') + '\n');
+      console.log(
+        '\n' +
+          warn(
+            'Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID, then enable it.',
+          ) +
+          '\n',
+      );
       return;
     }
     const res = await sendTelegram('Aurora test message ✅', ctx.config);
@@ -386,7 +402,10 @@ async function handleNotify(arg, ctx) {
       return;
     }
     if (!res.chats.length) {
-      console.log(warn('  No chats found. Send your bot a message first, then run /notify whoami again.') + '\n');
+      console.log(
+        warn('  No chats found. Send your bot a message first, then run /notify whoami again.') +
+          '\n',
+      );
       return;
     }
     console.log(info('  Chats that have messaged your bot:'));

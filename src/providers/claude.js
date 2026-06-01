@@ -61,7 +61,14 @@ export class ClaudeProvider extends Provider {
   }
 
   buildArgs(text) {
-    const args = ['-p', text, '--output-format', 'stream-json', '--verbose', '--include-partial-messages'];
+    const args = [
+      '-p',
+      text,
+      '--output-format',
+      'stream-json',
+      '--verbose',
+      '--include-partial-messages',
+    ];
 
     if (this.model) args.push('--model', this.model);
     args.push('--allowedTools', ...ALLOWED_TOOLS);

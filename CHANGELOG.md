@@ -6,6 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Test suite.** Zero-dependency `node --test` specs under `test/` covering the
+  `.env` loader, config load/save/redaction, and the research template. Run with
+  `npm test`.
+- **Linting & formatting.** ESLint (flat config) + Prettier, wired into CI via
+  `npm run lint` and `npm run format:check`. `npm run format` / `lint:fix` apply
+  fixes locally.
+- **Automated releases.** `release-please` (`.github/workflows/release-please.yml`)
+  now drives versioning from Conventional Commits: it maintains a release PR that
+  bumps `package.json`, updates this changelog, and tags the release on merge.
+  Replaces the manual `npm version` step.
+- **Dependabot** (`.github/dependabot.yml`) for weekly, grouped npm and
+  GitHub-Actions updates.
+- **Issue & PR templates** under `.github/` (bug report, feature request, and a
+  PR checklist that nudges Conventional Commit titles).
+
+### Changed
+
+- CI now lints, checks formatting, and runs the test suite (in addition to the
+  byte-check and CLI smoke tests).
+- `.github/workflows/release.yml` now triggers on `release: published` (created
+  by release-please) and only verifies the tag and publishes to npm, rather than
+  firing on a raw `v*` tag push and creating the GitHub Release itself.
+
 ## [0.3.0] - 2026-06-01
 
 ### Added

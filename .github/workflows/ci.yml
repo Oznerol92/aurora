@@ -1,9 +1,9 @@
 name: CI
 
-# Runs on every push to master and on pull requests. There is no test suite or
-# linter yet, so CI stays honest: it installs deps, byte-compiles every source
-# file (node --check), and smoke-tests the CLI's no-network paths across the
-# supported Node range. Add real tests later and wire them in here.
+# Runs on every push to master and on pull requests. CI installs deps, lints,
+# checks formatting, runs the test suite, byte-compiles every source file
+# (node --check), and smoke-tests the CLI's no-network paths across the
+# supported Node range.
 
 on:
   push:
@@ -31,6 +31,15 @@ jobs:
       # avoids a native build that isn't needed to byte-check the JS.
       - name: Install dependencies
         run: npm ci --omit=optional
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
 
       - name: Syntax-check all sources
         run: |
