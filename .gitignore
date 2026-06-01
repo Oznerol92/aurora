@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit tokens/keys. Aurora reads these from the environment.
+.env
+.env.*
+# ...but DO commit the secret-free template.
+!.env.example
+
+# Local persistence (if a user enables a local DB)
+*.sqlite
+*.sqlite3
+*.db
+data/
+aurora-data/
+
+# OS / editor noise
+.DS_Store
+*.log
+
+# Local design notes / scratch (not for the published repo)
+notes.md
