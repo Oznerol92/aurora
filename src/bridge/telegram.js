@@ -46,7 +46,18 @@ export async function runTelegramBridge({ provider, config, store, logLine }) {
     config,
   );
 
-  const ctx = { provider, config, store, hasStore, state, authorizedChatId, token, log };
+  // Outbound effects are injected so handleUpdate can be tested without network.
+  const ctx = {
+    provider,
+    config,
+    store,
+    hasStore,
+    state,
+    authorizedChatId,
+    log,
+    notify: (text) => sendTelegram(text, config),
+    typing: () => sendChatAction(token, authorizedChatId, 'typing'),
+  };
 
   // Main loop: never let a single failure kill the bridge.
   while (true) {
@@ -69,7 +80,12 @@ export async function runTelegramBridge({ provider, config, store, logLine }) {
 }
 
 export async function handleUpdate(update, ctx) {
-  const { provider, config, store, hasStore, state, authorizedChatId, token, log } = ctx;
+  const { provider, config, store, hasStore, state, authorizedChatId } = ctx;
+  const log = ctx.log || (() => {});
+  // Outbound effects default to the real Telegram calls; tests inject stubs.
+  const notify = ctx.notify || ((text) => sendTelegram(text, config));
+  const typing = ctx.typing || (() => sendChatAction(ctx.token, authorizedChatId, 'typing'));
+
   const msg = update.message;
   if (!msg || typeof msg.text !== 'string') return; // ignore non-text updates
 
@@ -83,21 +99,20 @@ export async function handleUpdate(update, ctx) {
   if (!text) return;
 
   if (text === '/start') {
-    await sendTelegram(
+    await notify(
       '👋 Aurora here. Send a question and I will research it. /new clears the conversation.',
-      config,
     );
     return;
   }
   if (text === '/new' || text === '/reset') {
     // Rotate the shared session so the terminal starts fresh too.
     state.sessionId = rotateSession(provider, config, hasStore);
-    await sendTelegram('🔄 Started a fresh conversation.', config);
+    await notify('🔄 Started a fresh conversation.');
     return;
   }
 
   log(`  ← "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
-  await sendChatAction(token, authorizedChatId, 'typing');
+  await typing();
 
   let answer = '';
   let meta = null;
@@ -115,7 +130,7 @@ export async function handleUpdate(update, ctx) {
     answer = '⚠️ ' + (e?.message || 'the model returned an error');
   }
 
-  await replyChunked(answer || '(no response)', config);
+  await replyChunked(answer || '(no response)', notify);
 
   // Record the exchange under the shared session so it shows up in the CLI's
   // /history and /resume. Don't persist failed turns.
@@ -132,9 +147,9 @@ function shortId(id) {
 }
 
 /** Telegram caps messages at 4096 chars; split long answers across messages. */
-async function replyChunked(text, config) {
+async function replyChunked(text, notify) {
   for (let i = 0; i < text.length; i += TELEGRAM_MAX_LEN) {
-    await sendTelegram(text.slice(i, i + TELEGRAM_MAX_LEN), config);
+    await notify(text.slice(i, i + TELEGRAM_MAX_LEN));
   }
 }
 
