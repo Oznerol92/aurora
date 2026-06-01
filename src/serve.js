@@ -13,7 +13,7 @@ import { runTelegramBridge } from './bridge/telegram.js';
  *   - `available()`  true when its credentials/config are present (so it's
  *                    skipped, not crashed, when unconfigured)
  *   - `missing`      one-line hint shown when it's skipped
- *   - `start(ctx)`   async fn that runs forever; gets { provider, config, logLine }
+ *   - `start(ctx)`   async fn that runs forever; gets { provider, config, store, logLine }
  *
  * Nothing else needs to change — `runServer` discovers and runs whatever is
  * listed and configured. The interactive REPL is still `aurora` with no args.
@@ -38,7 +38,7 @@ const LISTENERS = [
  * Start all available listeners concurrently. Throws only if nothing is
  * configured (so `npm start` fails loudly instead of idling silently).
  */
-export async function runServer({ provider, config, logLine }) {
+export async function runServer({ provider, config, store, logLine }) {
   const log = logLine || ((m) => console.log(m));
 
   const active = LISTENERS.filter((l) => l.available(config));
@@ -59,7 +59,7 @@ export async function runServer({ provider, config, logLine }) {
   await Promise.all(
     active.map((l) =>
       l
-        .start({ provider, config, logLine: (m) => log(`[${l.name}] ${m}`) })
+        .start({ provider, config, store, logLine: (m) => log(`[${l.name}] ${m}`) })
         .catch((e) => log(`${l.name}: stopped — ${e?.message || String(e)}`)),
     ),
   );

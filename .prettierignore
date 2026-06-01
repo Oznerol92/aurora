@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+coverage/
+
+# release-please owns the changelog's formatting; don't let Prettier reflow it.
+CHANGELOG.md
+
+# Local scratch (also gitignored).
+notes.md

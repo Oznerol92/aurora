@@ -17,7 +17,12 @@
   },
   "scripts": {
     "start": "node bin/aurora.js --serve",
-    "chat": "node bin/aurora.js"
+    "chat": "node bin/aurora.js",
+    "test": "node --test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "chalk": "^5.3.0",
@@ -26,5 +31,11 @@
   },
   "optionalDependencies": {
     "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5"
   }
 }

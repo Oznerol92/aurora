@@ -27,7 +27,12 @@ export function banner() {
     '  \\__  /\\____/(_)\\_)(_)\\_)(_)\\_)(_)\\_\\__  /',
     '  (___/                                (___/',
   ].join('\n');
-  return chalk.magentaBright(art) + '\n' + chalk.dim('  your research-grade AI chat, in the terminal') + '\n';
+  return (
+    chalk.magentaBright(art) +
+    '\n' +
+    chalk.dim('  your research-grade AI chat, in the terminal') +
+    '\n'
+  );
 }
 
 export function hint() {
@@ -62,7 +67,9 @@ export function startSpinner(label = 'Aurora is thinking') {
   };
   if (tty) {
     id = setInterval(() => {
-      process.stdout.write('\r' + chalk.magenta(frames[i % frames.length]) + ' ' + chalk.dim(label + '…'));
+      process.stdout.write(
+        '\r' + chalk.magenta(frames[i % frames.length]) + ' ' + chalk.dim(label + '…'),
+      );
       i++;
     }, 80);
   }

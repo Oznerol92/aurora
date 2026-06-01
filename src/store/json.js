@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Store } from './base.js';
-import { configDir } from '../config.js';
+import { resolveDataDir } from './location.js';
 
 /**
  * JSON-file store. Zero native dependencies, fully portable. Fine for the
@@ -15,7 +15,7 @@ export class JsonStore extends Store {
 
   constructor(config = {}) {
     super(config);
-    const dir = config.dataDir || join(configDir, 'data');
+    const dir = resolveDataDir(config);
     this.path = join(dir, 'conversations.json');
     this.dir = dir;
     this.data = { conversations: {} };
@@ -51,6 +51,7 @@ export class JsonStore extends Store {
       sessionId,
       turns: c.turns.length,
       updatedAt: c.updatedAt,
+      title: c.turns.find((t) => t.role === 'user')?.text || '',
     }));
   }
 

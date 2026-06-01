@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { Store } from './base.js';
-import { configDir } from '../config.js';
+import { resolveDataDir } from './location.js';
 
 /**
  * SQLite store, backed by better-sqlite3. That package ships a native binding,
@@ -18,7 +18,7 @@ export class SqliteStore extends Store {
 
   constructor(config = {}) {
     super(config);
-    const dir = config.dataDir || join(configDir, 'data');
+    const dir = resolveDataDir(config);
     this.path = join(dir, 'aurora.sqlite');
     this.dir = dir;
     this.db = null;
@@ -64,7 +64,9 @@ export class SqliteStore extends Store {
   async getConversation(sessionId) {
     if (!this.db) return [];
     return this.db
-      .prepare('SELECT role, text, ts, model, cost_usd AS costUsd FROM turns WHERE session_id = ? ORDER BY id')
+      .prepare(
+        'SELECT role, text, ts, model, cost_usd AS costUsd FROM turns WHERE session_id = ? ORDER BY id',
+      )
       .all(sessionId);
   }
 
@@ -72,7 +74,11 @@ export class SqliteStore extends Store {
     if (!this.db) return [];
     return this.db
       .prepare(
-        'SELECT session_id AS sessionId, COUNT(*) AS turns, MAX(ts) AS updatedAt FROM turns GROUP BY session_id',
+        `SELECT session_id AS sessionId, COUNT(*) AS turns, MAX(ts) AS updatedAt,
+                (SELECT text FROM turns f
+                  WHERE f.session_id = t.session_id AND f.role = 'user'
+                  ORDER BY id LIMIT 1) AS title
+           FROM turns t GROUP BY session_id`,
       )
       .all();
   }

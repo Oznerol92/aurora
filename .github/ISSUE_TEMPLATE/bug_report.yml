@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in Aurora isn't working as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please **do not paste secrets** (bot tokens,
+        API keys, or `.env` contents) — Aurora reads those from the environment
+        and they should never appear in an issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: Running `aurora --serve` exits immediately with…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. `aurora`
+        2. type `/store sqlite`
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Aurora version
+      description: Output of `aurora --version`.
+      placeholder: aurora 0.3.0
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: Output of `node --version`.
+      placeholder: v20.11.0
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output
+      description: Error messages or logs (with any secrets redacted).
+      render: shell
