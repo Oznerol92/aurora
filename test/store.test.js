@@ -44,6 +44,7 @@ test('JsonStore round-trips turns and lists conversations', async () => {
     const one = list.find((c) => c.sessionId === 'sess-1');
     assert.equal(one.turns, 2);
     assert.equal(one.updatedAt, '2026-06-01T10:00:01Z');
+    assert.equal(one.title, 'hi', 'listConversations exposes the first user message as title');
 
     // A fresh store over the same dir reads the persisted data back.
     const reopened = new JsonStore({ dataDir: dir });

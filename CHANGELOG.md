@@ -19,8 +19,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and vice-versa. `/new` on either side starts a fresh shared thread. The
   Telegram bridge now persists its turns (previously it saved nothing).
 - **Conversation history.** With persistence on (`/store json` or `sqlite`),
-  `/history` lists saved conversations and `/resume <id>` reattaches to one —
-  reconnecting the provider session and replaying the saved turns on screen.
+  `/history` lists saved conversations — each with a one-line preview of its
+  opening message — and `/resume [id]` reattaches to one (no id resumes the most
+  recent), reconnecting the provider session and replaying the saved turns.
+- **Export.** `/export [id]` writes a conversation to a Markdown file (titled
+  from its opening message) — a portable artifact of a research session.
 - **Project-scoped storage.** `/store scope project` keeps a git-style
   `./.aurora/` history in the current directory; `global` (default) keeps one
   shared log under `~/.config/aurora/data`. An existing `./.aurora/` is picked

@@ -1,11 +1,14 @@
 import readline from 'node:readline';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
 import { resolveDataDir } from './store/location.js';
 import { attachSession, rotateSession, writeActiveSession } from './store/session.js';
 import { saveExchange } from './store/persist.js';
+import { previewTitle, firstUserText } from './store/title.js';
+import { conversationToMarkdown } from './store/export.js';
 import { runFirstRunSetup, shouldRunSetup } from './setup.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { runServer } from './serve.js';
@@ -119,7 +122,8 @@ export async function main(argv = process.argv.slice(2)) {
     try {
       const prior = await store.getConversation(sessionId);
       if (prior.length) {
-        replayTurns(prior, `Picking up session ${shortId(sessionId)}`);
+        const title = previewTitle(firstUserText(prior));
+        replayTurns(prior, `Picking up session ${shortId(sessionId)} · "${title}"`);
         console.log(hint() + '\n');
       }
     } catch {
@@ -319,6 +323,10 @@ async function handleCommand(text, ctx) {
       await handleResume(arg, ctx);
       return true;
 
+    case 'export':
+      await handleExport(arg, ctx);
+      return true;
+
     case 'notify':
       await handleNotify(arg, ctx);
       return true;
@@ -483,13 +491,21 @@ async function handleHistory(ctx) {
     return;
   }
   convs.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-  console.log('\n' + info('Saved conversations:'));
+  console.log('\n' + info('Saved conversations:') + warn('  (most recent first)'));
   for (const c of convs) {
-    const id = String(c.sessionId);
+    const id = String(c.sessionId).slice(0, 8);
     const when = c.updatedAt ? String(c.updatedAt).replace('T', ' ').slice(0, 16) : '—';
-    console.log(`  ${id.slice(0, 8)}  ${String(c.turns).padStart(3)} turns  ${when}`);
+    const meta = warn(`${String(c.turns).padStart(3)} turns · ${when}`);
+    console.log(`  ${info(id)}  ${meta}  ${previewTitle(c.title)}`);
   }
-  console.log(info('\n  Resume one with: ') + '/resume <id>   (the short id above is enough)\n');
+  console.log(
+    info('\n  Resume: ') +
+      '/resume <id>  ·  ' +
+      info('latest: ') +
+      '/resume  ·  ' +
+      info('save: ') +
+      '/export [id]\n',
+  );
 }
 
 /** Reattach to a saved conversation by (a prefix of) its session id. */
@@ -500,10 +516,6 @@ async function handleResume(arg, ctx) {
     );
     return;
   }
-  if (!arg) {
-    console.log('\n' + warn('Usage: /resume <id>   (see /history for ids)') + '\n');
-    return;
-  }
   let convs = [];
   try {
     convs = await ctx.store.listConversations();
@@ -511,18 +523,35 @@ async function handleResume(arg, ctx) {
     console.log('\n' + error('  ✖ ' + e.message) + '\n');
     return;
   }
-  const matches = convs.filter((c) => String(c.sessionId).startsWith(arg));
-  if (!matches.length) {
-    console.log('\n' + warn(`No saved conversation matches "${arg}". Try /history.`) + '\n');
+  if (!convs.length) {
+    console.log('\n' + info('No saved conversations to resume yet.') + '\n');
     return;
   }
-  if (matches.length > 1) {
-    console.log(
-      '\n' + warn(`"${arg}" matches ${matches.length} conversations — use more characters.`) + '\n',
+
+  let target;
+  if (!arg) {
+    // No id given: pick up the most recently updated conversation.
+    target = convs.reduce((a, b) =>
+      String(b.updatedAt).localeCompare(String(a.updatedAt)) > 0 ? b : a,
     );
-    return;
+  } else {
+    const matches = convs.filter((c) => String(c.sessionId).startsWith(arg));
+    if (!matches.length) {
+      console.log('\n' + warn(`No saved conversation matches "${arg}". Try /history.`) + '\n');
+      return;
+    }
+    if (matches.length > 1) {
+      console.log(
+        '\n' +
+          warn(`"${arg}" matches ${matches.length} conversations — use more characters.`) +
+          '\n',
+      );
+      return;
+    }
+    target = matches[0];
   }
-  const sessionId = String(matches[0].sessionId);
+
+  const sessionId = String(target.sessionId);
   if (!ctx.provider.resume(sessionId)) {
     console.log(
       '\n' + warn(`The ${ctx.provider.constructor.id} provider can't resume sessions.`) + '\n',
@@ -538,8 +567,68 @@ async function handleResume(arg, ctx) {
   } catch {
     // Best-effort replay; resuming still works without the on-screen history.
   }
-  replayTurns(turns, `Resuming session ${shortId(sessionId)}`);
+  const title = previewTitle(target.title || firstUserText(turns));
+  replayTurns(turns, `Resuming session ${shortId(sessionId)} · "${title}"`);
   console.log(info('\n  Continuing this conversation. Type your next message.') + '\n');
+}
+
+/** Export a conversation to a Markdown file in the current directory. */
+async function handleExport(arg, ctx) {
+  if (!ctx.store || ctx.store.constructor.id === 'none') {
+    console.log(
+      '\n' + warn('Persistence is off. Enable it with /store sqlite (or json) first.') + '\n',
+    );
+    return;
+  }
+  // No id → export the conversation currently in progress.
+  let sessionId = arg ? null : ctx.sessionId;
+  if (arg) {
+    let convs = [];
+    try {
+      convs = await ctx.store.listConversations();
+    } catch (e) {
+      console.log('\n' + error('  ✖ ' + e.message) + '\n');
+      return;
+    }
+    const matches = convs.filter((c) => String(c.sessionId).startsWith(arg));
+    if (matches.length !== 1) {
+      const how = matches.length ? 'use more characters' : 'see /history';
+      console.log('\n' + warn(`"${arg}" matches ${matches.length} conversations — ${how}.`) + '\n');
+      return;
+    }
+    sessionId = String(matches[0].sessionId);
+  }
+  if (!sessionId) {
+    console.log(
+      '\n' + warn('Nothing to export yet — start (or /resume) a conversation first.') + '\n',
+    );
+    return;
+  }
+
+  let turns = [];
+  try {
+    turns = await ctx.store.getConversation(sessionId);
+  } catch (e) {
+    console.log('\n' + error('  ✖ ' + e.message) + '\n');
+    return;
+  }
+  if (!turns.length) {
+    console.log('\n' + warn('That conversation has no saved turns.') + '\n');
+    return;
+  }
+
+  const md = conversationToMarkdown(turns, {
+    sessionId,
+    exportedAt: new Date().toISOString(),
+  });
+  const file = join(process.cwd(), `aurora-${shortId(sessionId)}.md`);
+  try {
+    writeFileSync(file, md, 'utf8');
+  } catch (e) {
+    console.log('\n' + error('  ✖ could not write file: ' + e.message) + '\n');
+    return;
+  }
+  console.log('\n' + info('Exported ') + `${turns.length} turns → ` + file + '\n');
 }
 
 /** Short, display-friendly form of a session id. */
@@ -642,7 +731,8 @@ function printHelp() {
           'show or switch persistence (none/json/sqlite); /store scope global|project',
         ],
         ['/history', 'list saved conversations (needs persistence on)'],
-        ['/resume <id>', 'reattach to a saved conversation'],
+        ['/resume [id]', 'reattach to a saved conversation (no id = most recent)'],
+        ['/export [id]', 'save a conversation to a Markdown file (no id = current)'],
         ['/notify [on|off|test|whoami]', 'Telegram alerts; whoami finds your chat id'],
         ['/config', 'show config file path and contents'],
         ['/clear', 'clear the screen'],

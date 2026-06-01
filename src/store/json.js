@@ -51,6 +51,7 @@ export class JsonStore extends Store {
       sessionId,
       turns: c.turns.length,
       updatedAt: c.updatedAt,
+      title: c.turns.find((t) => t.role === 'user')?.text || '',
     }));
   }
 

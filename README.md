@@ -36,20 +36,21 @@ interactive REPL.
 
 ### In-chat commands
 
-| Command                           | What it does                                       |
-| --------------------------------- | -------------------------------------------------- |
-| `/help`                           | show commands                                      |
-| `/template`                       | show the Aurora Research Method again              |
-| `/new`                            | start a fresh conversation (clears context)        |
-| `/provider [id]`                  | list providers, or switch backend                  |
-| `/model [name]`                   | show or set the model (`/model default` to reset)  |
-| `/store [id]`                     | switch persistence; `/store scope global\|project` |
-| `/history`                        | list saved conversations (needs persistence on)    |
-| `/resume <id>`                    | reattach to a saved conversation                   |
-| `/notify [on\|off\|test\|whoami]` | Telegram alerts; `whoami` finds your chat id       |
-| `/config`                         | show config path + contents (secrets masked)       |
-| `/clear`                          | clear the screen                                   |
-| `/exit`                           | quit (or Ctrl-D)                                   |
+| Command                           | What it does                                            |
+| --------------------------------- | ------------------------------------------------------- |
+| `/help`                           | show commands                                           |
+| `/template`                       | show the Aurora Research Method again                   |
+| `/new`                            | start a fresh conversation (clears context)             |
+| `/provider [id]`                  | list providers, or switch backend                       |
+| `/model [name]`                   | show or set the model (`/model default` to reset)       |
+| `/store [id]`                     | switch persistence; `/store scope global\|project`      |
+| `/history`                        | list saved conversations, with previews (needs a store) |
+| `/resume [id]`                    | reattach to a conversation (no id = most recent)        |
+| `/export [id]`                    | save a conversation to Markdown (no id = current)       |
+| `/notify [on\|off\|test\|whoami]` | Telegram alerts; `whoami` finds your chat id            |
+| `/config`                         | show config path + contents (secrets masked)            |
+| `/clear`                          | clear the screen                                        |
+| `/exit`                           | quit (or Ctrl-D)                                        |
 
 ## How it works
 
@@ -79,8 +80,10 @@ to survive restarts, pick a local backend — the choice is yours:
 | SQLite    | `/store sqlite` | Faster at scale. Requires `npm install better-sqlite3` (an optional dependency). |
 
 Once a backend is on, every turn is saved. **`/history`** lists past
-conversations and **`/resume <id>`** reattaches to one (the short id from
-`/history` is enough) so you can pick a research thread back up.
+conversations (each with a one-line preview of its opening message), and
+**`/resume [id]`** reattaches to one — pass the short id from `/history`, or no
+id to pick up the most recent. **`/export [id]`** writes a conversation to a
+Markdown file you can keep or share (no id exports the current one).
 
 **One conversation across the CLI and Telegram.** With a store enabled, the REPL
 and the `--serve` Telegram bridge attach to the same _active session_: a chat
