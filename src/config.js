@@ -10,6 +10,10 @@ const DEFAULTS = {
   model: null, // null => provider default
   claudeBin: 'claude',
 
+  // Set true once the first-run questionnaire has run (see src/setup.js), so it
+  // only prompts once even if the user declines a store.
+  setupDone: false,
+
   // Persistence is opt-in. 'none' keeps Aurora stateless (default);
   // 'json' and 'sqlite' persist conversations. See src/store/.
   store: 'none',

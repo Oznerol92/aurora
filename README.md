@@ -64,6 +64,11 @@ Config lives at `~/.config/aurora/config.json`.
 
 ## Persistence (optional)
 
+**On first launch**, Aurora runs a one-time setup that asks whether to save your
+conversations and where, recommending SQLite when `better-sqlite3` is installed
+(and pointing you at how to install it otherwise). You can skip it and stay
+stateless, then change your mind anytime with `/store`.
+
 Aurora is **stateless by default** (`store: "none"`). If you want conversations
 to survive restarts, pick a local backend — the choice is yours:
 

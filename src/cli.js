@@ -6,6 +6,7 @@ import { getStore, listStores } from './store/index.js';
 import { resolveDataDir } from './store/location.js';
 import { attachSession, rotateSession, writeActiveSession } from './store/session.js';
 import { saveExchange } from './store/persist.js';
+import { runFirstRunSetup, shouldRunSetup } from './setup.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { runServer } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
@@ -52,6 +53,15 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(1);
   }
 
+  const isServe = argv.includes('--serve') || argv.includes('--telegram');
+
+  // First-run questionnaire: offer a persistence backend (with hints based on
+  // what's installed) before anything opens a store. Interactive REPL only, and
+  // only until the user has answered once.
+  if (shouldRunSetup(config, { isServe, isTty: Boolean(process.stdin.isTTY) })) {
+    await runFirstRunSetup(config);
+  }
+
   // Optional persistence (opt-in via config.store). Best-effort: if the store
   // can't open, warn and fall back to stateless rather than refusing to start.
   // Opened before either mode so the CLI and the server share one history.
@@ -74,7 +84,7 @@ export async function main(argv = process.argv.slice(2)) {
   // inbound listener and keeps them running: the two-way Telegram bridge today,
   // plus any future webhooks registered in src/serve.js. `aurora --telegram`
   // is a back-compatible alias that runs the same server.
-  if (argv.includes('--serve') || argv.includes('--telegram')) {
+  if (isServe) {
     console.log('\n' + banner());
     console.log(info('  Backend: ') + provider.describe());
     if (hasStore)
