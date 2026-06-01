@@ -77,6 +77,17 @@ Once a backend is on, every turn is saved. **`/history`** lists past
 conversations and **`/resume <id>`** reattaches to one (the short id from
 `/history` is enough) so you can pick a research thread back up.
 
+**One conversation across the CLI and Telegram.** With a store enabled, the REPL
+and the `--serve` Telegram bridge attach to the same _active session_: a chat
+you start on Telegram is shown and picked up the next time you open `aurora` on
+the command line, and what you type in the terminal continues on Telegram.
+`/new` on either side starts a fresh shared thread. (SQLite is recommended if
+you'll have the server and the CLI running at the same time — it handles
+concurrent writes; the JSON store is best for one-at-a-time use. Full model
+context carries over only when both are launched from the same directory, since
+the `claude` CLI scopes its own session state per directory — but the message
+history always replays regardless, because Aurora stores it itself.)
+
 **Where the data lives** — two scopes, switched with `/store scope`:
 
 | Scope              | Location                 | When to use                                           |

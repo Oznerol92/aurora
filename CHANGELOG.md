@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Shared conversation across CLI and Telegram.** With a store enabled, the
+  REPL and the `--serve` Telegram bridge attach to one **active session**: a
+  chat you start on Telegram is picked up (and replayed) when you open the CLI,
+  and vice-versa. `/new` on either side starts a fresh shared thread. The
+  Telegram bridge now persists its turns (previously it saved nothing).
 - **Conversation history.** With persistence on (`/store json` or `sqlite`),
   `/history` lists saved conversations and `/resume <id>` reattaches to one —
   reconnecting the provider session and replaying the saved turns on screen.

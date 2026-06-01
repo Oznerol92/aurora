@@ -4,6 +4,8 @@ import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
 import { resolveDataDir } from './store/location.js';
+import { attachSession, rotateSession, writeActiveSession } from './store/session.js';
+import { saveExchange } from './store/persist.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { runServer } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
@@ -50,6 +52,23 @@ export async function main(argv = process.argv.slice(2)) {
     process.exit(1);
   }
 
+  // Optional persistence (opt-in via config.store). Best-effort: if the store
+  // can't open, warn and fall back to stateless rather than refusing to start.
+  // Opened before either mode so the CLI and the server share one history.
+  let store = getStore(config.store, config);
+  try {
+    await store.open();
+  } catch (e) {
+    console.error(warn('  persistence disabled: ' + e.message));
+    store = getStore('none', config);
+  }
+  const hasStore = store.constructor.id !== 'none';
+
+  // Attach to the shared "active session" so the CLI and the Telegram bridge
+  // continue the same conversation (only when a store is on — otherwise each
+  // process stays its own stateless chat).
+  let sessionId = attachSession(provider, config, hasStore);
+
   // --- Server / listener mode (headless, no REPL) -----------------------
   // `aurora --serve` (and what `npm start` runs) starts every configured
   // inbound listener and keeps them running: the two-way Telegram bridge today,
@@ -58,8 +77,15 @@ export async function main(argv = process.argv.slice(2)) {
   if (argv.includes('--serve') || argv.includes('--telegram')) {
     console.log('\n' + banner());
     console.log(info('  Backend: ') + provider.describe());
+    if (hasStore)
+      console.log(info('  Store:   ') + config.store + ` (session ${shortId(sessionId)})`);
     try {
-      await runServer({ provider, config, logLine: (m) => console.log(info('  • ') + m) });
+      await runServer({
+        provider,
+        config,
+        store,
+        logLine: (m) => console.log(info('  • ') + m),
+      });
     } catch (e) {
       console.error(error('  ✖ ' + e.message));
       process.exit(1);
@@ -67,25 +93,29 @@ export async function main(argv = process.argv.slice(2)) {
     return;
   }
 
-  // Optional persistence (opt-in via config.store). Best-effort: if the store
-  // can't open, warn and fall back to stateless rather than refusing to start.
-  let store = getStore(config.store, config);
-  try {
-    await store.open();
-  } catch (e) {
-    console.error(warn('  persistence disabled: ' + e.message));
-    store = getStore('none', config);
-  }
-
   // --- Startup screen ---------------------------------------------------
   console.log('\n' + banner());
   console.log(renderMarkdown(TEMPLATE));
   console.log('\n' + info('  Backend: ') + provider.describe());
-  if (config.store && config.store !== 'none') {
-    console.log(info('  Store:   ') + config.store);
+  if (hasStore) {
+    console.log(info('  Store:   ') + config.store + ` (session ${shortId(sessionId)})`);
   }
   if (telegramEnabled(config)) console.log(info('  Notify:  ') + 'telegram');
   console.log(hint() + '\n');
+
+  // Pick the shared conversation back up: replay its recent turns (including any
+  // that arrived over Telegram) so the terminal shows where things left off.
+  if (hasStore && sessionId) {
+    try {
+      const prior = await store.getConversation(sessionId);
+      if (prior.length) {
+        replayTurns(prior, `Picking up session ${shortId(sessionId)}`);
+        console.log(hint() + '\n');
+      }
+    } catch {
+      // A failed replay shouldn't stop the chat from starting.
+    }
+  }
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -93,7 +123,7 @@ export async function main(argv = process.argv.slice(2)) {
     prompt: promptLabel(),
   });
 
-  const ctx = { rl, provider, config, store };
+  const ctx = { rl, provider, config, store, hasStore, sessionId };
 
   // Process input strictly one line at a time. Readline can deliver several
   // 'line' events back-to-back (paste, or piped stdin); without a queue their
@@ -209,28 +239,12 @@ async function streamResponse(ctx, text) {
   process.stdout.write('\n');
 
   // --- Side effects: persist + notify (both best-effort) ---------------
+  // Persist under the shared session id (so CLI + Telegram land in one thread),
+  // falling back to whatever the provider reported.
   const finalText = gotText ? answer : meta?.text || '';
-  const sessionId = meta?.sessionId || provider.shortSession?.() || null;
-  await persistTurns(store, sessionId, text, finalText, meta);
+  ctx.sessionId = ctx.sessionId || meta?.sessionId || null;
+  await saveExchange(store, ctx.sessionId, text, finalText, meta);
   await maybeNotify(config, finalText);
-}
-
-/** Record the user prompt and assistant answer, if a store is active. */
-async function persistTurns(store, sessionId, prompt, answer, meta) {
-  if (!store || store.constructor.id === 'none' || !sessionId) return;
-  const ts = new Date().toISOString();
-  try {
-    await store.saveTurn(sessionId, { role: 'user', text: prompt, ts });
-    await store.saveTurn(sessionId, {
-      role: 'assistant',
-      text: answer,
-      ts,
-      model: meta?.model,
-      costUsd: meta?.costUsd,
-    });
-  } catch {
-    // Persistence is best-effort; never break the chat over a failed write.
-  }
 }
 
 /** Send a Telegram ping when the turn finishes, if enabled. */
@@ -257,7 +271,8 @@ async function handleCommand(text, ctx) {
 
     case 'new':
     case 'reset':
-      ctx.provider.reset();
+      // Rotate the shared session so a fresh thread starts on Telegram too.
+      ctx.sessionId = rotateSession(ctx.provider, ctx.config, ctx.hasStore);
       console.log(
         '\n' +
           info('Started a fresh conversation.') +
@@ -504,18 +519,42 @@ async function handleResume(arg, ctx) {
     );
     return;
   }
+  // Make this the shared active session so it persists and the server follows.
+  ctx.sessionId = sessionId;
+  if (ctx.hasStore) writeActiveSession(ctx.config, sessionId);
   let turns = [];
   try {
     turns = await ctx.store.getConversation(sessionId);
   } catch {
     // Best-effort replay; resuming still works without the on-screen history.
   }
-  console.log('\n' + info(`Resuming session ${sessionId.slice(0, 8)} (${turns.length} turns):`));
-  for (const t of turns) {
+  replayTurns(turns, `Resuming session ${shortId(sessionId)}`);
+  console.log(info('\n  Continuing this conversation. Type your next message.') + '\n');
+}
+
+/** Short, display-friendly form of a session id. */
+function shortId(id) {
+  return id ? String(id).slice(0, 8) : 'n/a';
+}
+
+/**
+ * Print a saved conversation to the terminal. `limit` keeps long research
+ * threads from flooding the screen — only the most recent turns are shown, with
+ * a note about how many were hidden.
+ */
+function replayTurns(turns, header, limit = 12) {
+  const hidden = Math.max(0, turns.length - limit);
+  const shown = hidden ? turns.slice(-limit) : turns;
+  console.log('\n' + info(`${header} — ${turns.length} turn${turns.length === 1 ? '' : 's'}:`));
+  if (hidden) {
+    console.log(
+      warn(`  … ${hidden} earlier turn${hidden === 1 ? '' : 's'} hidden (/history for all)`),
+    );
+  }
+  for (const t of shown) {
     if (t.role === 'user') console.log('\n' + promptLabel() + t.text);
     else console.log(auroraLabel() + '\n' + renderMarkdown(t.text));
   }
-  console.log(info('\n  Continuing this conversation. Type your next message.') + '\n');
 }
 
 async function handleNotify(arg, ctx) {

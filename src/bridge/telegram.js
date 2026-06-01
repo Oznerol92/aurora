@@ -1,4 +1,6 @@
 import { sendTelegram } from '../notify/telegram.js';
+import { attachSession, rotateSession } from '../store/session.js';
+import { saveExchange } from '../store/persist.js';
 
 /**
  * Two-way Telegram bridge: long-poll getUpdates, feed each authorized message
@@ -17,7 +19,7 @@ const FETCH_TIMEOUT_MS = (POLL_TIMEOUT_S + 5) * 1000;
 const TELEGRAM_MAX_LEN = 4096;
 const ERROR_BACKOFF_MS = 3000;
 
-export async function runTelegramBridge({ provider, config, logLine }) {
+export async function runTelegramBridge({ provider, config, store, logLine }) {
   const token = process.env.TELEGRAM_BOT_TOKEN || null;
   const authorizedChatId = process.env.TELEGRAM_CHAT_ID || null;
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not set.');
@@ -28,6 +30,12 @@ export async function runTelegramBridge({ provider, config, logLine }) {
   }
   const log = logLine || ((m) => console.log(m));
 
+  // Share the same conversation as the CLI: attach to the active session so a
+  // chat continues across Telegram and the terminal (only when a store is on).
+  const hasStore = Boolean(store) && store.constructor.id !== 'none';
+  const state = { sessionId: attachSession(provider, config, hasStore) };
+  if (hasStore) log(`Persisting to store; session ${shortId(state.sessionId)}`);
+
   // Skip any backlog so a restart doesn't replay old messages.
   let offset = await drainBacklog(token);
   log(
@@ -37,6 +45,8 @@ export async function runTelegramBridge({ provider, config, logLine }) {
     '🟢 Aurora is listening. Send me anything; /new starts a fresh conversation.',
     config,
   );
+
+  const ctx = { provider, config, store, hasStore, state, authorizedChatId, token, log };
 
   // Main loop: never let a single failure kill the bridge.
   while (true) {
@@ -50,7 +60,7 @@ export async function runTelegramBridge({ provider, config, logLine }) {
     for (const u of updates) {
       offset = u.update_id + 1;
       try {
-        await handleUpdate(u, { provider, config, authorizedChatId, token, log });
+        await handleUpdate(u, ctx);
       } catch (e) {
         log('  error handling update: ' + (e?.message || String(e)));
       }
@@ -58,7 +68,8 @@ export async function runTelegramBridge({ provider, config, logLine }) {
   }
 }
 
-export async function handleUpdate(update, { provider, config, authorizedChatId, token, log }) {
+export async function handleUpdate(update, ctx) {
+  const { provider, config, store, hasStore, state, authorizedChatId, token, log } = ctx;
   const msg = update.message;
   if (!msg || typeof msg.text !== 'string') return; // ignore non-text updates
 
@@ -79,7 +90,8 @@ export async function handleUpdate(update, { provider, config, authorizedChatId,
     return;
   }
   if (text === '/new' || text === '/reset') {
-    provider.reset();
+    // Rotate the shared session so the terminal starts fresh too.
+    state.sessionId = rotateSession(provider, config, hasStore);
     await sendTelegram('🔄 Started a fresh conversation.', config);
     return;
   }
@@ -88,17 +100,35 @@ export async function handleUpdate(update, { provider, config, authorizedChatId,
   await sendChatAction(token, authorizedChatId, 'typing');
 
   let answer = '';
+  let meta = null;
+  let errored = false;
   try {
     for await (const ev of provider.send(text)) {
       if (ev.type === 'delta') answer += ev.text;
-      else if (ev.type === 'done' && !answer && ev.text) answer = ev.text;
+      else if (ev.type === 'done') {
+        meta = ev;
+        if (!answer && ev.text) answer = ev.text;
+      }
     }
   } catch (e) {
+    errored = true;
     answer = '⚠️ ' + (e?.message || 'the model returned an error');
   }
 
   await replyChunked(answer || '(no response)', config);
+
+  // Record the exchange under the shared session so it shows up in the CLI's
+  // /history and /resume. Don't persist failed turns.
+  if (hasStore && !errored) {
+    state.sessionId = state.sessionId || meta?.sessionId || null;
+    await saveExchange(store, state.sessionId, text, answer, meta);
+  }
   log('  → replied');
+}
+
+/** Short, display-friendly form of a session id. */
+function shortId(id) {
+  return id ? String(id).slice(0, 8) : 'n/a';
 }
 
 /** Telegram caps messages at 4096 chars; split long answers across messages. */
