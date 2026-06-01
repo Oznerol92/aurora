@@ -3,6 +3,7 @@ import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
+import { runTelegramBridge } from './bridge/telegram.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { TEMPLATE } from './template.js';
 import {
@@ -39,6 +40,21 @@ export async function main(argv = process.argv.slice(2)) {
   } catch (e) {
     console.error(error(e.message));
     process.exit(1);
+  }
+
+  // --- Telegram bridge mode (headless, no REPL) -------------------------
+  // `aurora --telegram` listens for messages you send the bot and replies
+  // there. Only your authorized TELEGRAM_CHAT_ID is processed (see bridge).
+  if (argv.includes('--telegram')) {
+    console.log('\n' + banner());
+    console.log(info('  Backend: ') + provider.describe());
+    try {
+      await runTelegramBridge({ provider, config, logLine: (m) => console.log(info('  • ') + m) });
+    } catch (e) {
+      console.error(error('  ✖ ' + e.message));
+      process.exit(1);
+    }
+    return;
   }
 
   // Optional persistence (opt-in via config.store). Best-effort: if the store
@@ -423,6 +439,7 @@ function printUsage() {
       'Usage:',
       '  aurora                 start an interactive chat',
       '  aurora --model <name>  start with a specific model',
+      '  aurora --telegram      listen on Telegram and reply there (two-way bridge)',
       '  aurora --help          show this',
       '  aurora --version       print version',
       '',

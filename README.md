@@ -85,6 +85,19 @@ then run **`/notify whoami`** — Aurora calls `getUpdates` and prints the chats
 that have messaged your bot, ready to paste into your `.env`. (Aurora never
 writes secrets — token or chat id — to disk; they live only in the environment.)
 
+### Two-way Telegram bridge
+
+Run Aurora as a listener and chat with it entirely from Telegram:
+
+```bash
+aurora --telegram
+```
+
+It long-polls for messages, runs each through the AI, and replies on Telegram.
+Send `/new` to start a fresh conversation. **Security:** only messages from your
+`TELEGRAM_CHAT_ID` are processed — a public bot can be messaged by anyone, so
+every other sender is ignored, and the bridge refuses to start without that id.
+
 ## Security
 
 This is an open-source repo, so it's built to be safe to publish and share:
