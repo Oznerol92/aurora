@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-01
+
+### Added
+
+- **npm publishing.** The release workflow now has a conditional `npm publish`
+  step (with provenance). It no-ops until an `NPM_TOKEN` repo secret is added,
+  so releases stay GitHub-only by default. See the README for setup.
+- CI now verifies the publish tarball (`npm pack --dry-run`) so packaging
+  mistakes surface before a release.
+- README: branch-protection setup for `master` (UI + `gh` command).
+
+### Changed
+
+- `CHANGELOG.md` is now included in the published package.
+
 ## [0.2.0] - 2026-06-01
 
 ### Added
@@ -31,6 +46,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   layer (Claude via the `claude` CLI), optional persistence (`none`/`json`/
   `sqlite`), Telegram notifications, and a two-way Telegram bridge.
 
-[Unreleased]: https://github.com/Oznerol92/aurora/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Oznerol92/aurora/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Oznerol92/aurora/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Oznerol92/aurora/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Oznerol92/aurora/releases/tag/v0.1.0

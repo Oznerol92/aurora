@@ -69,3 +69,36 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+  npm-publish:
+    name: npm publish
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --omit=optional
+
+      # No-ops cleanly when NPM_TOKEN isn't configured, so the GitHub Release
+      # still ships. To start publishing to npm, add an NPM_TOKEN repo secret
+      # (an npm automation token) — nothing else needs to change.
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN not set — skipping npm publish (GitHub Release still created)."
+            exit 0
+          fi
+          npm publish --provenance --access public

@@ -43,3 +43,7 @@ jobs:
           set -euo pipefail
           node bin/aurora.js --version
           node bin/aurora.js --help
+
+      # Catch packaging mistakes (missing/extra files) before a release does.
+      - name: Verify publish tarball
+        run: npm pack --dry-run

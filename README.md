@@ -159,8 +159,40 @@ git push --follow-tags     # pushes the commit and the tag
 
 Pushing a `v*` tag triggers `.github/workflows/release.yml`, which re-runs the
 checks, verifies the tag matches `package.json`, and publishes a GitHub Release
-with auto-generated notes. (GitHub-only — no npm publish, no extra secrets.)
-Record notable changes in [`CHANGELOG.md`](CHANGELOG.md) as you go.
+with auto-generated notes. Record notable changes in
+[`CHANGELOG.md`](CHANGELOG.md) as you go.
+
+### Publishing to npm (optional)
+
+The release workflow also has an `npm publish` step. It **no-ops by default** —
+so releases stay GitHub-only — and starts publishing once you add an npm token:
+
+1. Create an [npm automation token](https://docs.npmjs.com/creating-and-viewing-access-tokens).
+2. Add it as a repo secret named `NPM_TOKEN`
+   (Settings → Secrets and variables → Actions).
+
+From then on, each tagged release publishes `aurora-cli` to npm with
+[provenance](https://docs.npmjs.com/generating-provenance-statements). No
+workflow change needed. (The package name `aurora-cli` must be available/yours.)
+
+### Protecting `master`
+
+To require green CI before anything lands on `master`, add a branch protection
+rule. Either via **Settings → Branches → Add rule** (branch name `master`,
+enable *Require status checks to pass* and select the `check` jobs), or with the
+GitHub CLI:
+
+```bash
+gh api -X PUT repos/Oznerol92/aurora/branches/master/protection \
+  -H "Accept: application/vnd.github+json" \
+  -f 'required_status_checks[strict]=true' \
+  -f 'required_status_checks[contexts][]=check (node 18)' \
+  -f 'required_status_checks[contexts][]=check (node 20)' \
+  -f 'required_status_checks[contexts][]=check (node 22)' \
+  -f 'enforce_admins=true' \
+  -f 'required_pull_request_reviews=null' \
+  -f 'restrictions=null'
+```
 
 ## Layout
 
