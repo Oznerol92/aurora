@@ -140,6 +140,28 @@ The provider layer is already scalable. To add, say, OpenAI:
 
 Nothing in the CLI or UI needs to change — `/provider openai` will just work.
 
+## Versioning & releases
+
+Aurora follows [Semantic Versioning](https://semver.org). `package.json` is the
+single source of truth for the version (`--version` reads it), and releases are
+cut from git tags.
+
+**Continuous integration** (`.github/workflows/ci.yml`) runs on every push to
+`master` and on pull requests: it byte-checks every source file and smoke-tests
+the CLI across Node 18/20/22.
+
+**Cutting a release** — bump, tag, and push:
+
+```bash
+npm version patch          # or minor / major — bumps package.json, commits, tags vX.Y.Z
+git push --follow-tags     # pushes the commit and the tag
+```
+
+Pushing a `v*` tag triggers `.github/workflows/release.yml`, which re-runs the
+checks, verifies the tag matches `package.json`, and publishes a GitHub Release
+with auto-generated notes. (GitHub-only — no npm publish, no extra secrets.)
+Record notable changes in [`CHANGELOG.md`](CHANGELOG.md) as you go.
+
 ## Layout
 
 ```

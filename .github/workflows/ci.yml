@@ -1,0 +1,45 @@
+name: CI
+
+# Runs on every push to master and on pull requests. There is no test suite or
+# linter yet, so CI stays honest: it installs deps, byte-compiles every source
+# file (node --check), and smoke-tests the CLI's no-network paths across the
+# supported Node range. Add real tests later and wire them in here.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  check:
+    name: check (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # better-sqlite3 is an optionalDependency; omitting it keeps CI fast and
+      # avoids a native build that isn't needed to byte-check the JS.
+      - name: Install dependencies
+        run: npm ci --omit=optional
+
+      - name: Syntax-check all sources
+        run: |
+          set -euo pipefail
+          find bin src -name '*.js' -print0 | xargs -0 -n1 node --check
+          echo "all sources parsed OK"
+
+      - name: Smoke-test CLI (no network)
+        run: |
+          set -euo pipefail
+          node bin/aurora.js --version
+          node bin/aurora.js --help

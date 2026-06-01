@@ -1,4 +1,5 @@
 import readline from 'node:readline';
+import { readFileSync } from 'node:fs';
 import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
@@ -6,6 +7,12 @@ import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/tele
 import { runServer } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { TEMPLATE } from './template.js';
+
+// Single source of truth for the version: package.json. `npm version` bumps it,
+// and the release workflow checks it against the pushed tag.
+const VERSION = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+).version;
 import {
   renderMarkdown,
   banner,
@@ -24,7 +31,7 @@ export async function main(argv = process.argv.slice(2)) {
   loadDotenv(); // pull .env into process.env before config/creds are read
   if (argv.includes('--help') || argv.includes('-h')) return printUsage();
   if (argv.includes('--version') || argv.includes('-v')) {
-    console.log('aurora 0.1.0');
+    console.log('aurora ' + VERSION);
     return;
   }
 
