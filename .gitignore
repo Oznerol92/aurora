@@ -13,6 +13,8 @@ node_modules/
 *.db
 data/
 aurora-data/
+# Project-scoped store (/store scope project)
+.aurora/
 
 # OS / editor noise
 .DS_Store

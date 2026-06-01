@@ -8,28 +8,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Conversation history.** With persistence on (`/store json` or `sqlite`),
+  `/history` lists saved conversations and `/resume <id>` reattaches to one —
+  reconnecting the provider session and replaying the saved turns on screen.
+- **Project-scoped storage.** `/store scope project` keeps a git-style
+  `./.aurora/` history in the current directory; `global` (default) keeps one
+  shared log under `~/.config/aurora/data`. An existing `./.aurora/` is picked
+  up automatically.
 - **Test suite.** Zero-dependency `node --test` specs under `test/` covering the
-  `.env` loader, config load/save/redaction, and the research template. Run with
-  `npm test`.
+  `.env` loader, config, store round-trips, session resume, and the research
+  template. Run with `npm test`.
 - **Linting & formatting.** ESLint (flat config) + Prettier, wired into CI via
   `npm run lint` and `npm run format:check`. `npm run format` / `lint:fix` apply
   fixes locally.
-- **Automated releases.** `release-please` (`.github/workflows/release-please.yml`)
-  now drives versioning from Conventional Commits: it maintains a release PR that
-  bumps `package.json`, updates this changelog, and tags the release on merge.
-  Replaces the manual `npm version` step.
 - **Dependabot** (`.github/dependabot.yml`) for weekly, grouped npm and
   GitHub-Actions updates.
-- **Issue & PR templates** under `.github/` (bug report, feature request, and a
-  PR checklist that nudges Conventional Commit titles).
+- **Issue & PR templates** under `.github/`.
 
 ### Changed
 
+- **Release process.** Adopted a two-branch promotion model — work branches →
+  `pre-release` → `release`, each gated by an approving PR review. `release` is
+  now the stable/default branch and `master` is retired. Versioning is manual at
+  tag time; `.github/workflows/release.yml` fires on a pushed `v*` tag, verifies
+  it against `package.json`, and marks `0.x`/`-rc` tags as GitHub pre-releases
+  (publishing to npm under the `next` dist-tag).
 - CI now lints, checks formatting, and runs the test suite (in addition to the
-  byte-check and CLI smoke tests).
-- `.github/workflows/release.yml` now triggers on `release: published` (created
-  by release-please) and only verifies the tag and publishes to npm, rather than
-  firing on a raw `v*` tag push and creating the GitHub Release itself.
+  byte-check and CLI smoke tests), and runs on the `release`/`pre-release`
+  branches.
+
+### Removed
+
+- `release-please` automation, in favor of the manual, review-gated promotion
+  model above.
 
 ## [0.3.0] - 2026-06-01
 

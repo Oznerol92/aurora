@@ -52,6 +52,19 @@ export class ClaudeProvider extends Provider {
     this.started = false;
   }
 
+  /**
+   * Resume a prior session: point at its id and mark it started, so the next
+   * send() uses `--resume <id>` and the CLI restores that conversation's own
+   * context. (Aurora's stored turns are a parallel log; Claude keeps the real
+   * session state.)
+   */
+  resume(sessionId) {
+    if (!sessionId) return false;
+    this.sessionId = sessionId;
+    this.started = true;
+    return true;
+  }
+
   shortSession() {
     return this.sessionId.slice(0, 8);
   }

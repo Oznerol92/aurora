@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
+import { resolveDataDir } from './store/location.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { runServer } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
@@ -284,6 +285,15 @@ async function handleCommand(text, ctx) {
       await handleStore(arg, ctx);
       return true;
 
+    case 'history':
+    case 'sessions':
+      await handleHistory(ctx);
+      return true;
+
+    case 'resume':
+      await handleResume(arg, ctx);
+      return true;
+
     case 'notify':
       await handleNotify(arg, ctx);
       return true;
@@ -343,6 +353,45 @@ function handleModel(arg, ctx) {
 }
 
 async function handleStore(arg, ctx) {
+  // `/store scope [global|project]` — view or change where data is kept.
+  if (arg === 'scope' || arg.startsWith('scope ')) {
+    const want = arg.slice('scope'.length).trim();
+    if (!want) {
+      console.log(
+        '\n' +
+          info('Store scope: ') +
+          (ctx.config.storeScope || 'global') +
+          '\n' +
+          info('Data dir:    ') +
+          resolveDataDir({ scope: ctx.config.storeScope }) +
+          '\n  Set with: /store scope global | project   (project = ./.aurora here)\n',
+      );
+      return;
+    }
+    if (want !== 'global' && want !== 'project') {
+      console.log('\n' + warn(`Unknown scope "${want}". Use global or project.`) + '\n');
+      return;
+    }
+    ctx.config.storeScope = want;
+    saveConfig(ctx.config);
+    // Re-open the active store so the change takes effect immediately.
+    if (ctx.config.store && ctx.config.store !== 'none') {
+      const next = getStore(ctx.config.store, ctx.config);
+      try {
+        await next.open();
+        await ctx.store.close().catch(() => {});
+        ctx.store = next;
+      } catch (e) {
+        console.log('\n' + error(e.message) + '\n');
+        return;
+      }
+    }
+    console.log(
+      '\n' + info('Store scope: ') + want + '  →  ' + resolveDataDir({ scope: want }) + '\n',
+    );
+    return;
+  }
+
   if (!arg || arg === 'list') {
     console.log('\n' + info('Stores:'));
     for (const s of listStores()) {
@@ -351,7 +400,17 @@ async function handleStore(arg, ctx) {
         `  ${current ? '●' : '○'} ${s.id} — ${s.label}${current ? warn('  ◀ current') : ''}`,
       );
     }
-    console.log(info('\n  Switch with: ') + '/store <id>   (persistence is opt-in)\n');
+    console.log(
+      info('\n  Scope: ') +
+        (ctx.config.storeScope || 'global') +
+        '  (' +
+        resolveDataDir({ scope: ctx.config.storeScope }) +
+        ')',
+    );
+    console.log(
+      info('  Switch with: ') +
+        '/store <id>   ·   /store scope global|project   (persistence is opt-in)\n',
+    );
     return;
   }
   const ids = listStores().map((s) => s.id);
@@ -375,6 +434,88 @@ async function handleStore(arg, ctx) {
   ctx.config.store = arg;
   saveConfig(ctx.config);
   console.log('\n' + info('Store set to: ') + arg + '\n');
+}
+
+/** List saved conversations (most recent first). Needs a non-`none` store. */
+async function handleHistory(ctx) {
+  if (!ctx.store || ctx.store.constructor.id === 'none') {
+    console.log(
+      '\n' +
+        warn('Persistence is off. Enable it with /store sqlite (or json) to keep history.') +
+        '\n',
+    );
+    return;
+  }
+  let convs = [];
+  try {
+    convs = await ctx.store.listConversations();
+  } catch (e) {
+    console.log('\n' + error('  ✖ ' + e.message) + '\n');
+    return;
+  }
+  if (!convs.length) {
+    console.log('\n' + info('No saved conversations yet.') + '\n');
+    return;
+  }
+  convs.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  console.log('\n' + info('Saved conversations:'));
+  for (const c of convs) {
+    const id = String(c.sessionId);
+    const when = c.updatedAt ? String(c.updatedAt).replace('T', ' ').slice(0, 16) : '—';
+    console.log(`  ${id.slice(0, 8)}  ${String(c.turns).padStart(3)} turns  ${when}`);
+  }
+  console.log(info('\n  Resume one with: ') + '/resume <id>   (the short id above is enough)\n');
+}
+
+/** Reattach to a saved conversation by (a prefix of) its session id. */
+async function handleResume(arg, ctx) {
+  if (!ctx.store || ctx.store.constructor.id === 'none') {
+    console.log(
+      '\n' + warn('Persistence is off. Enable it with /store sqlite (or json) first.') + '\n',
+    );
+    return;
+  }
+  if (!arg) {
+    console.log('\n' + warn('Usage: /resume <id>   (see /history for ids)') + '\n');
+    return;
+  }
+  let convs = [];
+  try {
+    convs = await ctx.store.listConversations();
+  } catch (e) {
+    console.log('\n' + error('  ✖ ' + e.message) + '\n');
+    return;
+  }
+  const matches = convs.filter((c) => String(c.sessionId).startsWith(arg));
+  if (!matches.length) {
+    console.log('\n' + warn(`No saved conversation matches "${arg}". Try /history.`) + '\n');
+    return;
+  }
+  if (matches.length > 1) {
+    console.log(
+      '\n' + warn(`"${arg}" matches ${matches.length} conversations — use more characters.`) + '\n',
+    );
+    return;
+  }
+  const sessionId = String(matches[0].sessionId);
+  if (!ctx.provider.resume(sessionId)) {
+    console.log(
+      '\n' + warn(`The ${ctx.provider.constructor.id} provider can't resume sessions.`) + '\n',
+    );
+    return;
+  }
+  let turns = [];
+  try {
+    turns = await ctx.store.getConversation(sessionId);
+  } catch {
+    // Best-effort replay; resuming still works without the on-screen history.
+  }
+  console.log('\n' + info(`Resuming session ${sessionId.slice(0, 8)} (${turns.length} turns):`));
+  for (const t of turns) {
+    if (t.role === 'user') console.log('\n' + promptLabel() + t.text);
+    else console.log(auroraLabel() + '\n' + renderMarkdown(t.text));
+  }
+  console.log(info('\n  Continuing this conversation. Type your next message.') + '\n');
 }
 
 async function handleNotify(arg, ctx) {
@@ -447,7 +588,12 @@ function printHelp() {
         ['/new', 'start a fresh conversation (clears context)'],
         ['/provider [id]', 'list providers, or switch backend'],
         ['/model [name]', 'show or set the model (/model default to reset)'],
-        ['/store [id]', 'show or switch persistence (none/json/sqlite)'],
+        [
+          '/store [id]',
+          'show or switch persistence (none/json/sqlite); /store scope global|project',
+        ],
+        ['/history', 'list saved conversations (needs persistence on)'],
+        ['/resume <id>', 'reattach to a saved conversation'],
         ['/notify [on|off|test|whoami]', 'Telegram alerts; whoami finds your chat id'],
         ['/config', 'show config file path and contents'],
         ['/clear', 'clear the screen'],

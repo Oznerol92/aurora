@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { Store } from './base.js';
-import { configDir } from '../config.js';
+import { resolveDataDir } from './location.js';
 
 /**
  * SQLite store, backed by better-sqlite3. That package ships a native binding,
@@ -18,7 +18,7 @@ export class SqliteStore extends Store {
 
   constructor(config = {}) {
     super(config);
-    const dir = config.dataDir || join(configDir, 'data');
+    const dir = resolveDataDir(config);
     this.path = join(dir, 'aurora.sqlite');
     this.dir = dir;
     this.db = null;

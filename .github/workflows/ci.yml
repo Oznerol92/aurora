@@ -1,15 +1,18 @@
 name: CI
 
-# Runs on every push to master and on pull requests. CI installs deps, lints,
-# checks formatting, runs the test suite, byte-compiles every source file
-# (node --check), and smoke-tests the CLI's no-network paths across the
-# supported Node range.
+# Runs on pushes to the long-lived branches and on every PR into them. CI
+# installs deps, lints, checks formatting, runs the test suite, byte-compiles
+# every source file (node --check), and smoke-tests the CLI's no-network paths
+# across the supported Node range.
+#
+# Branch model: work branches → `pre-release` (your approval) → `release`
+# (your approval). Both are protected and require these checks to be green.
 
 on:
   push:
-    branches: [master]
+    branches: [release, pre-release]
   pull_request:
-    branches: [master]
+    branches: [release, pre-release]
 
 jobs:
   check:

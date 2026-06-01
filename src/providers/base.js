@@ -43,6 +43,17 @@ export class Provider {
   /** Start a fresh conversation (drop any session state). */
   reset() {}
 
+  /**
+   * Adopt an existing session so the next turn continues it. Used by /resume to
+   * pick a saved conversation back up. Providers that can't resume should leave
+   * this as a no-op (the CLI tells the user resuming isn't supported).
+   * @param {string} _sessionId
+   * @returns {boolean} whether the session was adopted
+   */
+  resume(_sessionId) {
+    return false;
+  }
+
   /** Short, display-friendly session identifier (or null). */
   shortSession() {
     return null;
