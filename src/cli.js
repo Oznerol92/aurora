@@ -6,7 +6,7 @@ import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
 import { resolveDataDir } from './store/location.js';
 import { attachSession, rotateSession, writeActiveSession } from './store/session.js';
-import { saveExchange } from './store/persist.js';
+import { saveUserTurn, saveAssistantTurn } from './store/persist.js';
 import { previewTitle, firstUserText } from './store/title.js';
 import { conversationToMarkdown } from './store/export.js';
 import { runFirstRunSetup, shouldRunSetup } from './setup.js';
@@ -219,6 +219,14 @@ export async function main(argv = process.argv.slice(2)) {
 
 async function streamResponse(ctx, text) {
   const { provider, store, config } = ctx;
+
+  // Persist the user turn up front (before the model is called) so an interrupt
+  // or crash mid-answer can't lose the question. Pin the session id now so the
+  // user turn and the assistant turn land under the same conversation.
+  const sessionId = ctx.sessionId || provider.sessionId || null;
+  ctx.sessionId = sessionId;
+  await saveUserTurn(store, sessionId, text);
+
   process.stdout.write('\n');
   const spinner = startSpinner();
   let headerPrinted = false;
@@ -234,19 +242,29 @@ async function streamResponse(ctx, text) {
     }
   };
 
-  for await (const ev of provider.send(text)) {
-    if (ev.type === 'status') {
-      spinner.stop();
-      // Status lines appear before the answer body starts.
-      if (!gotText) console.log(statusLine(ev.text));
-    } else if (ev.type === 'delta') {
-      ensureHeader();
-      gotText = true;
-      answer += ev.text;
-      process.stdout.write(ev.text);
-    } else if (ev.type === 'done') {
-      meta = ev;
+  try {
+    for await (const ev of provider.send(text)) {
+      if (ev.type === 'status') {
+        spinner.stop();
+        // Status lines appear before the answer body starts.
+        if (!gotText) console.log(statusLine(ev.text));
+      } else if (ev.type === 'delta') {
+        ensureHeader();
+        gotText = true;
+        answer += ev.text;
+        process.stdout.write(ev.text);
+      } else if (ev.type === 'done') {
+        meta = ev;
+      }
     }
+  } catch (e) {
+    spinner.stop();
+    // Save whatever streamed before the failure, marked incomplete, so /resume
+    // shows it and the model can continue from where it was cut off.
+    if (answer) {
+      await saveAssistantTurn(store, ctx.sessionId, answer, meta, { complete: false });
+    }
+    throw e;
   }
 
   spinner.stop();
@@ -270,11 +288,11 @@ async function streamResponse(ctx, text) {
   process.stdout.write('\n');
 
   // --- Side effects: persist + notify (both best-effort) ---------------
-  // Persist under the shared session id (so CLI + Telegram land in one thread),
-  // falling back to whatever the provider reported.
+  // Persist the completed assistant turn under the shared session id (so CLI +
+  // Telegram land in one thread), falling back to whatever the provider reported.
   const finalText = gotText ? answer : meta?.text || '';
   ctx.sessionId = ctx.sessionId || meta?.sessionId || null;
-  await saveExchange(store, ctx.sessionId, text, finalText, meta);
+  await saveAssistantTurn(store, ctx.sessionId, finalText, meta, { complete: true });
   await maybeNotify(config, finalText);
 }
 
@@ -668,8 +686,13 @@ function replayTurns(turns, header, limit = 12) {
     );
   }
   for (const t of shown) {
-    if (t.role === 'user') console.log('\n' + promptLabel() + t.text);
-    else console.log(auroraLabel() + '\n' + renderMarkdown(t.text));
+    if (t.role === 'user') {
+      console.log('\n' + promptLabel() + t.text);
+    } else {
+      // complete === false marks a turn that was interrupted mid-answer.
+      const tail = t.complete === false ? ' ' + warn('⏸ (interrupted)') : '';
+      console.log(auroraLabel() + tail + '\n' + renderMarkdown(t.text));
+    }
   }
 }
 

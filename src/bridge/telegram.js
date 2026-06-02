@@ -1,6 +1,6 @@
 import { sendTelegram } from '../notify/telegram.js';
 import { attachSession, rotateSession } from '../store/session.js';
-import { saveExchange } from '../store/persist.js';
+import { saveUserTurn, saveAssistantTurn } from '../store/persist.js';
 
 /**
  * Two-way Telegram bridge: long-poll getUpdates, feed each authorized message
@@ -114,6 +114,13 @@ export async function handleUpdate(update, ctx) {
   log(`  ← "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
   await typing();
 
+  // Persist the incoming message up front (before the model is called) so it
+  // survives a crash mid-answer and shows in the CLI's /history and /resume.
+  if (hasStore) {
+    state.sessionId = state.sessionId || provider.sessionId || null;
+    await saveUserTurn(store, state.sessionId, text);
+  }
+
   let answer = '';
   let meta = null;
   let errored = false;
@@ -132,11 +139,12 @@ export async function handleUpdate(update, ctx) {
 
   await replyChunked(answer || '(no response)', notify);
 
-  // Record the exchange under the shared session so it shows up in the CLI's
-  // /history and /resume. Don't persist failed turns.
+  // Record the assistant reply under the shared session. On error the user turn
+  // is already saved (above); we skip the warning text so it isn't mistaken for
+  // a real answer on /resume.
   if (hasStore && !errored) {
     state.sessionId = state.sessionId || meta?.sessionId || null;
-    await saveExchange(store, state.sessionId, text, answer, meta);
+    await saveAssistantTurn(store, state.sessionId, answer, meta, { complete: true });
   }
   log('  → replied');
 }

@@ -113,7 +113,7 @@ test('/new rotates the shared session and records the new active id', async () =
   });
 });
 
-test('a failed turn is replied with a warning but not persisted', async () => {
+test('a failed turn warns, and keeps the user message but no assistant reply', async () => {
   await withProjectDir(async () => {
     const store = new JsonStore({ scope: 'project' });
     await store.open();
@@ -131,6 +131,11 @@ test('a failed turn is replied with a warning but not persisted', async () => {
     await handleUpdate(fromOwner('question'), ctx);
 
     assert.match(captured.replies[0], /⚠️/);
-    assert.deepEqual(await store.getConversation('sess-err'), [], 'errors are not saved');
+    // Crash-safety: the question is persisted up front so it isn't lost, but the
+    // failed turn produces no assistant reply.
+    const conv = await store.getConversation('sess-err');
+    assert.equal(conv.length, 1);
+    assert.equal(conv[0].role, 'user');
+    assert.equal(conv[0].text, 'question');
   });
 });
