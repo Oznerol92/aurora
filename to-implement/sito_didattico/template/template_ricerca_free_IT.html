@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Template ricerca (free) — il metodo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <a class="brand" href="../index.html">il<b>metodo</b></a>
+  <a class="back" href="../index.html">&larr; indice</a>
+</div></header>
+<main class="wrap"><article class="doc">
+  <div class="banner banner-template">Template — copialo, riempi le parti tra parentesi e cancella le note in corsivo. Tienilo aperto accanto a un esempio.</div>
+  <div class="kicker">Template ricerca (free) · IT</div><p class="subtitle">Il sistema modulare per la ricerca con l&#x27;AI.</p><hr class="rule">
+  <div class="prose">
+<h1>Il Template Perplexity Pro per la Ricerca</h1>
+<blockquote>
+<p><strong>Un sistema modulare per portare avanti progetti di ricerca seri con l'AI.</strong></p>
+<p>Sei blocchi. Li combini per qualsiasi dominio. Gratis da usare, adattare, condividere.</p>
+<p>Companion all'articolo: <em>Ho speso $60 su Perplexity Pro. Per avere lo stesso risultato avrei pagato un consulente $15.000+.</em></p>
+</blockquote>
+<hr />
+<h2>Come usare questo template</h2>
+<ol>
+<li>Leggi i 6 moduli qui sotto. Ognuno è un blocco autonomo.</li>
+<li>Per la tua ricerca, copia i moduli in un singolo prompt (in ordine: Apertura → Domini → Citazioni → Disclaimer → Pattern emergenti).</li>
+<li>Riempi i <code>[PLACEHOLDER TRA PARENTESI]</code> con le tue specifiche.</li>
+<li>Lancialo come singola query Perplexity Pro deep research.</li>
+<li>Quando ricevi l'output, applica il <strong>Modulo 6 (Audit post-ricerca)</strong> come checklist su quello che è tornato.</li>
+<li>Identifica i buchi. Se hai buchi in Categoria A, fai una seconda sessione mirata.</li>
+</ol>
+<p>Questo è il workflow a 4 step descritto nell'articolo: prima passata → audit → identificazione buchi → passata di chiusura.</p>
+<p><strong>Una nota sul runtime</strong>: questo template è calibrato per la Perplexity API nel preset <code>advanced-deep-research</code> (a token, top-up minimo $50). Funziona anche con l'abbonamento Perplexity Pro consumer, ma aspettati ~30% di densità di output in meno e reasoning meno profondo. La struttura esatta della richiesta API che uso è in fondo a questo documento. La Pro Edition ha il riferimento di configurazione completo.</p>
+<hr />
+<h2>MODULO 1 — Apertura</h2>
+<blockquote>
+<p><strong>Scopo</strong>: stabilire intento, formulare la ricerca in modo neutrale, segnalare che vuoi mapping esplorativo non risposte prescrittive.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code>Mi serve una ricerca esplorativa neutra di mapping su [DOMINIO/ARGOMENTO] 
+che copra [PERIODO TEMPORALE, es. 2024-2026].
+
+Contesto: sto lavorando a [DESCRIZIONE BREVE NON TENDENZIOSA DEL PROGETTO 
+O DELLA DECISIONE — restala neutrale, NON pre-caricare conclusioni che 
+ti aspetti].
+
+NON sto chiedendo &quot;best practice&quot; né &quot;cosa funziona meglio&quot;. Voglio una 
+mappa del territorio reale: pattern dominanti, alternative emergenti, 
+fallimenti documentati, vincoli regolatori/economici/tecnici, trade-off, 
+anti-pattern.
+
+Regole di minimizzazione bias:
+- Non filtrare per quello che è comunemente raccomandato
+- Non confermare il mio framing o le mie assunzioni
+- Fai emergere esplicitamente le aree contese o non risolte
+- Quando il settore ha scuole di pensiero in competizione, presentale 
+  affiancate senza scegliere un vincitore
+</code></pre></div>
+
+<p><strong>Esempi (domini neutri):</strong></p>
+<ul>
+<li>Fintech: "Mi serve una ricerca esplorativa neutra di mapping sulla regolamentazione del buy-now-pay-later in UE 2024-2026..."</li>
+<li>Biotech: "Mi serve una ricerca esplorativa neutra di mapping sui pattern di commercializzazione delle terapie CAR-T 2023-2026..."</li>
+<li>Climate-tech: "Mi serve una ricerca esplorativa neutra di mapping sulle dinamiche di pricing commerciale del direct air capture 2024-2026..."</li>
+</ul>
+<hr />
+<h2>MODULO 2 — Domini</h2>
+<blockquote>
+<p><strong>Scopo</strong>: elencare le macro-aree che vuoi coperte senza pre-filtrarle. Genera questa lista in modo ampio. Se ti perdi il 30% delle categorie rilevanti, l'AI non può riempire quello che non hai chiesto.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code>Copri le seguenti macro-aree con profondità di mapping (non insegnamento 
+profondo, ma mapping del panorama con riferimenti concreti):
+
+1. [MACRO-AREA 1] — sotto-aspetti: [3-5 sotto-aspetti che vuoi vedere emergere]
+2. [MACRO-AREA 2] — sotto-aspetti: [3-5]
+3. [MACRO-AREA 3] — sotto-aspetti: [3-5]
+[continua per 8-15 macro-aree]
+
+Per ogni area, output:
+- 2-4 paragrafi di sintesi
+- 1 tabella di tool/attori/pattern/regolamentazioni dominanti con stato, 
+  costo (se applicabile), licenza/giurisdizione, date chiave
+- 3-5 link primari verificabili per area
+</code></pre></div>
+
+<p><strong>Calibrazione:</strong><br />
+- 5-7 macro-aree → mapping leggero (~30-40K caratteri output)<br />
+- 8-12 macro-aree → mapping standard (~40-50K)<br />
+- 13-18 macro-aree → mapping profondo (~50-60K)<br />
+- Oltre 18 → output diventa sottile per area, dividi in più sessioni</p>
+<hr />
+<h2>MODULO 3 — Citazioni</h2>
+<blockquote>
+<p><strong>Scopo</strong>: forzare le fonti primarie. Questa singola istruzione filtra lo slop AI di circa il 90%.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code>Per ogni affermazione cita fonti primarie con link, autore/organizzazione, 
+data. Fonti primarie accettabili:
+
+- Documentazione ufficiale (con URL)
+- Paper peer-reviewed (arXiv, riviste, con DOI quando disponibile)
+- Talk di conferenze di settore (GDC, DEF CON, KubeCon, RSA, ACM, etc., 
+  con anno)
+- Blog post specifici con autore nominato e data
+- Filing regolatori, documenti giudiziari, pubblicazioni governative
+- Postmortem con progetto nominato + autore nominato
+- Filing aziendali (10-K, S-1) per claim finanziari
+- Industry report nominati (con publisher + data) per dati di mercato
+
+NON accettabili:
+- &quot;I report del settore indicano...&quot; senza nominare il report
+- &quot;La maggior parte degli esperti dice...&quot; senza esperti specifici nominati
+- Wikipedia come fonte primaria per argomenti correnti/contesi
+- Sintesi AI-generated di altro contenuto AI-generated
+
+Se per una specifica affermazione non riesci a citare una fonte primaria, 
+dichiara &quot;fonte primaria non disponibile&quot; piuttosto che citare una vaga 
+fonte secondaria.
+</code></pre></div>
+
+<hr />
+<h2>MODULO 4 — Disclaimer</h2>
+<blockquote>
+<p><strong>Scopo</strong>: invertire l'incentivo implicito che fa riempire i buchi all'AI con speculazione confidente.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code>Per ogni macro-area in cui i dati pubblici sono limitati o assenti, 
+DICHIARALO ESPLICITAMENTE invece di riempire con speculazione generica.
+
+Specificamente:
+- Se un argomento è coperto bene in campi adiacenti ma non specificamente 
+  in [TUO DOMINIO], dillo e indica da dove vengono i pattern trasferibili
+- Se un argomento è troppo recente per avere un consenso stabile, 
+  marcalo come &quot;emergente, conteso&quot; con timeframe
+- Se un argomento ha risposte note pubblicamente disponibili ma non 
+  riesci a verificarle con fonti primarie, scrivi &quot;documentato a [X] 
+  ma non verificato indipendentemente&quot;
+- Se non hai dati utili su una sotto-area, lasciala vuota con &quot;nessun 
+  dato pubblico disponibile&quot; invece di produrre filler
+
+Le sezioni marcate con note di limitazione sono PIÙ preziose delle 
+sezioni senza. Onestà preferita ad apparenza di completezza.
+</code></pre></div>
+
+<hr />
+<h2>MODULO 5 — Pattern emergenti</h2>
+<blockquote>
+<p><strong>Scopo</strong>: permesso esplicito all'AI di far emergere pattern fuori dalla struttura del prompt. Costantemente la sezione con il rendimento più alto.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code>Alla fine dell&#39;output, includi una sezione intitolata &quot;PATTERN EMERGENTI 
+NON RICHIESTI ESPLICITAMENTE&quot;.
+
+In questa sezione fai emergere 5-10 pattern, osservazioni o trend del 
+2024-2026 che:
+- Sono rilevanti per il dominio mappato sopra
+- NON erano coperti dalle macro-aree del Modulo 2
+- Sono emergenti, contesi, di nicchia o controintuitivi
+- Possono includere fallimenti documentati, anti-pattern, trend 
+  controversi, o esperimenti orientati al futuro
+
+Per ogni pattern: nominalo, fornisci 2-3 frasi di contesto, cita 1-2 
+fonti primarie specifiche, e indica maturità (sperimentale / emergente 
+/ deployato in produzione) e ambito di rilevanza realistico.
+
+Questa sezione è esplorazione bonus. L&#39;obiettivo è far emergere pattern 
+che non sapevo di dover chiedere. Sorprendimi con sostanza, non novità 
+fine a se stessa.
+</code></pre></div>
+
+<hr />
+<h2>MODULO 6 — Checklist audit post-ricerca</h2>
+<blockquote>
+<p><strong>Scopo</strong>: non andare avanti dopo un singolo prompt. Auditare l'output sistematicamente. Questo step è ciò che separa la ricerca seria dal consumo passivo di slop AI.</p>
+</blockquote>
+<p>Dopo aver ricevuto l'output, esegui questa checklist (calcola 30-45 minuti per sessione):</p>
+<h3>A. Verifica densità</h3>
+<table>
+<thead>
+<tr>
+<th>Metrica</th>
+<th>Soglia</th>
+<th>Tuo output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Caratteri totali</td>
+<td>≥40.000</td>
+<td>_____</td>
+</tr>
+<tr>
+<td>Cluster H2</td>
+<td>≥14</td>
+<td>_____</td>
+</tr>
+<tr>
+<td>Sotto-cluster H3</td>
+<td>≥50</td>
+<td>_____</td>
+</tr>
+<tr>
+<td>Citazioni per macro-area</td>
+<td>≥3 primarie verificabili</td>
+<td>_____</td>
+</tr>
+</tbody>
+</table>
+<p>Se qualcosa è sotto soglia: il modello non si è impegnato. Ri-promptare con framing più forte del Modulo 1.</p>
+<h3>B. Verifica citazioni</h3>
+<p>Per 5-10 affermazioni a campione nell'output, verifica:<br />
+- La fonte citata esiste? (Clicca il link)<br />
+- La fonte dice davvero quello che l'AI dice?<br />
+- La fonte è datata nel range temporale specificato?</p>
+<p>Se più del 20% delle citazioni a campione fallisce: tratta tutto l'output come sospetto. Ri-lancialo con istruzioni Modulo 3 più forti.</p>
+<h3>C. Verifica disclaimer</h3>
+<p>Conta le sezioni etichettate "dati limitati", "fonte primaria non disponibile", "emergente conteso", etc.</p>
+<ul>
+<li>0 disclaimer su 14+ macro-aree = l'AI sta sparando palle da qualche parte. Tratta l'output come sospetto.</li>
+<li>2-5 disclaimer onesti = realismo sano. Fidati di più del resto.</li>
+<li>8+ disclaimer = o il dominio è genuinamente mal documentato, o il prompt era troppo stretto.</li>
+</ul>
+<h3>D. Categorizza i finding (1-5)</h3>
+<p>Vai attraverso ogni claim notevole nell'output e taggalo:</p>
+<ul>
+<li><strong>Categoria 5</strong> — Direzionale. Sposta la traiettoria del progetto o le tue assunzioni.</li>
+<li><strong>Categoria 4</strong> — Sostanziale. Informazione nuova che non avevi, materialmente utile.</li>
+<li><strong>Categoria 3</strong> — Conferma di quello che già sospettavi.</li>
+<li><strong>Categoria 2</strong> — Informazione marginale, utile ma minore.</li>
+<li><strong>Categoria 1</strong> — Filler, generico, basso valore.</li>
+</ul>
+<p>Distribuzione sana: 5-10% Cat 5, 15-25% Cat 4, resto Cat 3-2-1. Se sotto il 5% Cat 4-5: l'area è iper-mappata o il prompt era fuori bersaglio. Se sopra il 30% Cat 4-5: hai trovato un filone riccamente sotto-esplorato.</p>
+<h3>E. Identifica buchi (Categoria A/B/C)</h3>
+<p>Per ogni area maggiore non coperta in modo soddisfacente:</p>
+<ul>
+<li><strong>Categoria A — Fai un'altra ricerca.</strong> Territorio grosso mancante, letteratura pubblica esiste.</li>
+<li><strong>Categoria B — Si chiude lavorando.</strong> Dettagli implementativi specifici, emergeranno durante il progetto.</li>
+<li><strong>Categoria C — Non si chiude con ricerca esterna.</strong> Contesto locale, molto emergente, serve consultazione diretta.</li>
+</ul>
+<h3>F. Disciplina anti-derubricazione</h3>
+<p>Per ogni finding che a prima passata etichetti "minore" / "edge case" / "non bloccante":</p>
+<p><strong>Fermati. Re-interroga il framing implicito sotto cui è minore.</strong></p>
+<p>Se il framing è implicito e di comodo, costringilo a essere esplicito. Poi decidi se il finding è davvero minore o se stai inconsciamente derubricandolo per mantenere lo scope gestibile.</p>
+<p>Questa è la disciplina con la leva più alta dell'intero workflow. La maggior parte delle aree sotto-ricercate non sono "aree che non hai pensato di chiedere" — sono "aree che hai implicitamente derubricato in fase di audit".</p>
+<hr />
+<h2>Quando lanciare una ricerca di chiusura</h2>
+<p>Dopo l'audit, SOLO per buchi Categoria A:</p>
+<ul>
+<li>Struttura prompt: gli stessi 5 moduli sopra, ma ristretti ai buchi specifici con riferimento esplicito a cosa la prima sessione aveva coperto</li>
+<li>Costo: tipicamente 3-5 dollari per sessione di chiusura</li>
+<li>Dopo la chiusura: audit finale, poi vai avanti</li>
+</ul>
+<p>Se dopo la sessione di chiusura hai ancora buchi Cat A, il dominio potrebbe essere mal documentato — procedi con quello che hai e tratta i buchi residui come Categoria B o C.</p>
+<hr />
+<h2>Quando NON usare questo template</h2>
+<ul>
+<li>Domande fattuali semplici ("Qual è la sintassi di X?")</li>
+<li>Domini ben documentati dove la docs ufficiale ti risponde in 5 minuti</li>
+<li>Decisioni binarie dove ti basta confrontare A vs B</li>
+<li>Decisioni urgenti single-shot (risposte in 10 minuti)</li>
+</ul>
+<p>Usa questo template per: domini complessi con stato che cambia, impegni multi-mese in cui il territorio conta, aree dove gli errori da informazione incompleta sono costosi.</p>
+<hr />
+<h2>Riferimento richiesta API</h2>
+<p>Per il preset <code>advanced-deep-research</code>, la struttura della richiesta che ha prodotto i risultati nell'articolo:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;incolla qui il tuo prompt assemblato — Moduli 1-5&gt;&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;stream&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;preset&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;advanced-deep-research&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;max_output_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128000</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;effort&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;web_search&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fetch_url&quot;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Endpoint: <code>POST https://api.perplexity.ai/v1/responses</code>. Auth Bearer con la tua API key. La Pro Edition ha un esempio curl completo, pattern di follow-up per concatenare con LLM successive, e note sulla varianza di costo per configurazione.</p>
+<p>Avviso breve sui costi: l'API fattura a token e sessioni complesse possono costare più della media di ~$3. Tieni d'occhio la dashboard. Configurazioni che cambiano reasoning effort, max output tokens, o set di tool influiscono tutte su prezzo e qualità — vale la pena sperimentare se hai margine nel budget.</p>
+<hr />
+<h2>Libreria di esempi</h2>
+<h3>Esempio 1 — Regolamentazione fintech</h3>
+<div class="highlight"><pre><span></span><code>Mi serve una ricerca esplorativa neutra di mapping sulla regolamentazione 
+cross-border del buy-now-pay-later in UE 2024-2026.
+
+Contesto: sto valutando la fattibilità di ingresso sul mercato per un 
+prodotto fintech rivolto ai consumatori UE. NON sto chiedendo quali 
+paesi siano i migliori per entrare — voglio la mappa regolatoria.
+
+[Moduli 2-5 personalizzati per: regolatori per paese, leggi specifiche 
+BNPL vs credito al consumo generale, casi di enforcement recenti, 
+vendor di tooling compliance, armonizzazione UE emergente, fallimenti 
+di compliance documentati per operatori nominati]
+</code></pre></div>
+
+<h3>Esempio 2 — Commercializzazione biotech</h3>
+<div class="highlight"><pre><span></span><code>Mi serve una ricerca esplorativa neutra di mapping sui pattern di 
+commercializzazione delle terapie CAR-T 2023-2026.
+
+Contesto: sto facendo ricerca sulle dinamiche commerciali nello spazio 
+delle cell therapy. NON sto chiedendo quali terapie avranno successo — 
+voglio il panorama.
+
+[Moduli 2-5 personalizzati per: modelli di pricing, pattern di 
+negoziazione con i payer, colli di bottiglia di capacità produttiva, 
+risultati recenti di trial clinici nominati, percorsi regolatori in 
+US/UE/Giappone, pubblicazioni post-launch di dati real world, 
+fallimenti commerciali documentati]
+</code></pre></div>
+
+<h3>Esempio 3 — Dinamiche di mercato climate-tech</h3>
+<div class="highlight"><pre><span></span><code>Mi serve una ricerca esplorativa neutra di mapping sulle dinamiche di 
+pricing commerciale del direct air capture 2024-2026.
+
+Contesto: sto valutando la struttura di mercato nella rimozione del 
+carbonio. NON sto chiedendo quale azienda DAC vincerà — voglio il 
+panorama costi/pricing.
+
+[Moduli 2-5 personalizzati per: numeri reali di costo per tonnellata 
+riportati, economics di progetti nominati, impatto IRA/credito 
+d&#39;imposta UE, prezzi di mercato volontario, segnali di mercato di 
+compliance, curve di costo di scaling, fallimenti o ritardi di 
+progetti documentati, tecnologie alternative emergenti]
+</code></pre></div>
+
+<hr />
+<h2>Note finali</h2>
+<p>Questo template non produce un documento di ricerca finito. Produce una mappa del panorama ad alta densità e ben citata.</p>
+<p>Il lavoro dopo il template:<br />
+- Leggere l'output con attenzione<br />
+- Sintetizzare attraverso più sessioni di ricerca<br />
+- Prendere decisioni basate sul territorio<br />
+- Applicare la tua expertise di dominio per individuare cosa l'AI ha mancato</p>
+<p>Perplexity Pro è uno strumento. Il template è un workflow. Il giudizio resta tuo.</p>
+<hr />
+<p><em>Se questo ti è utile e vuoi esempi estesi, troubleshooting e un caso di studio elaborato, la versione Pro è <a href="https://your-gumroad-link">disponibile qui</a>.</em></p>
+<p><em>Template gratuito: usalo, condividilo, fork. Attribuzione apprezzata ma non richiesta.</em></p>
+  </div>
+</article></main>
+<footer class="foot"><span>il metodo · come facciamo gli articoli</span><span>template_ricerca_free_IT.md</span></footer>
+</body></html>

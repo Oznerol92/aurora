@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pubblicare e monetizzare — il metodo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <a class="brand" href="../index.html">il<b>metodo</b></a>
+  <a class="back" href="../index.html">&larr; indice</a>
+</div></header>
+<main class="wrap"><article class="doc">
+  <div class="banner banner-tutorial">Tutorial — il metodo, spiegato perché tu lo faccia a modo tuo. Adatta tutto al tuo lavoro; i segnaposto tipo «tuonome» vanno sostituiti coi tuoi.</div>
+  <div class="kicker">Pubblicare e monetizzare · EN</div><p class="subtitle">The steps to publish and sell.</p><hr class="rule">
+  <div class="prose">
+<h1>Operational Instructions — Publication and Monetization</h1>
+<blockquote>
+<p>Step-by-step guide to publishing the 3 artifacts and setting up monetization.<br />
+Total estimated time: 2-3 hours of your work, one-time setup.</p>
+</blockquote>
+<hr />
+<h2>Table of Contents</h2>
+<ol>
+<li>What you have available</li>
+<li>Fast setup (recommended path)</li>
+<li>Complete setup (maximization path)</li>
+<li>Minimum setup ("upload and forget" path)</li>
+<li>Necessary minimum promotion</li>
+<li>Tracking and iteration</li>
+<li>Alternatives and combinations</li>
+<li>Final check before publishing</li>
+<li>What NOT to do</li>
+<li>Post-publication scenarios</li>
+</ol>
+<hr />
+<h2>1. What you have available</h2>
+<p>Three publishable files in the <code>/home/claude/sideproject/</code> directory (plus the corresponding Italian versions 05/06/07 to be published in the second wave):</p>
+<ul>
+<li><strong><code>01_articolo_medium.md</code></strong> — main article ~3,500 words, in English, ready for Medium</li>
+<li><strong><code>02_template_gratuito.md</code></strong> — free modular template to host as Gist or public Google Doc</li>
+<li><strong><code>03_template_pro.md</code></strong> — extended Pro version ~5,000 words with case studies, troubleshooting, advanced patterns, full API configuration reference, to sell on Gumroad/LemonSqueezy</li>
+</ul>
+<p>All three have placeholders <code>[link]</code> or <code>https://your-link-goes-here</code> you need to replace after creating the final URLs.</p>
+<p>The files reflect the actual setup used: <strong>Perplexity API in <code>advanced-deep-research</code> preset</strong>, pay-per-token, $50 minimum top-up. Not the $20/month consumer subscription. This is clarified in the publishable files honestly without weighing down the pitch.</p>
+<hr />
+<h2>2. Fast recommended setup (~2 hours)</h2>
+<p>This is the path that maximizes value-to-time ratio for someone who said "I don't want to waste time."</p>
+<h3>Step 1 — Create the 3 target links (30 minutes)</h3>
+<h4>A. Gumroad account for the Pro template</h4>
+<ul>
+<li>Go to gumroad.com</li>
+<li>Sign up (free, takes email + password)</li>
+<li>Verify email</li>
+<li>"Create new product" → type "Digital download" → upload <code>03_template_pro.md</code></li>
+<li>Title: "The Perplexity Pro Research Template — Pro Edition"</li>
+<li>Price: <strong>$9</strong> (psychological sweet spot for impulse purchases, under $10 outperforms $7 or $12)</li>
+<li>Short description (3-4 sentences): see "Pre-written texts" section below</li>
+<li>Cover image: Gumroad generates one by default, fine for now — you can replace it later</li>
+<li>Save and publish</li>
+<li>Copy the product URL (format <code>https://gumroad.com/l/xxxxxx</code>)</li>
+</ul>
+<h4>B. GitHub Gist for the free template</h4>
+<ul>
+<li>Go to gist.github.com (you must be logged into GitHub)</li>
+<li>"New gist"</li>
+<li>Filename: <code>perplexity-research-template.md</code></li>
+<li>Copy/paste content of <code>02_template_gratuito.md</code></li>
+<li>Replace <code>https://your-gumroad-link</code> with the Gumroad URL created above</li>
+<li>"Create public gist"</li>
+<li>Copy the gist URL</li>
+</ul>
+<h4>C. Medium account if you don't have one</h4>
+<ul>
+<li>medium.com → Sign up (free, can use Google login)</li>
+<li>For Medium Partner Program (to get paid): go to Settings → Membership → Become a Medium member ($5/month — pays back in the first article that works) → Settings → Partner Program → Join</li>
+<li>Note: in 2024-2025 the rules changed, you must be a Medium Member to be in the Partner Program. It's a necessary cost, $5/month easily amortized</li>
+</ul>
+<h3>Step 2 — Publish Medium article (45 minutes)</h3>
+<ul>
+<li>Open <code>01_articolo_medium.md</code></li>
+<li>Replace <code>https://your-link-goes-here</code> with Gist URL (free template)</li>
+<li>Replace <code>https://your-gumroad-link</code> with Gumroad URL (Pro template)</li>
+<li>On Medium: "Write a story"</li>
+<li>Copy/paste the entire article</li>
+<li>Medium automatically converts Markdown headers, bold, italic, links, tables</li>
+<li>Visually verify everything looks good</li>
+<li>Add title + subtitle (Medium asks for them separately)</li>
+<li><strong>Tags</strong>: add 5 tags (max allowed): <code>Artificial Intelligence</code>, <code>Perplexity</code>, <code>Productivity</code>, <code>Research</code>, <code>Writing</code></li>
+<li>Add a "kicker image" at the top — Medium recommends an image, makes a big difference. See <code>image_prompts_bundle.md</code> for the exact prompts I prepared</li>
+<li>Click "Publish" → Medium asks for final tags and collection (you can skip collection)</li>
+<li>Publish</li>
+</ul>
+<h3>Step 3 — Verify and cross-link (15 minutes)</h3>
+<ul>
+<li>Copy published Medium article URL</li>
+<li>Go back to Gumroad → edit product description → add link to Medium article as reference</li>
+<li>Go back to Gist → add Medium article link at the bottom</li>
+<li>Three points connected: Medium → Gist (free) → Gumroad (Pro)</li>
+</ul>
+<h3>Step 4 — Minimal promotion (30 minutes, optional)</h3>
+<p>See section 5 below. If you really want to minimize, skip this step.</p>
+<p><strong>Total: ~2 hours. Published and monetized. From here on, it's automatic.</strong></p>
+<hr />
+<h2>3. Complete setup (~3-4 hours)</h2>
+<p>If you want to maximize return, add these extra steps to the fast setup:</p>
+<h3>Email capture</h3>
+<ul>
+<li>Setup ConvertKit free tier (1,000 free subscribers) or Substack</li>
+<li>Add a "Get future updates" form both in the Gist and in Gumroad description</li>
+<li>Connect: whoever buys Pro automatically enters list</li>
+<li>Email automation: 1 welcome email + 1 email at 7 days with bonus content (you can create a 1,000-word bonus mini-cookbook one-time)</li>
+</ul>
+<p>Cost: $0. Time: 1 hour setup.</p>
+<p>Benefit: email list grows passively. When you have another template/product/article, you have a ready audience.</p>
+<h3>Twitter/X launch thread</h3>
+<ul>
+<li>Summarize the 6 epistemological principles of the article in a thread of 8-12 tweets</li>
+<li>Link the Medium article in the last tweet</li>
+<li>Published and that's it — you don't have to respond to everything, let it work</li>
+</ul>
+<p>Time: 30 minutes.</p>
+<h3>LinkedIn cross-post</h3>
+<ul>
+<li>Copy/adapt Medium article in LinkedIn format (suitable: ~2,000 words, more punctuated, clear headers)</li>
+<li>Link to original Medium as "full version"</li>
+<li>LinkedIn algorithm rewards technical/business content</li>
+</ul>
+<p>Time: 30 minutes.</p>
+<h3>Hacker News / Indie Hackers / Reddit submission</h3>
+<ul>
+<li>Submit article on Hacker News (news.ycombinator.com → submit)</li>
+<li>Submit on Indie Hackers (indiehackers.com → community)</li>
+<li>Submit on Reddit r/PromptEngineering, r/perplexity, r/writing, r/ChatGPTPro</li>
+<li>Just submit + catchy title. NO aggressive promotion, community rules are strict</li>
+</ul>
+<p>Time: 20 minutes.</p>
+<hr />
+<h2>4. Minimum setup "upload and forget" (~45 minutes)</h2>
+<p>If you really want the minimum:</p>
+<ol>
+<li>Create Gumroad account, publish Pro template at $9 (15 min)</li>
+<li>Create Gist with free template that links to Gumroad (10 min)</li>
+<li>Publish Medium article that links both (20 min)</li>
+</ol>
+<p>Skip: optimal tags, kicker image, promotion, thread, LinkedIn.</p>
+<p>Expected result: organic Medium SEO traffic. Likely $0-50 in the first months. But the asset is online and running.</p>
+<p>If a similar article ever goes viral on Medium, the asset already exists and capitalizes.</p>
+<hr />
+<h2>5. Necessary minimum promotion</h2>
+<p>If you said "the bare minimum or automating as much as possible," these are the 3 things worth the time:</p>
+<h3>A. Optimal Medium tags</h3>
+<p>Already in instructions. Wrong tags = invisible article. Right tags = article found in 6-12 months via search SEO.</p>
+<h3>B. Killer subtitle</h3>
+<p>I already wrote a subtitle in the article, but you can A/B test. Medium allows changing the title after publication without losing stats.</p>
+<p>Current subtitle: <em>"A 4-step research workflow I built across 20 deep-dives — and what I learned about getting AI to actually do research instead of producing slop."</em></p>
+<p>Alternatives to try if first version doesn't perform:<br />
+- <em>"The 4-step workflow that turned $60 of Perplexity Pro into research worth $15,000+"</em><br />
+- <em>"Why most people use AI research tools wrong — and the 4-step fix"</em><br />
+- <em>"6 months, 20 sessions, $60. Here's what I learned about doing serious research with AI."</em></p>
+<h3>C. One single submission to active community</h3>
+<p>Choose ONE among Hacker News, Indie Hackers, Reddit r/PromptEngineering. Submit the article. Wait. If it doesn't get upvoted in the first hours, leave it and don't insist.</p>
+<p>If it gets upvoted: significant traffic for 1-3 days. Likely Gumroad conversions.</p>
+<hr />
+<h2>6. Tracking and iteration</h2>
+<h3>What to check every 1-2 weeks (5 min)</h3>
+<ul>
+<li>Medium stats: views, reads, claps, conversion rate (if you're in Partner Program)</li>
+<li>Gumroad sales: number of conversions, source (if Gumroad provides attribution)</li>
+<li>Gist traffic: GitHub provides limited view stats</li>
+</ul>
+<h3>When to update</h3>
+<ul>
+<li><strong>After 3 months</strong>: re-read article. Update examples, data, pricing if changed. Add note "Updated [date]".</li>
+<li><strong>After 6 months</strong>: if Pro template has sold &gt;20 copies, consider v2.0 with new case studies. Sell v2.0 to old customers at discount, others at full price.</li>
+<li><strong>After 12 months</strong>: re-evaluate keeping the product. If it generated &lt;$200 total, it's dead. If $500+, evergreen asset.</li>
+</ul>
+<h3>Minimum necessary iteration</h3>
+<p>Nothing. Really. Publish and that's it. If it works, the asset matures by itself. If it doesn't work, no iteration will save it.</p>
+<p>The only exception: if in the first 7 days you see 0 Gumroad conversions despite decent Medium traffic, try reducing Pro price to $7 and see if it changes. If still 0, the problem is the template, not the price.</p>
+<hr />
+<h2>7. Alternatives and combinations</h2>
+<h3>Alternative 1: Substack instead of Medium</h3>
+<p>Substack advantages:<br />
+- You own the audience (direct email)<br />
+- No Partner Program fee<br />
+- Built-in paywall (you can put part of the article behind $5/month)</p>
+<p>Substack disadvantages:<br />
+- You have to build audience from scratch<br />
+- Worse SEO than Medium for searches like "perplexity research workflow"</p>
+<p>Verdict: Medium better for single article that wants to be found. Substack better if you already have email list or want to build series of regular articles.</p>
+<h3>Alternative 2: LemonSqueezy instead of Gumroad</h3>
+<p>LemonSqueezy advantages:<br />
+- Automatic EU tax handling (Merchant of Record)<br />
+- Slightly lower fees for low volume<br />
+- More modern interface</p>
+<p>LemonSqueezy disadvantages:<br />
+- Account approval takes 2-3 days<br />
+- Audience less familiar with the brand</p>
+<p>Verdict: Gumroad better for fast setup. LemonSqueezy better if you're in EU and want automatic VAT compliance (for an EU-based seller, LemonSqueezy may be preferable to avoid tax friction with EU digital sales under OSS threshold).</p>
+<h3>Alternative 3: Paywalled article + free template</h3>
+<p>Reverse the logic: Medium article behind paywall (Members-only), free template.</p>
+<p>Advantages:<br />
+- Medium Member-only earnings are much higher than free article (for every "read" by a member you get $0.10-0.50, vs $0 for non-members)<br />
+- Free template maximizes distribution</p>
+<p>Disadvantages:<br />
+- Paywall reduces initial reach<br />
+- You can't promote the article to non-members (they only see the paywall)</p>
+<p>Verdict: depends on goal. If you want maximum Medium payments, Members-only. If you want maximum reach and Gumroad conversion, free article + paid template.</p>
+<p><strong>Recommendation</strong>: free article. The Medium → Gumroad conversion is the main value multiplier. If the article is behind a paywall, you've closed the funnel.</p>
+<h3>Winning combination for your case</h3>
+<p>Given a profile that prefers minimal active promotion and maximum automation:</p>
+<ol>
+<li><strong>Free Medium article</strong> (maximum discovery via SEO)</li>
+<li><strong>GitHub Gist for free template</strong> (zero friction)</li>
+<li><strong>LemonSqueezy for $9 Pro template</strong> (automatic compliance, cleaner tax handling)</li>
+<li><strong>Passive email capture</strong> via ConvertKit free (one-time, 1 hour setup)</li>
+</ol>
+<p>No Twitter, no LinkedIn, no recurring community submission. The asset self-promotes via Medium SEO. You check stats once a month, max.</p>
+<p><strong>Realistic earning expectation in this setup</strong>: $50-300 in the first 6 months. Likely $100-200. Doesn't change your life. Gives you:<br />
+- Evergreen asset that, if you ever need a public reference of the method, you have<br />
+- Validation of techniques before serious work<br />
+- Possibly a small email audience (50-200 people) that grows over time</p>
+<hr />
+<h2>8. Final check before publishing</h2>
+<ul>
+<li>[ ] All three files read and verified</li>
+<li>[ ] Placeholder links replaced with real URLs</li>
+<li>[ ] No mention of identifiable specifics (industry, technology stack, project names, specific professional role) in any of the publishable files</li>
+<li>[ ] Sample domains in the files kept neutral (fintech, biotech, climate-tech) and internal-project descriptions camouflaged as "regulated industry vertical", "AI production patterns", "niche technical territory"</li>
+<li>[ ] Numbers are consistent across all files (~$60, ~140K words, ~330 H2, ~1100 H3, 80 cat-5, 350 cat-4, 96-97% coverage)</li>
+<li>[ ] Medium tags chosen: AI, Perplexity, Productivity, Research, Writing</li>
+<li>[ ] Gumroad/LemonSqueezy pricing fixed: $9</li>
+<li>[ ] Cross-links Medium → Gist → Pro working</li>
+<li>[ ] Technical setup reference (Perplexity API, <code>advanced-deep-research</code> preset) consistent across article, free template (the "API request reference" module), and Pro (PART 4)</li>
+<li>[ ] JSON request numbers identical across the three files (max_output_tokens 128000, reasoning effort high, web_search + fetch_url)</li>
+</ul>
+<p>When all checkboxes are ticked, publish. Period.</p>
+<hr />
+<h2>9. What NOT to do</h2>
+<ul>
+<li>Don't respond to every Medium comment. Let the community self-moderate.</li>
+<li>Don't add tags beyond Medium's 5 limit. The system penalizes tag spam.</li>
+<li>Don't spam the link in other communities beyond the single initial submission.</li>
+<li>Don't update the article in the first 2 weeks. Let stats stabilize.</li>
+<li>Don't run paid promotion (Medium Promote, FB Ads). For a $9 side project there's no ROI.</li>
+<li>Don't write sequel articles before verifying the first one performs. Wait 4-6 weeks.</li>
+<li>Don't reveal details about the underlying real project (industry, stack, names) in comments, DMs, or interviews, even when asked. Public framing is "applied to a complex technical editorial project." Period.</li>
+</ul>
+<hr />
+<h2>10. Post-publication scenarios</h2>
+<p>Things that will likely happen in the first 60-180 days after publication, and how to handle them without wasting time or exposing yourself more than necessary.</p>
+<h3>A. Someone comments on Medium asking "what project were you mapping?"</h3>
+<p>Sample reply, polite and firm:</p>
+<blockquote>
+<p><em>"Thanks for reading. The specifics of the project are private for now — I'll publish more about it when it's ready. The workflow itself is independent of the domain, which is part of what makes it useful: you can apply the same 4-step pattern to your own area whether that's fintech, biotech, or anything else."</em></p>
+</blockquote>
+<p>Never reply with partial details hoping to "satisfy" curiosity. You open a loop and then you have to manage it. A short, polite, definitive answer closes the conversation better.</p>
+<h3>B. Newsletter / podcast / technical blog reaches out for interview or feature</h3>
+<p>Binary decision:<br />
+- <strong>If the source has audience &gt;5K subscribers and serious profile</strong>: say yes. Agree on format (short audio, email exchange, guest article). Stay on the workflow, not the project. Link Medium + Gumroad in the bio.<br />
+- <strong>If the source is small or ambiguous</strong>: say yes anyway, low cost. Same rule: workflow yes, project no.<br />
+- <strong>If the source explicitly asks for project details</strong>: reply that the project is private and that the interview only makes sense if the focus is the workflow. If they refuse, drop it.</p>
+<p>Don't improvise technical answers about the Perplexity API in real-time audio interviews. If they ask for technical details, redirect to the Pro template which already has everything structured. "It's all in the Pro Edition, link in the description" is a valid answer and zeroes out verbal performance pressure.</p>
+<h3>C. Perplexity changes pricing, preset, or API policy</h3>
+<p>Possible scenarios, pre-noted to avoid being caught off-guard:</p>
+<ul>
+<li><strong>Preset renamed or deprecated</strong>: update the 3 publishable files (article, free template, Pro) with the new preset name, add an edit note at the bottom ("Updated [date]: preset renamed from advanced-deep-research to [new]"). Time: 20 minutes.</li>
+<li><strong>Pricing changes significantly</strong>: if the average $3/session becomes $6+, update the table in the files and the "Cost variance" section of the Pro. Add edit note.</li>
+<li><strong>Feature removed (e.g., fetch_url disabled)</strong>: update Pro troubleshooting (Failure mode 7 and Pattern D), add a "If your runtime no longer supports X" section with workarounds.</li>
+<li><strong>Perplexity introduces a better competitor preset</strong>: tempting move to avoid → rewriting everything. Right move → publish a follow-up article "Updated workflow: [new preset] vs advanced-deep-research" linking to the first article. Creates a new asset, doesn't destroy the old one.</li>
+</ul>
+<p>In all cases, <strong>update files with visible datestamp</strong> ("Last updated: [date]") at the top. Readers landing on the asset 12 months later appreciate knowing when info is fresh.</p>
+<h3>D. Someone asks for paid consulting on the method</h3>
+<p>Three possible paths:<br />
+- <strong>No thanks, decline politely</strong>: "Thanks but I don't take consulting work right now. The Pro Edition has everything I would tell you in a 1:1 — at $9 it's the most cost-efficient way to get the method." Right answer if you don't want to manage engagements.<br />
+- <strong>Yes but at gating rate</strong>: "Consulting at $300/hour, 2-hour minimum. Most people find the $9 Pro Edition is enough — happy to recommend that first." Right answer if you want to monetize but discourage casuals.<br />
+- <strong>Yes flat-fee on narrow scope</strong>: "I can do a 60-minute call to review your specific research project and audit your prompts, $200 flat. Beyond that, the Pro Edition." Right answer if you want a small extra income without structural commitment.</p>
+<p>Default: first option (polite decline). 1:1 consulting is incompatible with a side project that wants to be automated.</p>
+<h3>E. Someone copies the article or template and republishes it as their own</h3>
+<p>Three severity levels:<br />
+- <strong>Cites the source but changes title/structure</strong>: ignorable. It's reworked fair use, happens always, also creates some link discovery.<br />
+- <strong>Full copy without attribution</strong>: if it's on Medium or platform with clear DMCA, file DMCA takedown (10 minutes). If it's on an obscure blog, ignore — not worth the time.<br />
+- <strong>Sells the Pro template as their own on Gumroad/LemonSqueezy</strong>: DMCA takedown on that platform. Selling platforms respond quickly because they have legal liability.</p>
+<p>Don't start online wars. Rule: fast takedown if needed, no public callout. Public callout costs more time and energy than it's worth.</p>
+<h3>F. Article is not performing and you're tempted to make big edits</h3>
+<p>Resist for the first 6 weeks. Medium SEO matures slowly. Articles that explode after 4-8 months are common. If at 8 weeks you have less than 200 total views, then:</p>
+<ol>
+<li>Verify tags (Medium sometimes silently changes them)</li>
+<li>Change subtitle (see alternatives in section 5B)</li>
+<li>Add a "kicker image" if it didn't have one</li>
+<li>Post once on a relevant community you haven't touched yet</li>
+</ol>
+<p>Nothing more so far. Only after 4 months without signals, evaluate a more aggressive v2 of title or positioning.</p>
+<h3>G. Pro sells but people request refund "not what I expected"</h3>
+<p>Expected refund rate on Gumroad/LemonSqueezy for $9 info products: 2-5%. If you're above 10%, there's a mismatch between promise and content.</p>
+<p>What to do:<br />
+- Re-read the Pro sales description. Does it promise something not there? Reformulate.<br />
+- Add to the description a "What this Pro Edition does NOT do" section mirroring the "When this Pro Edition does NOT serve you" section already in the file. Filter upstream those who aren't the target.<br />
+- If the problem persists, consider: lower price ($5-7) or addition of bonus content (short cookbook of 1,500-2,000 words on a specific use case).</p>
+<p>Never argue with someone requesting a refund. Grant it and learn from feedback.</p>
+<hr />
+<h2>Pre-written useful texts</h2>
+<h3>Gumroad/LemonSqueezy description (3-4 sentences)</h3>
+<blockquote>
+<p><em>"The complete Perplexity Pro research workflow with three fully worked case studies, troubleshooting guide, advanced patterns, cost optimization, and full API configuration reference. Built from 20 deep research sessions across 6 months using the <code>advanced-deep-research</code> preset. Companion to the Medium article. One-time purchase, free updates. Includes anti-hype gate so you can self-select out before buying — this isn't for everyone."</em></p>
+</blockquote>
+<h3>Gumroad auto-confirm email (if you set it)</h3>
+<blockquote>
+<p><em>"Thank you for purchasing the Pro Edition. Inside you'll find three case studies, a troubleshooting guide for prompts that go sideways, advanced patterns for multi-session research, cost optimization notes, and the full API configuration reference. Skip to Part 1 if you want to see the workflow in action; skip to Part 4 if you want the technical setup; skip to Part 7 if you've already read the article and want the synthesis. — [your name]"</em></p>
+</blockquote>
+<h3>Launch tweet (if you decide to do it)</h3>
+<blockquote>
+<p><em>"I spent $60 on Perplexity Pro for 20 research sessions over 6 months — using the advanced-deep-research API preset, not the consumer subscription. Output equivalent in consultant hours: $15,000-$30,000. Wrote up the 4-step workflow + 6 epistemological principles. Free article + free template + Pro Edition. Link below. 🧵"</em></p>
+</blockquote>
+<hr />
+<h2>Frequently asked questions you might have</h2>
+<p><strong>"Do I really need to read the article before publishing it?"</strong><br />
+Yes. It's long, you might have opinions on specific sections. Find 30 minutes.</p>
+<p><strong>"Can I modify the tone if it doesn't feel like mine?"</strong><br />
+Of course. But the current tone is calibrated for indie creator/technical writer audience: serious, evidence-based, anti-hype, occasional dry humor. Change it only if you have specific reason.</p>
+<p><strong>"What do I do if the article doesn't get read?"</strong><br />
+Nothing for 6 weeks. Wait. Medium SEO maturity takes 3-6 months. If after 6 months &lt;500 total views, the article is dead, accept it and learn for the next one. See also scenario F above.</p>
+<p><strong>"What do I do if the Pro sells too well?"</strong><br />
+Nice problem to have. Consider: raising price to $14-19 (keep first 100 buyers at $9 as early access), or producing v2.0 with more content.</p>
+<p><strong>"What do I do if someone copies the template and republishes it for free?"</strong><br />
+See scenario E above. In summary: fast takedown if needed, no public war.</p>
+<p><strong>"What do I reply if asked for details about the real project?"</strong><br />
+See scenario A above. Short, polite, definitive answer. Never partial details.</p>
+<p><strong>"Do I need to update the files every time Perplexity changes something?"</strong><br />
+Only if it changes in a way that materially impacts numbers or workflow. See scenario C above.</p>
+<hr />
+<h2>Cross-publication strategy (English + Italian)</h2>
+<p>If you have both English and Italian versions of the article and templates available:</p>
+<h3>Recommended publishing sequence</h3>
+<ol>
+<li><strong>English first</strong> on Medium (larger audience, better SEO, Partner Program payouts)</li>
+<li><strong>Italian second</strong> on Medium (with Italian tags) AND/OR LinkedIn IT</li>
+<li>Cross-link both versions in each other's footer ("Available also in [other language]")</li>
+</ol>
+<h3>Why English first</h3>
+<ul>
+<li>Medium's English audience is ~95% of total readership</li>
+<li>Italian content on Medium has lower discoverability</li>
+<li>Partner Program pays per English read, not per non-English</li>
+<li>English article on Hacker News / Indie Hackers / Reddit drives English traffic</li>
+</ul>
+<h3>Why publish Italian at all</h3>
+<ul>
+<li>LinkedIn IT and Substack IT have meaningful Italian audiences for tech/AI content</li>
+<li>Italian tech content on Medium has less competition (lower visibility but easier to rank)</li>
+<li>Localized version may rank for Italian-specific searches</li>
+<li>Helps with personal brand in Italian-speaking professional networks</li>
+</ul>
+<h3>Practical tip</h3>
+<p>Set Italian publication 2-4 weeks after English. This way:<br />
+- You have engagement signal from English version to inform Italian version (better subtitle, see what tags worked)<br />
+- Italian readers don't see "this is just a translation" — feels like a fresh piece<br />
+- Spread workload: don't publish both at once</p>
+<hr />
+<p><em>Good launch.</em></p>
+<hr />
+<p><em>Internal note (not public):</em></p>
+<p><em>Anonymization approach: publishable files (01, 02, 03, 05, 06, 07) are at maximum cleanliness, zero intentional leaks. Operational and setup files (04, 08, project setup files) are clean but tolerate well-considered intentional leaks, never accidental. If in the future, after publication of the main project, you want to evaluate cryptic easter eggs for affectionate fans who may make the connection, see the note in <code>02_memoria_iniziale.md</code> "On the horizon" section.</em></p>
+  </div>
+</article></main>
+<footer class="foot"><span>il metodo · come facciamo gli articoli</span><span>pubblicare_e_monetizzare_EN.md</span></footer>
+</body></html>

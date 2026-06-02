@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Template ricerca (Pro) — il metodo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <a class="brand" href="../index.html">il<b>metodo</b></a>
+  <a class="back" href="../index.html">&larr; indice</a>
+</div></header>
+<main class="wrap"><article class="doc">
+  <div class="banner banner-template">Template — copialo, riempi le parti tra parentesi e cancella le note in corsivo. Tienilo aperto accanto a un esempio.</div>
+  <div class="kicker">Template ricerca (Pro) · IT</div><p class="subtitle">Versione estesa: casi di studio, troubleshooting, config API.</p><hr class="rule">
+  <div class="prose">
+<h1>Il Template Perplexity Pro per la Ricerca — Edizione Pro</h1>
+<blockquote>
+<p><strong>Workflow completo + 3 casi di studio elaborati + guida al troubleshooting + pattern avanzati + riferimento configurazione API.</strong></p>
+<p>Companion al template gratuito e all'articolo Medium. Questo è il sistema completo.</p>
+</blockquote>
+<hr />
+<h2>Cosa trovi in questa Edizione Pro</h2>
+<p>Il template gratuito ti dà i moduli e la checklist di audit. Questa Edizione Pro aggiunge:</p>
+<ol>
+<li><strong>Tre casi di studio completamente elaborati</strong> — tre sessioni di ricerca complete su domini diversi, con i prompt reali che ho usato, la struttura di output risultante, e le note di audit che ho fatto</li>
+<li><strong>Guida al troubleshooting</strong> — modalità di fallimento comuni quando i prompt vanno storti, e come recuperare</li>
+<li><strong>Pattern avanzati</strong> — costruzione di un knowledge graph multi-sessione, sintesi cross-research, e la "disciplina anti-derubricazione" con tre esempi reali in cui mi sono beccato a farla</li>
+<li><strong>Ottimizzazione costi</strong> — come spendere meno ottenendo di più</li>
+<li><strong>Note di adattamento</strong> — applicare il workflow a progetti di scala diversa (due-diligence di founder, investigazione giornalistica, scrittura di libri tecnici, analisi di mercato)</li>
+<li><strong>Riferimento configurazione API</strong> — il setup esatto della Perplexity API che ho usato (preset <code>advanced-deep-research</code>, struttura della richiesta, pattern di follow-up per concatenare con LLM successive)</li>
+<li><strong>Quando questa Edizione Pro NON ti serve</strong> — gate anti-hype così sai se continuare a leggere o chiudere la scheda</li>
+</ol>
+<hr />
+<h2>Quando questa Edizione Pro NON ti serve</h2>
+<p>Sezione anti-hype, in apertura così puoi auto-selezionarti fuori prima di averla letta.</p>
+<p>Questa Edizione Pro è eccessiva per:</p>
+<ul>
+<li><strong>Persone che non hanno ancora colpito le modalità di fallimento descritte nell'articolo.</strong> Se non hai mai lanciato un progetto di ricerca multi-sessione su un dominio che ti importa, i casi di studio e la guida al troubleshooting ti sembreranno astratti. Compra questo dopo aver bruciato $20-30 di credito API per conto tuo e aver sentito il dolore. I pattern allora atterreranno.</li>
+<li><strong>Persone che vogliono una risposta copia-incollabile a una specifica domanda di ricerca.</strong> L'Edizione Pro ti insegna a pescare in acque sconosciute. Non ti consegna i pesci.</li>
+<li><strong>Persone per cui $9 rappresentano attrito.</strong> Il template gratuito ha l'80% di quello che ti serve per iniziare. Il valore marginale di questa Edizione Pro è reale ma non life-changing — ti accorcia la curva di apprendimento di forse 4-6 settimane di trial and error. Se non hai fretta o il tuo progetto non giustifica quella compressione, il template gratuito basta.</li>
+<li><strong>Persone che cercano confronti tra tool o stanno valutando quale prodotto AI di ricerca comprare.</strong> Questo documento è opinionato sul preset Perplexity <code>advanced-deep-research</code> perché è quello che ho usato. Non fa benchmark contro Claude, Gemini, ChatGPT Deep Research, o altri. Aggiornamenti futuri potrebbero aggiungere confronti; la v1.0 no.</li>
+<li><strong>Persone che ricercano domini con documentazione pubblica abbondante e attuale.</strong> Se il tuo dominio ha buoni libri, survey peer-reviewed correnti, o wiki attive ben mantenute, non ti serve un workflow di ricerca AI — ti serve una reading list.</li>
+</ul>
+<p>Questa Edizione Pro è per: persone che lavorano a un progetto multi-mese in cui il territorio conta più di qualsiasi singola risposta, che hanno già iniziato a usare tool di ricerca AI e hanno riconosciuto che la qualità dell'output è instabile, e che vogliono un workflow disciplinato riusabile su più sessioni e più domini.</p>
+<p>Se sei tu, continua. Se no, tieniti i $9 e leggi l'articolo gratuito e il template — sono sufficienti.</p>
+<hr />
+<h1>PARTE 1 — Tre casi di studio elaborati</h1>
+<p>Questi sono anonimizzati e adattati da ricerche reali fatte su un progetto di sei mesi. Ho cambiato le specifiche di dominio dove serviva per tenere privato il mio progetto, ma il workflow e i pattern di output sono esattamente come sono successi.</p>
+<h2>Caso di studio 1 — Mappare un settore verticale regolato</h2>
+<h3>Obiettivo</h3>
+<p>Mappare il panorama regolatorio + economico + tecnico di un settore verticale regolato in rapida evoluzione, dove stavo valutando il lancio di un prodotto.</p>
+<h3>Sessione 1 — Prima passata esplorativa</h3>
+<p>Prompt completo (puoi adattarlo a qualsiasi dominio regolato):</p>
+<div class="highlight"><pre><span></span><code>Mi serve una ricerca esplorativa neutra di mapping sull&#39;infrastruttura 
+[VERTICALE REGOLATO] 2024-2026.
+
+Contesto: sto valutando la fattibilità di un prodotto in [VERTICALE] 
+da prospettiva di founder con piccolo team. NON sto chiedendo quali 
+provider usare — voglio il panorama regolatorio + economico + tecnico.
+
+Copri le seguenti macro-aree con profondità di mapping:
+
+1. PATTERN ARCHITETTURALI — sotto-aspetti: stack dominanti, alternative 
+   emergenti, split build-vs-buy, tier di complessità operativa
+2. PROVIDER E PIATTAFORME — sotto-aspetti: white-label managed, custom 
+   build, ibrido, copertura geografica, modelli di pricing
+3. IDENTITY LAYER CROSS-PRODOTTO — sotto-aspetti: identità cross-vendor, 
+   wallet/account abstraction, requisiti regolatori sull&#39;identità
+4. FLUSSI DI PAGAMENTO — sotto-aspetti: provider alternativi, fee, frodi, 
+   chargeback, timing di settlement
+5. FRAUD PREVENTION — sotto-aspetti: vendor di tooling, ML vs rule-based, 
+   pattern di integrazione, tassi di frode per verticale
+6. COMPLIANCE MULTI-GIURISDIZIONE — sotto-aspetti: specifiche UE/US/UK/APAC, 
+   tier PCI/SAQ, gestione fiscale
+7. MARKETING E LIFECYCLE — sotto-aspetti: costi di acquisizione, curve di 
+   retention, vincoli regolatori sul marketing
+8. PATTERN DI RISPOSTA DELLE PIATTAFORME — sotto-aspetti: come hanno 
+   reagito le piattaforme dominanti agli shift regolatori post-2024
+9. PATTERN DI ESPERIENZA UTENTE — sotto-aspetti: pattern UX documentati, 
+   letteratura A/B testing
+10. RISCHI E DOWNSIDE — sotto-aspetti: vendor lock-in, rischio pivot 
+    regolatorio, consolidamento di mercato
+11. CASI DI STUDIO AZIENDALI — esempi nominati con dati di fatturato, 
+    percentuali, date
+12. PATTERN EMERGENTI NON RICHIESTI — fai emergere cose che non ho chiesto
+
+Per ogni affermazione cita fonti primarie con link, autore/organizzazione, 
+data. Accettabili: docs ufficiali, filing regolatori, industry report 
+nominati con publisher+data, talk di conferenze nominati con anno, 
+blog post nominati con autore+data. NON accettabili: vago &quot;industry 
+report indicano&quot; o quote di esperti non nominati.
+
+Per ogni macro-area in cui i dati pubblici sono limitati, dichiaralo 
+esplicitamente invece di riempire con speculazione.
+</code></pre></div>
+
+<h3>Cosa è tornato</h3>
+<ul>
+<li>~44.000 caratteri</li>
+<li>14 cluster H2</li>
+<li>61 sotto-argomenti H3</li>
+<li>~50 fonti primarie verificabili</li>
+<li>5 finding marcati come Categoria 5 (direzionali)</li>
+<li>~30 finding Categoria 4 (sostanziali)</li>
+</ul>
+<h3>Note di audit (dopo la sessione)</h3>
+<p><strong>Densità</strong>: ✅ sopra le soglie<br />
+<strong>Spot-check citazioni</strong>: 8/10 link verificati funzionanti, 2 redirect a versioni archiviate — accettabile<br />
+<strong>Disclaimer</strong>: 4 sezioni marcate "dati limitati" — sano<br />
+<strong>Finding Categoria 5 inclusi</strong>:<br />
+- Un dato di fatturato di un provider specifico che contraddiceva le assunzioni generali del settore<br />
+- Una deadline regolatoria che non conoscevo e che impattava il mio timeline<br />
+- Un pattern di vendor lock-in documentato che ha cambiato il mio framing buy-vs-build<br />
+- Una struttura di accordo commerciale specifica che non avevo mai visto documentata<br />
+- Un trend emergente esplicitamente flaggato nella sezione "Pattern Emergenti" che è diventato un tema maggiore</p>
+<h3>Buchi identificati</h3>
+<ul>
+<li>Categoria A (serve follow-up): 2 — dettaglio pricing di provider specifico, area regolatoria di nicchia</li>
+<li>Categoria B (si chiude lavorando): 6</li>
+<li>Categoria C (non si chiude): 2</li>
+</ul>
+<h3>Sessione di chiusura</h3>
+<p>Lanciata una sessione mirata da $4 sui soli buchi Categoria A. Output molto più stretto (~15.000 caratteri, 4 H2) ma ha indirizzato esattamente quello che mancava.</p>
+<h3>Costo totale per questo dominio</h3>
+<p>$8 su due sessioni, ~3,5 ore del mio tempo incluso l'audit.</p>
+<h3>Cosa avrei speso senza questo metodo</h3>
+<p>Stimando il tempo consulenziale a $300/ora per un mapping equivalente: circa 25-40 ore = $7.500-12.000 solo per questo singolo verticale.</p>
+<hr />
+<h2>Caso di studio 2 — Mappare pattern di produzione AI</h2>
+<h3>Obiettivo</h3>
+<p>Mappare come l'AI viene davvero usata in produzione da operatori seri nel mio settore, separando hype da pratica documentata.</p>
+<h3>Perché era complicato</h3>
+<p>L'AI è l'argomento più sovra-hyped del 2024-2026. Le ricerche generiche restituiscono slop. I blog post dei vendor sono vendita travestita. I thread Twitter sono teatro. La parte difficile non era trovare informazione — era filtrare segnale dal rumore.</p>
+<h3>Strategia di prompt</h3>
+<p>Due aggiustamenti chiave al template standard:</p>
+<ol>
+<li><strong>Ho chiesto esplicitamente deployment di produzione documentati</strong> con progetti nominati e date di pubblicazione, non "case study" (che spesso sono marketing travestito da ricerca)</li>
+<li><strong>Ho chiesto al modello di distinguere "deployato in produzione" da "research preview" da "demo del vendor"</strong> per ogni claim</li>
+</ol>
+<h3>Prompt risultante (estratto chiave)</h3>
+<div class="highlight"><pre><span></span><code>Per ogni claim di deployment AI, etichettalo esplicitamente come:
+- DEPLOYATO IN PRODUZIONE (shippato a utenti con progetto nominato + 
+  operatore nominato + data di deployment verificabile)
+- PROTOTIPO/RESEARCH-PREVIEW (dimostrazione tecnica, non disponibile 
+  generalmente)
+- DEMO DEL VENDOR (claimato dal vendor senza verifica indipendente di 
+  terza parte)
+
+Voglio esempi DEPLOYATI IN PRODUZIONE. Le altre categorie sono contesto 
+informativo ma non sono il target primario di mapping.
+</code></pre></div>
+
+<h3>Cosa ho imparato</h3>
+<p>Questa singola struttura di prompt ha cambiato drasticamente l'output:<br />
+- Il 60% dei "casi d'uso AI" che il modello avrebbe restituito con un prompt generico è collassato in categorie "demo del vendor" o "research preview"<br />
+- Gli esempi davvero deployati in produzione erano di gran lunga meno di quanto la copertura del settore suggerirebbe<br />
+- Il finding più chiaro: il pattern dominante di successo era <strong>"AI invisibile lato produzione"</strong> — AI usata in workflow/tooling, non in feature rivolte all'utente</p>
+<p>Questo è stato un finding Categoria 5 che ha cambiato completamente il framing strategico del progetto.</p>
+<h3>Statistiche output</h3>
+<ul>
+<li>~42.000 caratteri</li>
+<li>16 cluster H2</li>
+<li>54 sotto-argomenti H3</li>
+<li>7 finding Categoria 5</li>
+<li>~40 finding Categoria 4</li>
+</ul>
+<h3>Cosa sarebbe costato come ricerca commissionata</h3>
+<p>Una società di research di settore indipendente seria chiederebbe $5.000-15.000 per questo tipo di mapping su misura. Ho pagato $4.</p>
+<hr />
+<h2>Caso di studio 3 — Mappare un territorio tecnico di nicchia</h2>
+<h3>Obiettivo</h3>
+<p>Mappare un territorio tecnico di nicchia dove la documentazione pubblica era nota essere sparsa — per capire esattamente <em>quanto</em> sparsa e dove.</p>
+<h3>Perché è interessante</h3>
+<p>È il caso in cui i limiti del mio metodo sono diventati visibili — e in cui l'<em>onestà</em> dell'output è diventata la feature più preziosa.</p>
+<h3>Aggiustamenti</h3>
+<p>Per territori a documentazione sparsa, due cambiamenti:</p>
+<ol>
+<li><strong>Abbassa la soglia di densità</strong> — accetta che potresti ottenere 25-30K caratteri di output invece di 45-50K</li>
+<li><strong>Aumenta l'enfasi sui disclaimer</strong> — invita esplicitamente il modello a dichiarare limitazioni estese, dato che l'obiettivo è mappare la struttura noto/non-noto del territorio</li>
+</ol>
+<h3>Istruzione chiave del prompt</h3>
+<div class="highlight"><pre><span></span><code>Questo dominio è noto avere documentazione pubblica limitata. Il tuo 
+output dovrebbe mappare esplicitamente sia:
+(a) cosa È documentato con fonti primarie
+(b) cosa NON è documentato o documentato solo parzialmente
+
+Per (b), descrivi la forma del buco: è &quot;documentato in campi adiacenti, 
+trasferibile&quot;, &quot;molto recente e non ancora stabilizzato&quot;, &quot;closed-source/
+proprietario&quot;, o &quot;genuinamente non mappato&quot;?
+
+Il mapping verificabile delle incognite è più prezioso della copertura 
+fabbricata di incognite note.
+</code></pre></div>
+
+<h3>Cosa è tornato</h3>
+<p>Il modello ha prodotto ~58K caratteri (più di quanto mi aspettassi per un territorio sparso) ma con <strong>disclaimer espliciti in 8 sotto-aree</strong> — molti più degli altri casi di studio.</p>
+<p>Era il risultato giusto. L'output mi diceva:<br />
+- Il 60% del territorio era discretamente documentato<br />
+- Il 25% era documentato in campi adiacenti con pattern trasferibili<br />
+- Il 15% era genuinamente non mappato — di nicchia abbastanza che nessuna letteratura pubblica esiste</p>
+<p>La porzione del 15% non mappato è diventata, paradossalmente, l'insight più prezioso: <strong>per quelle aree, il mio progetto poteva diventare esso stesso documentazione primaria.</strong> Questo ha cambiato il posizionamento del progetto da "sintetizzare letteratura esistente" a "creare letteratura dove non esiste".</p>
+<h3>La lezione</h3>
+<p>I disclaimer onesti non sono fallimento. Sono l'output più azionabile che puoi ottenere quando ricerchi territori instabili o sotto-documentati.</p>
+<hr />
+<h1>PARTE 2 — Guida al Troubleshooting</h1>
+<h2>Modalità di fallimento 1: output superficiale</h2>
+<p><strong>Sintomo</strong>: meno di 30K caratteri, claim generici, poche fonti primarie.</p>
+<p><strong>Causa</strong>: prompt troppo prescrittivo (modello ha filtrato verso le risposte attese) o dominio troppo ampio.</p>
+<p><strong>Fix</strong>: <br />
+- Ri-promptare con framing Modulo 1 più forte sul mapping esplorativo neutro<br />
+- Restringi il dominio — dividi in 2 sessioni invece di 1<br />
+- Aggiungi istruzione esplicita: "Non riassumere. Mappa entità nominate specifiche, progetti, regolamentazioni, eventi datati."</p>
+<h2>Modalità di fallimento 2: claim confidenti con fonti vaghe</h2>
+<p><strong>Sintomo</strong>: frasi come "i report del settore indicano", "la ricerca suggerisce", "gli esperti concordano" senza fonti nominate.</p>
+<p><strong>Causa</strong>: il Modulo 3 (Citazioni) non è abbastanza forte.</p>
+<p><strong>Fix</strong>:<br />
+- Ri-promptare con lista esplicita di tipi di fonte accettabili<br />
+- Aggiungi: "Se non puoi citare una fonte primaria per un claim, ometti il claim o etichettalo come 'conoscenza generale del settore, fonte primaria non disponibile'."<br />
+- Spot-check citazioni più aggressivamente in audit</p>
+<h2>Modalità di fallimento 3: l'output copre quello che hai chiesto ma sembra incompleto</h2>
+<p><strong>Sintomo</strong>: ogni macro-area è indirizzata, ma percepisci che il territorio è più grande di quello che è tornato.</p>
+<p><strong>Causa</strong>: la tua lista Modulo 2 (Domini) era incompleta. Il modello non può riempire quello che non hai chiesto.</p>
+<p><strong>Fix</strong>:<br />
+- Lancia prima una sessione separata di "scoperta delle macro-aree": chiedi al modello di elencare 20-30 macro-aree rilevanti per il tuo argomento, non di mapparle. Scegli le 12-15 più rilevanti. Poi lancia il prompt completo di mapping.</p>
+<h2>Modalità di fallimento 4: le citazioni sono reali ma dicono qualcosa di diverso da quello che l'AI claimsa</h2>
+<p><strong>Sintomo</strong>: il link funziona, la fonte è reale, ma la fonte non dice davvero quello che l'AI ha sintetizzato.</p>
+<p><strong>Causa</strong>: parafrasi allucinata di fonti reali. Comune in output densi.</p>
+<p><strong>Fix</strong>:<br />
+- Spot-check 5-10 citazioni casuali per sessione, non solo 1-2<br />
+- Per i finding Categoria 5 (direzionali), verifica la fonte citata al 100% prima di agire<br />
+- Tratta ogni singolo finding Categoria 5 come sospetto fino a verifica</p>
+<h2>Modalità di fallimento 5: l'AI sembra ripetere da sessioni precedenti</h2>
+<p><strong>Sintomo</strong>: la seconda sessione di ricerca su dominio correlato produce output quasi identico alla prima.</p>
+<p><strong>Causa</strong>: caching Perplexity, o i tuoi prompt sono troppo simili.</p>
+<p><strong>Fix</strong>:<br />
+- Istruisci esplicitamente: "Evita di ripetere finding dal mapping introduttivo tipico di [dominio]. Dai priorità a pattern emergenti, contesi o sotto-documentati."<br />
+- Cambia leggermente il range temporale (es. 2025-2026 invece di 2024-2026) per forzare nuova query<br />
+- Lancia le sessioni a giorni di distanza, non a minuti</p>
+<h2>Modalità di fallimento 6: senti che la ricerca sia "completa" ma non sei sicuro</h2>
+<p><strong>Sintomo</strong>: hai lanciato 3-5 sessioni, hai un sacco di materiale, ma non riesci a dire se hai coperto il territorio.</p>
+<p><strong>Causa</strong>: framing implicito di "gestibilità" che crea falso senso di completamento. È la modalità anti-derubricazione dell'articolo.</p>
+<p><strong>Fix</strong>:<br />
+- Applica deliberatamente il Modulo 6F (Disciplina Anti-Derubricazione)<br />
+- Chiediti: "Quali categorie di informazione rilevante un esperto del settore si aspetterebbe di vedere che non ho chiesto?"<br />
+- Se non sai rispondere a quella domanda, non hai finito — chiedi al modello di elencare categorie che potresti aver mancato</p>
+<h2>Modalità di fallimento 7: la sessione API crasha o restituisce output troncato</h2>
+<p><strong>Sintomo</strong>: una sessione che dovrebbe produrre 40-60K caratteri ne restituisce 8-15K e si ferma a metà pensiero, oppure l'API restituisce timeout/errore.</p>
+<p><strong>Causa</strong>: solitamente una di tre cose — <code>max_output_tokens</code> raggiunto, reasoning effort troppo alto per la complessità del prompt, o problema transitorio lato Perplexity.</p>
+<p><strong>Fix</strong>:<br />
+- Verifica che <code>max_output_tokens</code> sia impostato a 128000 (il massimo utile per <code>advanced-deep-research</code>). Cap più bassi troncano silenziosamente.<br />
+- Se la troncatura è consistente: dividi il prompt in 2 sessioni che coprono meno macro-aree ciascuna.<br />
+- Per errori transitori: aspetta 10-15 minuti e riprova. Lo stesso prompt produrrà raramente output identico (leggera varianza), quindi se la seconda passata è drammaticamente diversa dalla prima, stai vedendo varianza, non errore.<br />
+- Se stai fatturando molto in sessioni fallite: imposta <code>reasoning.effort</code> a <code>medium</code> per il mapping rough esplorativo, riserva <code>high</code> per sessioni che hai già auditato a effort più basso prima.</p>
+<hr />
+<h1>PARTE 3 — Pattern Avanzati</h1>
+<h2>Pattern A — Costruzione di knowledge graph multi-sessione</h2>
+<p>Per progetti che si estendono su più di 5 sessioni di ricerca, costruisci un knowledge graph mentre vai avanti:</p>
+<ol>
+<li>Dopo ogni sessione, estrai una lista di <strong>entità nominate</strong> (aziende, regolamentazioni, progetti, persone, tecnologie)</li>
+<li>Mantieni un singolo documento che mappa queste entità e le loro relazioni</li>
+<li>Prima di ogni nuova sessione, rivedi il graph per entità che sono state menzionate ma non coperte in profondità — sono candidati per buchi Categoria A</li>
+<li>Dopo 5+ sessioni, il graph stesso diventa un deliverable (e un documento di riferimento per la durata del progetto)</li>
+</ol>
+<p>Nel mio caso, questo graph alla fine conteneva ~330 cluster H2 e ~1.100 sotto-cluster H3. È diventato la spina dorsale navigazionale dell'intero progetto.</p>
+<h2>Pattern B — Sintesi cross-research</h2>
+<p>Quando hai 5+ sessioni correlate, l'esercizio con la leva più alta è <strong>la sintesi cross-research</strong>:</p>
+<ul>
+<li>Per ogni finding Categoria 5, nota da quale sessione viene</li>
+<li>Mappa i finding tra sessioni: quali finding compaiono in più sessioni? Quali compaiono in una sola?</li>
+<li>Finding che compaiono in più sessioni sono conoscenza stabile</li>
+<li>Finding che compaiono solo in una sessione hanno bisogno di verifica — possono essere verità Cat 5 o l'AI può aver confabulato una volta sola</li>
+</ul>
+<p>Il pattern di cross-check tra sessioni rivela quali finding sono robusti e quali fragili. Mi è costato un'ora extra per progetto ma ha beccato 2-3 finding al limite della confabulazione.</p>
+<h2>Pattern C — Disciplina anti-derubricazione (tre esempi reali)</h2>
+<p>Mi sono beccato a fare questa cosa tre volte separate durante il progetto. Ogni volta lo stesso pattern: dopo una sessione di ricerca, in fase di audit, ho etichettato certi finding come "minori" / "edge case" / "non bloccanti". Ogni volta, quando mi sono costretto a re-interrogare il framing, i finding sono risultati Categoria 4 o 5.</p>
+<p><strong>Esempio 1</strong>: Dopo una sessione sul panorama regolatorio, avevo notato "il credito d'imposta specifico di un paese esclude una categoria di costi maggiore" e l'avevo flaggato come "minore — aggirabile". Re-interrogato sotto il framing reale del progetto, era un paradosso strutturale che richiedeva architettura contabile separata e ha cambiato come avrei dovuto budgettare il progetto. Categoria 5.</p>
+<p><strong>Esempio 2</strong>: Dopo una sessione sulle feature AI rivolte all'utente, avevo flaggato "85% degli utenti ha atteggiamento negativo verso AI visibile" come "interessante ma non bloccante — basta saperla framettare bene". Re-interrogato, questo singolo finding ha invertito l'intero framing strategico del progetto — da "AI come feature" a "AI invisibile come strategia". Categoria 5.</p>
+<p><strong>Esempio 3</strong>: Dopo una sessione sull'infrastruttura tecnica, avevo flaggato "il vendor primario ha pivotato verso un mercato diverso" come "minore — ne possiamo scegliere un altro". Re-interrogato, era parte di un pattern documentato di instabilità dei vendor in questa nicchia, e la lezione era "costruisci indipendenza dal vendor nell'architettura dal giorno uno". Categoria 5.</p>
+<p>In tutti e tre i casi, il framing implicito era "gestibilità — tieni lo scope stretto". Una volta esplicitato, il framing era sbagliato. I finding non erano minori; il mio framing si stava proteggendo da informazione scomoda.</p>
+<p><strong>Questa è la disciplina con la leva più alta dell'intero workflow.</strong> Pratica la cosa coscientemente. Non sembrerà naturale. È per questo che funziona.</p>
+<h2>Pattern D — Concatenare un risultato di ricerca in una chiamata LLM successiva</h2>
+<p>L'output di ricerca Perplexity è denso. Spesso vuoi prendere quell'output denso, passarlo a un LLM diverso (Claude, GPT, la tua istanza Llama locale), e fargli fare lavoro a valle — sintesi, individuazione di contraddizioni, estrazione strutturata, draft di scrittura.</p>
+<p>Il modo pulito di farlo è passare sia il prompt originale sia la risposta dell'assistant indietro come storia conversazionale quando chiami il modello successivo. Questo preserva il contesto completo del perché la ricerca è stata strutturata in quel modo, non solo la risposta:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;prompt di ricerca originale — Moduli 1-5&gt;&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;l&#39;output di ricerca completo che hai ricevuto&gt;&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;la tua istruzione di follow-up, es. &#39;Estrai tutte le entità nominate in un CSV con colonne nome, categoria, prima-sezione-menzionata, URL-fonte-primaria&#39;&gt;&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="err">...</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>La stessa forma funziona sia che tu stia usando di nuovo Perplexity per una chiamata di reasoning di follow-up, sia un altro provider interamente. Il principio: <strong>l'output di ricerca e il prompt che l'ha generato sono contesto inseparabile.</strong> Separarli — incollare solo l'output in un modello successivo — perde il framing che rendeva l'output affidabile. Vale i token in più.</p>
+<hr />
+<h1>PARTE 4 — Riferimento configurazione API</h1>
+<p>Questa sezione è per i lettori che vogliono il setup tecnico esatto dietro il workflow. Se sei un lettore non tecnico che usa l'abbonamento Perplexity Pro consumer, salta questa parte.</p>
+<h2>Il runtime</h2>
+<p>I risultati dell'articolo vengono dalla <strong>Perplexity API</strong> nel preset <strong><code>advanced-deep-research</code></strong> — non dall'abbonamento consumer Pro. I due prodotti sono calibrati diversamente:</p>
+<ul>
+<li><strong>Pro Search consumer</strong> (abbonamento $20/mese): sintesi di ricerca single-pass, veloce, reasoning leggero. Buono per lookup veloci, debole per mapping di territorio.</li>
+<li><strong>API <code>advanced-deep-research</code></strong> (a token, top-up minimo $50): institutional-grade, reasoning esteso, tool-augmented, lento per sessione ma output materialmente più profondo.</li>
+</ul>
+<p>Il workflow in questa Edizione Pro è calibrato per il preset API. Le soglie di audit (40K+ caratteri, 14+ cluster H2, 50+ H3) riflettono ciò che il preset API produce in modo affidabile. Con il Pro consumer, aspettati ~30% di densità in meno e adatta le soglie proporzionalmente — o accetta che stai facendo una versione più leggera dello stesso workflow.</p>
+<h2>Struttura della richiesta di default</h2>
+<p>Questo è il body JSON che invio per una sessione esplorativa di prima passata:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;input&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;message&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;user&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;il tuo prompt assemblato — Moduli 1-5 dal template gratuito&gt;&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">&quot;stream&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;preset&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;advanced-deep-research&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;max_output_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128000</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;reasoning&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;effort&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;tools&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;web_search&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fetch_url&quot;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Endpoint: <code>POST https://api.perplexity.ai/v1/responses</code>. Auth: <code>Authorization: Bearer $PERPLEXITY_API_KEY</code>.</p>
+<p>Invocazione equivalente in curl:</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>https://api.perplexity.ai/v1/responses<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$PERPLEXITY_API_KEY</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<span class="s1">    &quot;input&quot;: [</span>
+<span class="s1">      {</span>
+<span class="s1">        &quot;type&quot;: &quot;message&quot;,</span>
+<span class="s1">        &quot;role&quot;: &quot;user&quot;,</span>
+<span class="s1">        &quot;content&quot;: &quot;&lt;il tuo prompt assemblato&gt;&quot;</span>
+<span class="s1">      }</span>
+<span class="s1">    ],</span>
+<span class="s1">    &quot;stream&quot;: false,</span>
+<span class="s1">    &quot;preset&quot;: &quot;advanced-deep-research&quot;,</span>
+<span class="s1">    &quot;max_output_tokens&quot;: 128000,</span>
+<span class="s1">    &quot;reasoning&quot;: { &quot;effort&quot;: &quot;high&quot; },</span>
+<span class="s1">    &quot;tools&quot;: [</span>
+<span class="s1">      { &quot;type&quot;: &quot;web_search&quot; },</span>
+<span class="s1">      { &quot;type&quot;: &quot;fetch_url&quot; }</span>
+<span class="s1">    ]</span>
+<span class="s1">  }&#39;</span>
+</code></pre></div>
+
+<p>Puoi lanciarlo nel Perplexity Playground (UI web per l'API, con selettore di modello e toggle dei tool), via curl/SDK, o wrappato in qualsiasi delle client library in stile Anthropic/OpenAI.</p>
+<h2>Note per parametro</h2>
+<p><strong><code>preset</code></strong> — <code>advanced-deep-research</code> è il tier più alto. Altri preset (<code>fast-search</code>, <code>pro-search</code>, <code>deep-research</code>, più <code>custom</code> per configurazioni hand-rolled) scambiano profondità per velocità e costo. Per il mapping del territorio usa <code>advanced-deep-research</code>. Per estrazione, strutturazione, o lookup semplici di follow-up, <code>pro-search</code> o <code>fast-search</code> costano una frazione.</p>
+<p><strong><code>max_output_tokens</code></strong> — 128000 è il massimo pratico utile qui. Impostarlo più basso tronca silenziosamente e potresti perdere la sezione più preziosa (Pattern Emergenti è alla fine). Non impostarlo più basso a meno che tu non stia esplicitamente cappando la spesa su una sessione che sai stretta.</p>
+<p><strong><code>reasoning.effort</code></strong> — <code>high</code> per il mapping esplorativo dove vuoi che il modello pensi forte. <code>medium</code> funziona per estrazione o sintesi di follow-up dove il lavoro pesante è già negli input. <code>low</code> per lookup semplici. L'effort scala il costo: sessioni high-effort possono costare 2-3× il costo in token di sessioni medium per output di lunghezza simile, quindi riserva <code>high</code> per le sessioni dove conta.</p>
+<p><strong><code>tools</code></strong> — <code>web_search</code> è essenziale (è l'intero punto del runtime). <code>fetch_url</code> permette al modello di recuperare contenuto completo da URL specifici che fa emergere, il che migliora materialmente la qualità delle citazioni. Entrambi dovrebbero essere abilitati. Disabilitare uno qualsiasi dei due degrada l'output quasi al livello di un LLM base senza retrieval.</p>
+<p><strong><code>stream</code></strong> — <code>false</code> per ricezione sincrona dell'output completo, più facile da auditare. <code>true</code> è utile solo se stai pipando l'output in una UI mentre genera e non hai bisogno dell'output completo prima del processing.</p>
+<h2>Varianza di costo</h2>
+<p>L'articolo cita ~$3/sessione di media su 20 sessioni. Il range effettivo:</p>
+<ul>
+<li><strong>Sessione più bassa nei miei dati</strong>: ~$1.50 (sessione di chiusura Categoria-A stretta, ~15K caratteri output)</li>
+<li><strong>Sessione più alta</strong>: ~$6 (mapping esplorativo ampio con 14+ macro-aree, citazioni dense, cap di 128K token raggiunto)</li>
+<li><strong>Mediana</strong>: ~$2.80</li>
+<li><strong>Cosa guida la varianza</strong>: token totali in output (di più), numero di chiamate <code>web_search</code> che il modello fa (significativo), profondità di reasoning a <code>high</code> effort su prompt complessi (significativo)</li>
+</ul>
+<p>Implicazione pratica: budgetta ~$50 per un progetto di ricerca multi-verticale (5-8 sessioni). Il top-up minimo è $50 comunque, quindi non puoi spendere meno di così.</p>
+<h2>Sperimentazione che vale la pena fare</h2>
+<p>Configurazioni non usate nell'articolo che potrebbero produrre risultati migliori per casi d'uso specifici:</p>
+<ul>
+<li><strong><code>reasoning.effort</code> più basso per il loop di audit-recovery</strong>: quando ri-lanci una sessione dopo che l'audit ha identificato output superficiale, <code>medium</code> effort con un prompt più affilato è a volte meglio di <code>high</code> effort con il prompt sciatto originale. Testa sui tuoi dati.</li>
+<li><strong>Diverse combinazioni di tool per lookup tecnici stretti</strong>: solo <code>web_search</code> (no <code>fetch_url</code>) per sessioni dove vuoi ampia scoperta di URL; solo <code>fetch_url</code> per sessioni dove hai una reading list nota e vuoi estrazione. I risultati dell'articolo vengono da entrambi abilitati, ma cambia in base al dominio.</li>
+<li><strong>Struttura conversazionale multi-turn con system message</strong>: non ho usato system message nelle run che hanno prodotto i risultati dell'articolo. Plausibilmente vale la pena sperimentare se hai uno stile idiosincratico di audit che vuoi che il modello applichi consistentemente attraverso le sessioni.</li>
+</ul>
+<p><strong>Reminder sui costi</strong>: la sperimentazione è soldi reali sul contatore. Budgetala separatamente. Tieni d'occhio la dashboard API Perplexity. Il prodotto è onesto sul costo per chiamata — non c'è overage a sorpresa.</p>
+<hr />
+<h1>PARTE 5 — Ottimizzazione Costi</h1>
+<h2>Spendere meno ottenendo di più</h2>
+<p>Dopo 20 sessioni ho speso ~$60. Se fossi stato più sveglio dalla sessione 1, avrei potuto farlo per ~$40. Ecco cosa cambierei.</p>
+<p><strong>Smetti di lanciare sessioni profonde su territorio già mappato.</strong> Ho lanciato 2-3 sessioni in cui il rapporto marginale di finding Cat 4-5 era sotto il 5%. Erano spreco. Auditale aggressivamente dopo ogni sessione; se il territorio sembra sottile, vai avanti.</p>
+<p><strong>Lancia PRIMA sessioni di scoperta delle macro-aree, poi mapping.</strong> Spendere $1-2 su una sessione "elenca 25 macro-aree rilevanti per X" prima di lanciare la sessione di mapping da $3-5 previene la copertura incompleta. L'ho imparato a metà strada.</p>
+<p><strong>Usa le sessioni di chiusura liberalmente per i buchi Categoria A.</strong> Una sessione di chiusura stretta da $3-4 vale quasi sempre più di una nuova sessione ampia da $5-7.</p>
+<p><strong>Smetti di provare a ricercare cose che non si ricercano bene.</strong> Alcuni territori non hanno abbastanza documentazione pubblica perché la ricerca AI aggiunga valore. Riconoscilo presto e pivota su consultazione diretta, lettura di fonti primarie, o esperimento in prima persona.</p>
+<p><strong>Usa preset di tier più basso per le sessioni non di mapping.</strong> Una volta che hai l'output di mapping, il lavoro a valle — estrazione, sintesi, restrutturazione — solitamente non ha bisogno di <code>advanced-deep-research</code>. <code>pro-search</code> a <code>medium</code> effort gestisce la maggior parte di questo a una frazione del costo.</p>
+<h2>Costo realistico per progetto di ricerca</h2>
+<table>
+<thead>
+<tr>
+<th>Complessità del progetto</th>
+<th>Sessioni necessarie</th>
+<th>Costo totale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mapping di un singolo verticale</td>
+<td>2-3</td>
+<td>$6-12</td>
+</tr>
+<tr>
+<td>Panorama multi-verticale</td>
+<td>5-8</td>
+<td>$15-30</td>
+</tr>
+<tr>
+<td>Progetto strategico completo (multi-mese)</td>
+<td>15-25</td>
+<td>$45-90</td>
+</tr>
+<tr>
+<td>"Mappa tutto quello di cui avrò mai bisogno"</td>
+<td>30+</td>
+<td>$100+</td>
+</tr>
+</tbody>
+</table>
+<p>Per la maggior parte di founder, operator, giornalisti e scrittori, la risposta è "panorama multi-verticale" — $15-30. È il sweet spot di rendimento sulla spesa.</p>
+<hr />
+<h1>PARTE 6 — Adattamento a scale diverse</h1>
+<h2>Per due-diligence di founder</h2>
+<ul>
+<li>Comprimi a 3-5 sessioni</li>
+<li>Enfasi forte sul Modulo 4 (Disclaimer) — devi sapere cosa NON è noto</li>
+<li>Cross-reference dei finding Categoria 5 con call con esperti del settore (1-2 call validano il mapping AI)</li>
+</ul>
+<h2>Per investigazione giornalistica</h2>
+<ul>
+<li>Usa il workflow come scaffolding, non come fonte finale</li>
+<li>Ogni finding Categoria 5 attiva verifica manuale di fonte primaria</li>
+<li>L'output è un <em>documento di ricerca</em> su cui poi agisci con strumenti giornalistici tradizionali</li>
+</ul>
+<h2>Per scrittura di libri tecnici</h2>
+<ul>
+<li>È quello per cui ho usato il workflow io</li>
+<li>15-25 sessioni su 6 mesi</li>
+<li>Il knowledge graph diventa lo scheletro strutturale del libro</li>
+<li>Ogni cluster di capitolo maggiore mappa a 1-2 sessioni di ricerca</li>
+<li>I finding che compaiono in più sessioni diventano temi centrali</li>
+</ul>
+<h2>Per analisi di mercato</h2>
+<ul>
+<li>Enfasi forte sul Modulo 5 (Pattern Emergenti) — l'intelligence competitiva spesso viene da lì</li>
+<li>Sintesi cross-research rivela quali trend sono robusti vs hyped</li>
+<li>L'output alimenta strumenti tradizionali di analisi di mercato (sizing, segmentazione)</li>
+</ul>
+<hr />
+<h1>PARTE 7 — Quando il workflow massimizza il valore vs quando comprime solo tempo</h1>
+<p>Questa sezione è qui perché il workflow non produce lo stesso tipo di valore su tutti i domini. Entrambi i tipi di valore sono reali. Non sono lo stesso tipo di valore.</p>
+<h2>La distinzione</h2>
+<p>Esistono due regimi:</p>
+<p><strong>Regime A — Domini sotto-documentati.</strong> Territori complessi ma frammentati: aree di nicchia specialistica, intersezioni tra discipline, ambienti regolatori in rapida evoluzione, aree tecniche emergenti, settori in flusso. L'informazione pubblica esiste ma è dispersa, contraddittoria, o incompleta. Nessuna singola fonte ha la mappa completa.</p>
+<p><strong>Regime B — Domini iper-documentati.</strong> Territori complessi ma ampiamente coperti: software di consumo mainstream, framework di programmazione popolari, prodotti di consumo consolidati, industrie ben note. L'informazione pubblica è abbondante, ben organizzata, e centralizzata in fonti canoniche (documentazione ufficiale, wiki mature, canali community di esperti).</p>
+<p>Il workflow gira con successo in entrambi i regimi. La natura del valore prodotto è diversa in ciascuno.</p>
+<h2>In Regime A — il workflow abilita territorio</h2>
+<p>Senza il workflow (o il suo equivalente funzionale: $15.000+ in consulenti specializzati), il territorio è <strong>di fatto non-mappabile</strong> per un singolo ricercatore in tempi ragionevoli. L'informazione è troppo dispersa, troppo contraddittoria, troppo frammentata. Gli 80 findings di categoria 5 ottenuti dal mio progetto principale non sarebbero emersi attraverso ricerca normale — li avrei scoperti uno alla volta nell'arco di anni, oppure avrei pagato persone che li avevano già in testa.</p>
+<p>In Regime A, il workflow è <em>abilitante</em>: rende possibile qualcosa che altrimenti non lo era.</p>
+<p>L'articolo originale (quello pubblico e gratuito che introduce questa Edizione Pro) è stato scritto su un'applicazione in Regime A. Per questo il confronto di costo ($60 vs $15.000+) è concreto: l'alternativa era reale, costosa, e avrebbe prodotto una mappa simile.</p>
+<h2>In Regime B — il workflow comprime tempo</h2>
+<p>In un dominio iper-documentato, il workflow gira pulitamente, produce output denso, genera findings categoria 5, ma lo scenario alternativo è diverso. Senza il workflow, potresti comunque costruire la stessa mappa leggendo le fonti canoniche per 20-30 ore e sintetizzando manualmente. L'informazione è <em>disponibile</em>, ti serve solo tempo.</p>
+<p>In Regime B, il workflow è <em>comprimente</em>: fa in una sessione di 5-15 minuti quello che ti richiederebbe 20-30 ore di ricerca manuale.</p>
+<p>Questo è anche valore reale — il tempo è denaro reale, e 30 ore sono significative — ma <strong>non è</strong> lo stesso che abilitare qualcosa prima impossibile. Il framing del ROI cambia:</p>
+<table>
+<thead>
+<tr>
+<th>Regime</th>
+<th>Costo alternativa</th>
+<th>Alternativa in tempo</th>
+<th>Natura del valore</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A — Sotto-documentato</td>
+<td>$5.000–30.000+ in consulenti</td>
+<td>Mesi (spesso impossibile)</td>
+<td>Abilita mappatura nuova</td>
+</tr>
+<tr>
+<td>B — Iper-documentato</td>
+<td>$0 (info pubblica gratuita)</td>
+<td>20–30 ore di lettura manuale</td>
+<td>Comprime mappatura esistente</td>
+</tr>
+</tbody>
+</table>
+<h2>Come riconoscere in quale regime sei</h2>
+<p>Prima di iniziare una sessione, fai un sanity check di cinque minuti:</p>
+<ul>
+<li>Un non-esperto può raggiungere l'80% di comprensione del dominio leggendo documentazione ufficiale + 2-3 fonti community di riferimento in 20-30 ore? → <strong>Regime B (compressione)</strong></li>
+<li>Il dominio è distribuito su 10+ fonti disconnesse, ognuna con informazioni parziali? → <strong>Regime A (abilitazione)</strong></li>
+<li>Esistono praticanti esperti attivi che si farebbero pagare $200–400/ora per mappare questo dominio? → <strong>Regime A (abilitazione)</strong></li>
+<li>Wikipedia ha un articolo di alta qualità, aggiornato, e profondo su questo dominio? → <strong>Regime B (compressione)</strong></li>
+<li>Il dominio è ancora in rapida evoluzione, senza fonti canoniche stabili? → <strong>Regime A (abilitazione)</strong></li>
+</ul>
+<p>Entrambi i regimi sono legittimi. Calibra solo le aspettative: se applichi il workflow a un dominio di Regime B aspettandoti "$15.000 di valore", rimarrai deluso. Se lo applichi a un dominio di Regime A aspettandoti "20 ore risparmiate", sottovaluterai il valore reale.</p>
+<h2>Una nota sui domini ibridi</h2>
+<p>Alcuni domini sono misti. Per esempio, mappare "le best practice attuali per un framework di programmazione consolidato" è Regime B per le basi del framework ma Regime A per l'<strong>intersezione</strong> di quel framework con un contesto di deployment di nicchia emergente. Il workflow gira allo stesso modo; quello che cambia è la tua interpretazione di quali findings categoria 5 rappresentano davvero territorio-abilitato vs solo tempo-compresso.</p>
+<p>In caso di dubbio: assumi Regime B finché l'audit non dimostra che i findings categoria 5 <strong>non</strong> sono presenti nelle fonti canoniche. Se non lo sono, ti sei imbattuto in una tasca di Regime A dentro un dominio di Regime B — e quell'intersezione è spesso dove vivono gli insight di valore più alto.</p>
+<hr />
+<h1>PARTE 8 — Una nota finale sul metodo</h1>
+<p>Sei mesi fa avrei ucciso per quest'Edizione Pro. Invece ho costruito il workflow $3 alla volta, sbattendo contro le stesse modalità di fallimento ripetutamente finché i pattern sono emersi.</p>
+<p>L'insight centrale non è su Perplexity. È su come la ricerca AI-aumentata differisce dal search tradizionale:</p>
+<ul>
+<li><strong>Il search tradizionale</strong> è bravo a trovare cose specifiche già note</li>
+<li><strong>La ricerca esplorativa AI</strong> è brava a <em>mappare territori non noti</em></li>
+<li><strong>Combinare i due</strong> con audit disciplinato è quello che produce conoscenza seria</li>
+</ul>
+<p>Il workflow sopra è la versione più disciplinata che ho trovato. Non è l'unica. Man mano che gli strumenti AI evolveranno, evolverà anche il workflow. Ma i principi sottostanti — framing esplorativo neutro, citazioni primarie obbligatorie, dichiarazione esplicita dei limiti, audit categorizzato, disciplina anti-derubricazione — quelli resteranno.</p>
+<p>Usali. Adattali. Migliorali.</p>
+<p>Se costruisci un workflow migliore, mi piacerebbe vederlo.</p>
+<hr />
+<p><em>Template gratuito (moduli + checklist audit): [link]</em></p>
+<p><em>Articolo su Medium: [link]</em></p>
+<p><em>Domande/feedback: [tua email o handle social]</em></p>
+<hr />
+<h2>Changelog</h2>
+<ul>
+<li><strong>v1.0</strong> — Prima release. Tre casi di studio, guida al troubleshooting, pattern avanzati, ottimizzazione costi, note di adattamento, riferimento completo configurazione API, sezione anti-hype dedicata.</li>
+<li><strong>Aggiornamenti futuri</strong>: aggiunte pianificate includono confronti tra strumenti AI (Perplexity vs Claude vs Gemini per ricerca), cookbook dedicato per la scrittura di libri tecnici, cookbook dedicato per la due-diligence di founder.</li>
+</ul>
+<p><em>Se hai comprato questa Edizione Pro, riceverai aggiornamenti futuri gratis. Aggiungiti alla lista degli aggiornamenti a [link].</em></p>
+  </div>
+</article></main>
+<footer class="foot"><span>il metodo · come facciamo gli articoli</span><span>template_ricerca_pro_IT.md</span></footer>
+</body></html>

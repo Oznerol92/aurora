@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Esempio: articolo — il metodo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <a class="brand" href="../index.html">il<b>metodo</b></a>
+  <a class="back" href="../index.html">&larr; indice</a>
+</div></header>
+<main class="wrap"><article class="doc">
+  <div class="banner banner-esempi">Esempio reale — un articolo vero, fatto col metodo. Studialo per capire com&#x27;è strutturato; non copiarlo: accanto trovi il template vuoto da riempire col tuo.</div>
+  <div class="kicker">Esempio · EN</div><h1>I Spent $60 on Perplexity Pro. The Output Would Have Cost Me $15,000+ from Consultants.</h1><p class="subtitle">A 4-step research workflow I built across 20 deep-dives — and what I learned about getting AI to actually do research instead of producing slop.</p><div class="tags"><span>AI</span><span>Perplexity</span><span>Research</span><span>Writing</span><span>Productivity</span></div><hr class="rule">
+  <div class="prose">
+<blockquote>
+<p><strong>[KICKER IMAGE — see image prompt #1 in image bundle]</strong><br />
+Suggested placement: at the very top, before the H1, full-width.</p>
+</blockquote>
+<p>Last December I started a complex technical project — the kind where you need to map an entire industry before writing a single word. Multi-platform scope, fast-moving regulations, a dozen subdomains, a niche where most "best practices" are 3 years out of date.</p>
+<p>The traditional path was clear: hire two or three consultants, buy a couple of industry reports, spend weeks reading. Realistic budget: $15,000–$30,000. Realistic timeline: 3–4 months.</p>
+<p>I had neither.</p>
+<p>So I tried something different. Twenty research sessions on Perplexity Pro, spread across six months, total spend roughly $60. Output: ~140,000 words of structured mapping, ~330 thematic clusters, ~1,100 sub-topics, hundreds of primary-source citations, around 80 findings that genuinely changed the direction of the project.</p>
+<p>A consultant working from scratch would have charged me $200–$400/hour for that. Even at the floor — $200/hour, no overhead — the equivalent labor sits at 80–150 hours of senior strategic research. That's $16,000–$60,000.</p>
+<p>I'm not trying to sell you a magic tool. Perplexity isn't magic. <strong>The reason this worked is that the process I used before was enormously inefficient — and most people doing AI research today are still using that broken process.</strong></p>
+<p>This article is what I learned. A 4-step workflow, six epistemological principles, and a downloadable template at the bottom you can adapt to any domain.</p>
+<hr />
+<h2>The problem nobody talks about</h2>
+<p>Most people use AI research tools the way they used Google: they ask a question, they get an answer, they move on.</p>
+<p>This produces three failure modes I watched myself fall into for the first 4 sessions:</p>
+<p><strong>Slop disguised as research.</strong> You ask "what are the best practices for X?" The model gives you a confident-sounding list. Half of it is actual current practice, a third is outdated by 18+ months, and the rest is plausible-looking generic advice with no source. You can't tell which is which until something breaks.</p>
+<p><strong>Confirmation bias amplification.</strong> You phrase the question the way you already think about the problem. The model picks up on the framing and produces an answer that confirms your assumptions. You feel validated. You miss the entire alternative branch of the field that would have changed your decision.</p>
+<p><strong>False completeness.</strong> You read the answer, it covers what you asked. You move on. But you never asked about the 60% of the territory you didn't know existed. The map looks complete because it covers what you asked, not because it covers what matters.</p>
+<p>These three failure modes are not the AI's fault. They're a property of how the question is structured.</p>
+<hr />
+<h2>The principle: exploratory neutral, not prescriptive</h2>
+<p>The biggest single lever I found is also the simplest:</p>
+<p><strong>Don't ask the AI to confirm a hypothesis. Ask it to map a territory.</strong></p>
+<p>The difference looks small in writing and is enormous in output. Compare:</p>
+<blockquote>
+<p>❌ Prescriptive: "Is approach X the best way to handle Y?"</p>
+<p>❌ Prescriptive (subtler): "What are the best practices for Y, focusing on approach X?"</p>
+<p>✅ Exploratory neutral: "Map the current landscape of approaches to Y, including dominant patterns, emerging alternatives, documented failures, and trade-offs. Don't filter by what's commonly recommended."</p>
+</blockquote>
+<p>In my data, exploratory-neutral prompts produced <strong>3–5× more category-shifting findings</strong> than prescriptive ones. Findings that changed the project's direction, not just confirmed what I thought.</p>
+<p>The reason is mechanical. When you tell the AI what you're looking for, it works to find it. When you tell the AI to map what exists without filtering, it surfaces things you didn't know to ask about.</p>
+<p>This sounds obvious. It is also the principle 90% of people violate every time they search.</p>
+<hr />
+<h2>The 4-step workflow</h2>
+<p>The single biggest unlock wasn't the prompt. It was realizing that <strong>one research session is never enough</strong> for a serious mapping project — and building a workflow around that fact.</p>
+<p>Here's what 20 sessions taught me. Each big topic gets four steps, not one.</p>
+<h3>Step 1 — First exploratory pass</h3>
+<p>You start broad. The first prompt is genuinely neutral, asks for territory mapping, and includes a specific instruction I'll get to in a moment. Output is typically dense: 14–18 thematic clusters, 50+ sub-topics, 40,000–60,000 characters.</p>
+<p>This pass is <strong>not the answer</strong>. It's the rough map. You don't make decisions from it. You read it carefully and identify what's missing.</p>
+<h3>Step 2 — Methodical audit</h3>
+<p>This is the step everyone skips. After the first pass, you don't move on. You audit the output systematically against five questions:</p>
+<ol>
+<li><strong>Density check.</strong> Is the output dense enough? My benchmark: 40K+ characters, 14+ H2 clusters, 50+ H3 sub-clusters. Below this, the model didn't engage seriously and you need to re-prompt.</li>
+<li><strong>Citation check.</strong> Does it cite primary sources with specific names and dates? Or vague "industry reports say"? Vague = slop.</li>
+<li><strong>Disclaimer check.</strong> Did the model declare any limitations honestly? Sections labeled "data is limited" or "this area is poorly documented" are paradoxically the most trustworthy parts of the output.</li>
+<li><strong>Categorization.</strong> Sort findings 1–5: 5 changes the project's direction, 4 is substantive new info, 3–2–1 is confirmation or marginal. Most findings will be 3–2. The 5s and 4s are what you paid for.</li>
+<li><strong>What's missing?</strong> This is the critical question. Not "did it answer my question" but "what categories of relevant information would be expected here that I don't see?"</li>
+</ol>
+<p>Step 2 takes me about 30–45 minutes per research session. It's the highest-leverage half-hour of the entire process.</p>
+<h3>Step 3 — Identify the gaps</h3>
+<p>After audit, you have an explicit list of holes. Three categories:</p>
+<ul>
+<li><strong>Category A — needs another research session.</strong> Big territory not covered, public literature exists, would justify the cost.</li>
+<li><strong>Category B — closes during work.</strong> Specific implementation details, niche references, will surface naturally as you do the actual project.</li>
+<li><strong>Category C — won't close from external research.</strong> Local context, very emerging patterns, things that need direct consultation or first-hand experience.</li>
+</ul>
+<p>Be ruthless about Category A vs B. Most "gaps" are actually Category B and don't need another session. The temptation to over-research is real; resist it. <strong>Run a closing research session only for Category A gaps.</strong></p>
+<h3>Step 4 — Closing research</h3>
+<p>Targeted, narrow, deep. Now you can ask more specific questions because you have the territory map. The closing session typically covers gaps the first session left explicitly open. By this point you spent maybe $6–8 on a single topic and have something genuinely complete.</p>
+<p>Across 20 sessions, this 4-step rhythm produced output an order of magnitude better than what I got in my first solo prompts.</p>
+<hr />
+<h2>The six epistemological principles</h2>
+<p>These are the principles encoded in the template. Each one comes from a specific failure mode I hit and learned to design around.</p>
+<h3>1. Exploratory neutrality</h3>
+<p>Already covered. Map territory, don't confirm hypotheses. Phrase prompts so the AI has no incentive to filter toward what you already think.</p>
+<h3>2. Mandatory primary citations</h3>
+<p>In every prompt, specify the <em>types</em> of sources you want: official documentation, peer-reviewed papers, industry conference talks (with year), specific blog posts (with author and date), regulatory filings, postmortems with named projects. Generic "industry reports" is not a primary source.</p>
+<p>This single instruction filtered AI slop in my output by something like 90%. The model can produce slop because it's lazy; if you force it to cite specifically, it has to actually find real sources or admit it doesn't have them.</p>
+<h3>3. Explicit "emerging patterns not requested" section</h3>
+<p>In every prompt, include a final section asking the AI to surface 5–10 patterns it found that <em>I didn't ask about</em>. This is consistently the richest section of every research output I produced.</p>
+<p>The reason: the explicit prompt structure constrains what the AI surfaces. The "not requested" section gives it permission to escape that structure. About 30% of my category-5 findings (the ones that changed project direction) came from this section, not from the parts I explicitly asked about.</p>
+<h3>4. Limitations as honesty markers</h3>
+<p>Ask the AI to <em>explicitly declare</em> when data is limited. Most prompts implicitly punish the model for saying "I don't know" — so it makes things up to avoid the social cost.</p>
+<p>When you reverse this — "if a topic has limited public data, declare it instead of filling with speculation" — the model becomes dramatically more honest. And the topics where it admits limitation are exactly the topics where you'd otherwise have been misled by confident slop.</p>
+<h3>5. Categorized post-research audit</h3>
+<p>Without categorization, every finding looks equally important. With categorization (1–5), you see the pattern: 70% confirmation, 20% substantive, 10% direction-changing. That ratio tells you whether the session was worthwhile.</p>
+<p>It also tells you when to <em>stop researching</em>. If a session produces 40 findings and only 2 are category 4–5, the area is over-mapped. Move on.</p>
+<h3>6. Anti-decommissioning discipline</h3>
+<p>This is the one that almost nobody talks about and that ate the most of my time before I learned it.</p>
+<p>There's a consistent failure mode I hit three times across the project: after enough research, you start unconsciously demoting findings under an implicit framing of "manageability." Things that don't fit the scope you mentally already settled on get classified as "minor" or "edge case" — when in fact they're not minor, they just don't fit your evolving picture.</p>
+<p>The discipline: when an audit produces a signal labeled "this is cosmetic / minor / not blocking," <strong>stop and re-interrogate the framing under which it's minor.</strong> Often the framing is implicit and convenient, not deliberate. Make it deliberate, then decide.</p>
+<p>I caught this pattern in myself three separate times. Each time, when forced to surface the implicit framing, the "minor" findings turned out to be category 4 or 5. Discipline this consciously, or you'll quietly under-research the parts that matter most.</p>
+<hr />
+<h2>When this method does NOT serve you</h2>
+<p>Anti-hype section, important.</p>
+<p>This 4-step workflow is overkill — and a waste of money — for:</p>
+<ul>
+<li><strong>Simple factual questions.</strong> "What's the syntax for X in language Y" — just ask normally, one prompt, done.</li>
+<li><strong>Well-documented domains.</strong> If you can find the official documentation in 5 minutes, don't pay Perplexity to summarize it.</li>
+<li><strong>Binary decisions.</strong> "Should I use approach A or B?" — frame it as a comparison, not as a territory mapping.</li>
+<li><strong>Time-pressured single decisions.</strong> If you need an answer in 10 minutes, this isn't the workflow.</li>
+</ul>
+<p>Use the 4-step method for: complex domains with shifting state, decisions where the territory matters, projects where you'll commit months of work to whatever the research surfaces, areas where mistakes from incomplete information are expensive.</p>
+<p>For everything else, just ask the question.</p>
+<hr />
+<h2>The numbers, transparent</h2>
+<p>Across 6 months, ~20 sessions:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total spent on Perplexity Pro</td>
+<td>~$60</td>
+</tr>
+<tr>
+<td>Total output (raw text)</td>
+<td>~140,000 words</td>
+</tr>
+<tr>
+<td>H2 thematic clusters mapped</td>
+<td>~330</td>
+</tr>
+<tr>
+<td>H3 sub-topics covered</td>
+<td>~1,100</td>
+</tr>
+<tr>
+<td>Direction-changing findings (category 5)</td>
+<td>~80</td>
+</tr>
+<tr>
+<td>Substantive findings (category 4)</td>
+<td>~350</td>
+</tr>
+<tr>
+<td>Documented anti-patterns with cited consequences</td>
+<td>~18</td>
+</tr>
+<tr>
+<td>Average cost per session</td>
+<td>~$3</td>
+</tr>
+<tr>
+<td>Domain coverage achieved (self-assessed)</td>
+<td>96–97%</td>
+</tr>
+</tbody>
+</table>
+<p>Equivalent labor at consultant rates ($200–400/hr, 80–150 hours): <strong>$16,000–$60,000.</strong></p>
+<p>Equivalent freelance research labor ($50/hr, 200–500 hours): <strong>$10,000–$25,000.</strong></p>
+<p>Conservative valuation: <strong>$15,000.</strong> Higher: realistic <strong>$30,000+.</strong> ROI: 250–500×.</p>
+<p>I don't claim this scales arbitrarily. If you tried to replicate the same coverage on a domain you don't already understand, the output would mislead you because you couldn't audit it. The method works because you already have enough domain knowledge to know when the AI is bullshitting and when it isn't.</p>
+<p>But for anyone working on a serious project — book, technical documentation, market analysis, founder due diligence, industry mapping — the workflow is replicable.</p>
+<hr />
+<h2>The exact setup I used (and why it matters for replication)</h2>
+<p>A note on terminology, because precision matters here.</p>
+<p>When I say "Perplexity Pro" in this article, I'm referring specifically to the <strong>Perplexity API in the <code>advanced-deep-research</code> preset</strong> — pay-per-token, not the $20/month consumer subscription. The two products produce different output, and the consumer subscription with its standard Pro Search interface is materially weaker for the kind of mapping work described above.</p>
+<p>Concrete configuration, for anyone who wants to replicate exactly:</p>
+<ul>
+<li><strong>API endpoint</strong>: <code>https://api.perplexity.ai/v1/responses</code></li>
+<li><strong>Preset</strong>: <code>advanced-deep-research</code> — institutional-grade research with extended reasoning and full tool access</li>
+<li><strong>Reasoning effort</strong>: <code>high</code></li>
+<li><strong>Max output tokens</strong>: <code>128000</code></li>
+<li><strong>Tools enabled</strong>: <code>web_search</code>, <code>fetch_url</code></li>
+<li><strong>Stream</strong>: <code>false</code> (for synchronous reasoning, easier to audit)</li>
+<li><strong>Minimum API top-up</strong>: $50 per recharge</li>
+<li><strong>Cost per session in my usage</strong>: ~$3 average, with variance from $1.50 to $6 depending on complexity and output length</li>
+</ul>
+<p>Worth knowing on the cost math: the ~$60 figure is actual token consumption, spread across two $50 recharges. Of the second $50 top-up, roughly $40 is still sitting on the account as leftover credit for future sessions.</p>
+<p>You can replicate this through the Perplexity Playground (web UI for the API) or directly via curl/SDK. Full prompt examples and the JSON request structure are in the free template and Pro Edition.</p>
+<p><strong>You can also vary the configuration extensively</strong> — different reasoning effort, different token caps, different tool combinations, different message structures (e.g., chaining a research result back into a follow-up LLM call by passing both the original prompt and the assistant's response as conversation history). I converged on the settings above after experimentation, but they're not the only valid configuration. <strong>Worth experimenting if you have headroom in your budget — and headroom matters, because the API bills per token and complex sessions can run higher than you expect. Watch the dashboard.</strong></p>
+<p>For the consumer Pro subscription users: the workflow principles still apply, but expect ~30% lower output density per session and shallower reasoning depth. Adjust the audit thresholds in the template accordingly.</p>
+<hr />
+<h2>The template</h2>
+<p>The full template I used is below as a downloadable resource. It's modular: 6 building blocks you combine for any research domain.</p>
+<p><a href="https://your-link-goes-here"><strong>→ Download the template here</strong></a></p>
+<p>Six modules:</p>
+<ol>
+<li><strong>Opening module</strong> — establishes intent and framing of the research neutrally</li>
+<li><strong>Domains module</strong> — exploratory list of topic clusters to map</li>
+<li><strong>Citations module</strong> — explicit primary source requirements</li>
+<li><strong>Disclaimers module</strong> — explicit honesty markers about limitations</li>
+<li><strong>Emerging patterns module</strong> — bonus section for unrequested findings</li>
+<li><strong>Post-research audit checklist</strong> — categorization 1–5 + gap identification</li>
+</ol>
+<p>Each module has fill-in placeholders, examples from neutral domains (fintech, biotech, climate-tech), and notes on adapting to your specific area. The free template also includes the API request JSON I use, so you can run sessions identical to mine.</p>
+<hr />
+<h2>A final note</h2>
+<p>The reason I'm publishing this is simple. Six months ago I would have killed for this article. Instead I figured it out the slow way, $3 at a time, hitting the same failure modes repeatedly until patterns emerged.</p>
+<p>If you're working on something where the territory matters more than the answer, this workflow will save you weeks. If you're working on something where the answer matters more than the territory, ignore this and just ask Perplexity directly.</p>
+<p>The method took 6 months of trial and error to discover. The article took an afternoon to write. That's also a meta-lesson about research: <strong>the discovery is expensive, the explanation is cheap, and once explained the discovery is free.</strong></p>
+<p>The exchange is fair. Use it.</p>
+<hr />
+<p><em>If this resonated, the template at the link above contains everything I use. It's free.</em></p>
+<p><em>If you want the extended version with worked examples from three domains, a troubleshooting guide for prompts that go sideways, and the full API configuration reference, it's <a href="https://your-gumroad-link">available here</a>.</em></p>
+  </div>
+</article></main>
+<footer class="foot"><span>il metodo · come facciamo gli articoli</span><span>esempio_articolo_EN.md</span></footer>
+</body></html>

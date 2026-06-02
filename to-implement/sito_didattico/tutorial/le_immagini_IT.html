@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le immagini — il metodo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="topbar"><div class="wrap">
+  <a class="brand" href="../index.html">il<b>metodo</b></a>
+  <a class="back" href="../index.html">&larr; indice</a>
+</div></header>
+<main class="wrap"><article class="doc">
+  <div class="banner banner-tutorial">Tutorial — il metodo, spiegato perché tu lo faccia a modo tuo. Adatta tutto al tuo lavoro; i segnaposto tipo «tuonome» vanno sostituiti coi tuoi.</div>
+  <div class="kicker">Le immagini · IT</div><p class="subtitle">Come fare le immagini che accompagnano i pezzi.</p><hr class="rule">
+  <div class="prose">
+<h1>Image Prompts Bundle — primo asset pushOut1777</h1>
+<blockquote>
+<p>Prompt pronti per generare le immagini necessarie ai file pubblicabili <br />
+del primo asset (Perplexity research workflow). </p>
+<p>Strumenti consigliati per generazione: Bing Image Creator (DALL-E 3, <br />
+gratis), ChatGPT Plus (DALL-E 3 integrato), Ideogram, Midjourney, <br />
+Flux Schnell. Alternativa zero-AI: Unsplash search con keyword <br />
+suggerite a fondo documento.</p>
+<p>Stile cross-asset: minimalist editorial illustration, no people, no <br />
+branded logos, pulito e leggibile, palette sobria. NON stock corporate, <br />
+NON foto di gente che sorride al laptop, NON 3D render glossy.</p>
+</blockquote>
+<hr />
+<h2>File pubblicabili — riepilogo posizionamento</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Immagini</th>
+<th>Posizione</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>01_articolo_medium.md</code> (EN)</td>
+<td>1 kicker image</td>
+<td>In cima, prima dell'H1, full-width</td>
+</tr>
+<tr>
+<td><code>05_articolo_medium_IT.md</code></td>
+<td>1 kicker image (la stessa dell'EN va bene)</td>
+<td>In cima, prima dell'H1, full-width</td>
+</tr>
+<tr>
+<td><code>02_template_gratuito.md</code> (EN)</td>
+<td>0 (opzionale 1)</td>
+<td>Solo se la piattaforma di hosting le rende — Gist NO, Google Doc SÌ</td>
+</tr>
+<tr>
+<td><code>06_template_gratuito_IT.md</code></td>
+<td>0 (opzionale 1)</td>
+<td>Stesso</td>
+</tr>
+<tr>
+<td><code>03_template_pro.md</code> (EN)</td>
+<td>1 cover image (per Gumroad/LemonSqueezy)</td>
+<td>Cover prodotto</td>
+</tr>
+<tr>
+<td><code>07_template_pro_IT.md</code></td>
+<td>1 cover image (la stessa o variante)</td>
+<td>Cover prodotto</td>
+</tr>
+</tbody>
+</table>
+<p>Nota strategica: per Medium 1 kicker image è essenziale (CTR sale del <br />
+20-40% con kicker rispetto a senza). Per Gist e Google Doc le immagini <br />
+sono opzionali e a basso impatto. Per Gumroad/LemonSqueezy la cover è <br />
+visibile nel marketplace, vale la pena.</p>
+<hr />
+<h2>Prompt #1 — Kicker image articolo Medium (EN + IT)</h2>
+<p><strong>Posizionamento</strong>: in cima a <code>01_articolo_medium.md</code> e <code>05_articolo_medium_IT.md</code>, prima dell'H1.</p>
+<p><strong>Concept</strong>: una mappa esplorativa stilizzata. Linee, nodi, regioni mappate vs regioni con disclaimer "unmapped". Visualizza l'idea centrale dell'articolo: territory mapping, non answer-finding. Niente AI buzz visivo (no robot, no neural network glow).</p>
+<p><strong>Prompt principale (DALL-E 3 / Midjourney / Flux):</strong></p>
+<div class="highlight"><pre><span></span><code>Minimalist editorial illustration of an exploration map. Top-down 
+view of a stylized abstract territory: clusters of small connected 
+nodes representing thematic regions, several sub-regions labeled 
+with subtle disclaimer markers (small dotted areas labeled &quot;limited 
+data&quot;). Clean lines, hand-drawn quality but precise. Color palette: 
+deep navy blue background, off-white linework, occasional muted 
+amber accents on key nodes. No text, no people, no robots, no 
+glowing UI elements. Editorial style suitable for a serious 
+technical article. 16:9 aspect ratio.
+</code></pre></div>
+
+<p><strong>Variante più sobria (se la prima viene troppo "carta dei pirati")</strong>:</p>
+<div class="highlight"><pre><span></span><code>Minimalist data-cartography illustration. A grid of clean rectangular 
+clusters of varying density, connected by thin lines, suggesting a 
+mapped knowledge territory. Some clusters dense and confidently 
+drawn, others sparser and dashed (suggesting partial mapping). 
+Off-white on deep navy, single muted amber accent on the central 
+cluster. No text, no faces, no AI clichés. Editorial flat illustration 
+style. 16:9.
+</code></pre></div>
+
+<p><strong>Alternativa fotografica (Unsplash search)</strong>: cercare <code>topographic map</code>, <br />
+<code>network nodes minimal</code>, <code>library archive</code>, <code>research notebook flat lay</code>. <br />
+Filtrare per immagini senza persone, senza branding visibile, sobrie.</p>
+<p><strong>Note di scelta</strong>: il map metaphor è coerente col linguaggio dell'articolo <br />
+("territory map", "what's missing"). Evitare l'AI cliché image (robot <br />
+mano umana, brain con circuiti) — sarebbe contro brand voice.</p>
+<hr />
+<h2>Prompt #2 — Cover image template Pro (EN + IT)</h2>
+<p><strong>Posizionamento</strong>: cover prodotto Gumroad/LemonSqueezy per <code>03_template_pro.md</code> e <code>07_template_pro_IT.md</code>.</p>
+<p><strong>Concept</strong>: un blueprint stilizzato di workflow modulare. Sei blocchi connessi (i 6 moduli del template) + un anello di audit attorno. Più tecnico/architetturale del kicker dell'articolo.</p>
+<p><strong>Prompt principale</strong>:</p>
+<div class="highlight"><pre><span></span><code>Minimalist technical blueprint illustration. Six labeled rectangular 
+modules arranged in a flowing process, connected by thin directional 
+arrows: &quot;Opening&quot;, &quot;Domains&quot;, &quot;Citations&quot;, &quot;Disclaimers&quot;, &quot;Patterns&quot;, 
+&quot;Audit&quot;. The audit module wraps around the others as a feedback loop. 
+Style: clean architectural blueprint, off-white linework on deep navy 
+background, single muted amber accent on the audit loop. No people, 
+no glowing elements, no AI imagery. Suitable as a digital product 
+cover. Square 1:1 aspect ratio.
+</code></pre></div>
+
+<p><strong>Variante senza testo embedded</strong> (se DALL-E rende male i label):</p>
+<div class="highlight"><pre><span></span><code>Minimalist technical blueprint illustration showing a six-step 
+modular workflow. Six small rectangular blocks connected in sequence 
+with thin arrows, surrounded by a dashed feedback loop. Off-white 
+on deep navy, single muted amber accent on the feedback arrow. 
+Architectural blueprint aesthetic. No text labels, no people, no 
+AI clichés. Square 1:1.
+</code></pre></div>
+
+<p>I label li aggiungi tu in post (Figma, Canva, Affinity) se DALL-E <br />
+fa pasticci col testo.</p>
+<p><strong>Alternativa zero-AI (Unsplash + sovrascrittura)</strong>: cercare <br />
+<code>blueprint architecture</code>, <code>modular system</code>, <code>process diagram minimal</code>. <br />
+Aggiungere overlay con titolo del prodotto.</p>
+<hr />
+<h2>Prompt #3 (opzionale) — Immagine inline articolo (mid-article)</h2>
+<p><strong>Posizionamento</strong>: solo se l'articolo Medium è stato pubblicato e hai notato in stats che il drop-off è alto a metà. Aggiungi un'immagine spezza-prosa dopo la sezione "I sei principi epistemologici" o dopo "I numeri, trasparenti" come ancora visiva.</p>
+<p><strong>Concept</strong>: una rappresentazione visiva del 4-step workflow (First pass → Audit → Identify gaps → Closing pass).</p>
+<p><strong>Prompt</strong>:</p>
+<div class="highlight"><pre><span></span><code>Minimalist horizontal flow diagram showing four sequential steps. 
+Each step is a small clean rectangular node with a single-word 
+label: &quot;Pass&quot;, &quot;Audit&quot;, &quot;Gaps&quot;, &quot;Closing&quot;. Thin arrows between them. 
+Below each node a small visual abstraction (e.g., a wide ring for 
+Pass, a checkmark cluster for Audit, a row of dashed boxes for 
+Gaps, a focused arrow for Closing). Off-white on deep navy, single 
+muted amber accent on the Audit step. Editorial flat illustration 
+style. 16:9 aspect ratio.
+</code></pre></div>
+
+<p><strong>Quando rinunciare</strong>: se l'articolo va bene senza, non aggiungere. <br />
+Più immagini = più tempo di setup. Per ora la kicker basta.</p>
+<hr />
+<h2>Prompt #4 (opzionale, post-pubblicazione) — Email banner per ConvertKit</h2>
+<p><strong>Posizionamento</strong>: solo dopo aver setupato email capture (post-pubblicazione, fase 2). Banner per email di benvenuto a chi compra il Pro.</p>
+<p><strong>Concept</strong>: variante del cover Pro, formato banner orizzontale.</p>
+<p><strong>Prompt</strong>:</p>
+<div class="highlight"><pre><span></span><code>Minimalist email banner illustration. A small abstract knowledge map 
+on the left third (off-white nodes connected on deep navy background), 
+empty negative space on the right two-thirds for text overlay. Single 
+muted amber accent. No people, no AI imagery, no branded logos. 
+Clean editorial style. 1500x500 banner aspect ratio.
+</code></pre></div>
+
+<p>Non urgente. Solo se a fase 2 si setupa il funnel email.</p>
+<hr />
+<h2>Specifiche tecniche di output</h2>
+<p>Per tutti i prompt sopra:</p>
+<p><strong>Formati e dimensioni</strong>:<br />
+- Kicker Medium: 1600×900 px (16:9, formato Medium consiglia)<br />
+- Cover Gumroad/LemonSqueezy: 1200×1200 px (1:1, formato cover prodotto)<br />
+- Banner email: 1500×500 px</p>
+<p><strong>File format</strong>: PNG con sfondo opaco (non trasparente). JPG accettabile <br />
+ma PNG preferito per la qualità su Medium.</p>
+<p><strong>Color palette suggerita</strong>:<br />
+- Background: deep navy <code>#0F1A2E</code> o <code>#13192C</code><br />
+- Linework / primary: off-white <code>#F4EFE6</code><br />
+- Accent: muted amber <code>#D4A05F</code> o <code>#C18B4D</code><br />
+- Eventuali sub-accent: muted teal <code>#3F7A89</code></p>
+<p>Coerenza palette cross-asset: il kicker dell'articolo, la cover Pro, <br />
+e l'eventuale banner email devono usare gli stessi 3 colori <br />
+(background + linework + accent). Questo crea identità visiva <br />
+riconoscibile come "asset pushOut1777" senza bisogno di logo.</p>
+<hr />
+<h2>Note di pratica</h2>
+<p><strong>Iterazione</strong>: prevedi 3-5 generazioni per ogni prompt prima di avere <br />
+qualcosa di pubblicabile. DALL-E 3 e Midjourney spesso rendono il primo <br />
+shot decente ma con qualche elemento off (scritte sbagliate, persona <br />
+inserita per default, gradiente troppo glossy). Iterare costa tempo <br />
+ma è più rapido che cercare su Unsplash per ore.</p>
+<p><strong>Quando rinunciare a generare e usare Unsplash</strong>: se dopo 5-7 generazioni <br />
+non hai qualcosa di buono, vai su Unsplash con le keyword sopra. Una <br />
+foto Unsplash sobria è meglio di un AI render scadente.</p>
+<p><strong>Cosa evitare assolutamente</strong>:<br />
+- Persone che sorridono al laptop (cliché stock corporate)<br />
+- Robot, neural network glow, "AI brain" (cliché AI hype)<br />
+- 3D render glossy/iperrealistici (cliché vendor pitch)<br />
+- Logo brand riconoscibili nello sfondo<br />
+- Stock photography troppo lucida (es. iStockphoto vibe)<br />
+- Testo nel render se DALL-E lo storpia (meglio ometterlo e aggiungerlo <br />
+  in post)</p>
+<p><strong>Cosa cercare</strong>:<br />
+- Editorial illustration style (NYT, The Atlantic, Stratechery, <br />
+  Casey Newton's Platformer)<br />
+- Minimalist data viz aesthetic<br />
+- Carta da disegno tecnica vintage rivisitata<br />
+- Mappe esplorative storiche stilizzate</p>
+<hr />
+<h2>Piano implementazione</h2>
+<ol>
+<li><strong>Genera kicker image articolo (Prompt #1)</strong> — la prima immagine da <br />
+   avere prima della pubblicazione Medium EN. Tempo realistico: 30-60 minuti <br />
+   inclusa iterazione.</li>
+<li><strong>Genera cover Pro (Prompt #2)</strong> — necessaria al setup Gumroad/LemonSqueezy. <br />
+   Tempo: 30-45 minuti.</li>
+<li><strong>Pubblica articolo + Pro con queste due immagini.</strong> Vai live.</li>
+<li><strong>(Opzionale, dopo 1-2 settimane di stats)</strong> Se drop-off mid-article è <br />
+   alto, aggiungi inline image (Prompt #3). Update silent dell'articolo <br />
+   Medium.</li>
+<li><strong>(Opzionale, fase 2)</strong> Banner email (Prompt #4) quando setup email capture.</li>
+</ol>
+<p>Total tempo immagini per il go-live: 1-2 ore. Non è un blocker se hai <br />
+tempo limitato — articolo senza kicker comunque pubblicabile, ma il <br />
+CTR ne soffre.</p>
+<hr />
+<h2>Posizionamento esplicito nei file</h2>
+<p>In ogni file pubblicabile è già stato inserito un placeholder posizionale <br />
+in cima. Quando hai l'immagine generata:</p>
+<ol>
+<li>
+<p><strong>Per articolo Medium</strong>: caricala come "feature image" durante <br />
+   l'editing su Medium (non incollarla come block image inline — Medium <br />
+   ha un campo apposito per la kicker, e processa l'aspect ratio <br />
+   correttamente solo da lì).</p>
+</li>
+<li>
+<p><strong>Per Gumroad/LemonSqueezy</strong>: caricala nel campo "cover image" del <br />
+   prodotto durante creazione/edit. Sostituisce quella di default <br />
+   generata dalla piattaforma.</p>
+</li>
+<li>
+<p><strong>Per Gist (template gratuito)</strong>: skip. Gist non rende immagini <br />
+   inline in modo che valga il tempo. Se vuoi migliorare presentazione <br />
+   del template gratuito, ospitalo invece su Google Doc pubblico o <br />
+   Notion page con la cover image — ma questa è ottimizzazione fase 2.</p>
+</li>
+</ol>
+<p>I placeholder nei file sono:<br />
+- <code>01_articolo_medium.md</code>: <code>[KICKER IMAGE — see image prompt #1 in image bundle]</code><br />
+- <code>05_articolo_medium_IT.md</code>: <code>[KICKER IMAGE — vedi prompt #1 nel bundle immagini]</code></p>
+<p>Rimuovi i placeholder dopo aver caricato l'immagine reale su Medium <br />
+(Medium gestisce la kicker fuori dal corpo del testo).</p>
+  </div>
+</article></main>
+<footer class="foot"><span>il metodo · come facciamo gli articoli</span><span>le_immagini_IT.md</span></footer>
+</body></html>
