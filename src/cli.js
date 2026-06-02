@@ -5,7 +5,12 @@ import { loadDotenv } from './env.js';
 import { getProvider, listProviders } from './providers/index.js';
 import { getStore, listStores } from './store/index.js';
 import { resolveDataDir } from './store/location.js';
-import { attachSession, rotateSession, writeActiveSession } from './store/session.js';
+import {
+  attachSession,
+  rotateSession,
+  writeActiveSession,
+  readActiveSession,
+} from './store/session.js';
 import { saveUserTurn, saveAssistantTurn } from './store/persist.js';
 import { previewTitle, firstUserText } from './store/title.js';
 import { conversationToMarkdown } from './store/export.js';
@@ -79,10 +84,18 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const hasStore = store.constructor.id !== 'none';
 
-  // Attach to the shared "active session" so the CLI and the Telegram bridge
-  // continue the same conversation (only when a store is on — otherwise each
-  // process stays its own stateless chat).
-  let sessionId = attachSession(provider, config, hasStore);
+  // Decide which conversation this launch attaches to. By default we silently
+  // pick up the shared "active session" (so the CLI and Telegram bridge continue
+  // the same thread); `--new`/`--fresh` start clean and `--resume [id]` reattach
+  // to a saved conversation. The chosen source is shown on the startup screen.
+  const { sessionId: resolvedSession, source: sessionSource } = await resolveLaunch({
+    provider,
+    config,
+    store,
+    hasStore,
+    argv,
+  });
+  let sessionId = resolvedSession;
 
   // --- Server / listener mode (headless, no REPL) -----------------------
   // `aurora --serve` (and what `npm start` runs) starts every configured
@@ -93,7 +106,11 @@ export async function main(argv = process.argv.slice(2)) {
     console.log('\n' + banner());
     console.log(info('  Backend: ') + provider.describe());
     if (hasStore)
-      console.log(info('  Store:   ') + config.store + ` (session ${shortId(sessionId)})`);
+      console.log(
+        info('  Store:   ') +
+          config.store +
+          ` (session ${shortId(sessionId)}${sessionSourceLabel(sessionSource)})`,
+      );
     try {
       await runServer({
         provider,
@@ -113,7 +130,11 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(renderMarkdown(TEMPLATE));
   console.log('\n' + info('  Backend: ') + provider.describe());
   if (hasStore) {
-    console.log(info('  Store:   ') + config.store + ` (session ${shortId(sessionId)})`);
+    console.log(
+      info('  Store:   ') +
+        config.store +
+        ` (session ${shortId(sessionId)}${sessionSourceLabel(sessionSource)})`,
+    );
   }
   if (telegramEnabled(config)) console.log(info('  Notify:  ') + 'telegram');
 
@@ -215,6 +236,19 @@ export async function main(argv = process.argv.slice(2)) {
     eofReached = true;
     if (!working) finish();
   });
+
+  // Ctrl-C: cancel an in-flight turn (kill the child, keep the partial answer)
+  // and return to the prompt; pressing it again at an idle prompt quits. Having
+  // this listener also stops readline from killing the process on the first ^C.
+  rl.on('SIGINT', () => {
+    if (working) {
+      ctx.interrupted = true;
+      ctx.provider.abort?.();
+      return;
+    }
+    exitRequested = true;
+    finish();
+  });
 }
 
 async function streamResponse(ctx, text) {
@@ -227,6 +261,7 @@ async function streamResponse(ctx, text) {
   ctx.sessionId = sessionId;
   await saveUserTurn(store, sessionId, text);
 
+  ctx.interrupted = false; // set by the SIGINT handler if Ctrl-C lands mid-turn
   process.stdout.write('\n');
   const spinner = startSpinner();
   let headerPrinted = false;
@@ -268,6 +303,17 @@ async function streamResponse(ctx, text) {
   }
 
   spinner.stop();
+
+  // Ctrl-C mid-answer: keep whatever streamed (flagged incomplete so /resume
+  // shows it and the model can continue), then return to the prompt without
+  // treating the cancellation as an error.
+  if (ctx.interrupted) {
+    if (answer) {
+      await saveAssistantTurn(store, ctx.sessionId, answer, meta, { complete: false });
+    }
+    process.stdout.write('\n' + warn('  ⏸ stopped (Ctrl-C again to quit)') + '\n\n');
+    return;
+  }
 
   if (meta?.isError && !gotText) {
     console.log(error('  ✖ ' + (meta.text || 'the model returned an error')) + '\n');
@@ -602,6 +648,9 @@ async function handleResume(arg, ctx) {
   } catch {
     // Best-effort replay; resuming still works without the on-screen history.
   }
+  // Hand the transcript to the provider so a stale native session can fall back
+  // to a fresh, seeded one instead of resuming blank.
+  ctx.provider.seed?.(turns);
   const title = previewTitle(target.title || firstUserText(turns));
   replayTurns(turns, `Resuming session ${shortId(sessionId)} · "${title}"`);
   console.log(info('\n  Continuing this conversation. Type your next message.') + '\n');
@@ -664,6 +713,93 @@ async function handleExport(arg, ctx) {
     return;
   }
   console.log('\n' + info('Exported ') + `${turns.length} turns → ` + file + '\n');
+}
+
+/**
+ * Decide which session a launch attaches to, honouring the launch flags:
+ *   --new / --fresh   start a clean conversation (recorded as the new active one)
+ *   --resume [id]     reattach to a saved conversation (no id = most recent)
+ *   (default)         silently pick up the shared active session
+ *
+ * Returns `{ sessionId, source }` where source is 'new' | 'resumed' |
+ * 'continued', used to label the startup screen. Best-effort: an unresolvable
+ * --resume warns and falls back to a fresh session rather than refusing to start.
+ */
+export async function resolveLaunch({ provider, config, store, hasStore, argv = [] }) {
+  const wantNew = argv.includes('--new') || argv.includes('--fresh');
+  const resumeIdx = argv.indexOf('--resume');
+  const wantResume = resumeIdx !== -1;
+  const raw = wantResume ? argv[resumeIdx + 1] : null;
+  const resumeId = raw && !raw.startsWith('-') ? raw : null;
+
+  const fresh = (label = 'new') => {
+    const id = provider.sessionId ?? null;
+    if (hasStore) writeActiveSession(config, id);
+    return { sessionId: id, source: label };
+  };
+
+  if (wantNew) return fresh();
+
+  if (wantResume) {
+    if (!hasStore) {
+      console.log(warn('  --resume needs persistence on (e.g. /store sqlite); starting fresh.'));
+      return fresh();
+    }
+    const target = await pickConversation(store, resumeId);
+    if (!target) {
+      const which = resumeId ? ` matching "${resumeId}"` : '';
+      console.log(warn(`  No single saved conversation${which} to resume — starting fresh.`));
+      return fresh();
+    }
+    const id = String(target.sessionId);
+    provider.resume?.(id);
+    await seedFromStore(provider, store, id);
+    writeActiveSession(config, id);
+    return { sessionId: id, source: 'resumed' };
+  }
+
+  // Default: silently continue the shared active session if there is one.
+  const had = hasStore && readActiveSession(config);
+  const id = attachSession(provider, config, hasStore);
+  if (had) await seedFromStore(provider, store, id);
+  return { sessionId: id, source: had ? 'continued' : 'new' };
+}
+
+/** Resolve a saved conversation by id-prefix (or the most recent if none). */
+async function pickConversation(store, idPrefix) {
+  let convs = [];
+  try {
+    convs = await store.listConversations();
+  } catch {
+    return null;
+  }
+  if (!convs.length) return null;
+  if (!idPrefix) {
+    return convs.reduce((a, b) =>
+      String(b.updatedAt).localeCompare(String(a.updatedAt)) > 0 ? b : a,
+    );
+  }
+  const matches = convs.filter((c) => String(c.sessionId).startsWith(idPrefix));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+/** Adopt a stored conversation as the provider's fallback context (best-effort). */
+async function seedFromStore(provider, store, sessionId) {
+  if (!provider.seed || !sessionId) return;
+  try {
+    const turns = await store.getConversation(sessionId);
+    if (turns.length) provider.seed(turns);
+  } catch {
+    // Without a seed we simply can't fall back if a native resume is stale.
+  }
+}
+
+/** Tiny suffix for the startup "Store:" line showing how we attached. */
+function sessionSourceLabel(source) {
+  if (source === 'resumed') return ' · resumed';
+  if (source === 'continued') return ' · continued';
+  if (source === 'new') return ' · new';
+  return '';
 }
 
 /** Short, display-friendly form of a session id. */
@@ -792,6 +928,8 @@ function printUsage() {
       'Usage:',
       '  aurora                 start an interactive chat (also starts the Telegram',
       '                         bridge when configured, so you can chat from your phone)',
+      '  aurora --resume [id]   resume a saved conversation on launch (no id = most recent)',
+      '  aurora --new           start a fresh conversation, ignoring the active session',
       '  aurora --solo          interactive chat only — do not start any listeners',
       '  aurora --model <name>  start with a specific model',
       '  aurora --serve         run as a server (no REPL): start every configured',

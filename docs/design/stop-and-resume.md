@@ -24,7 +24,7 @@ functions. v0.3.3 makes it **trustworthy, crash-safe, and explicit**.
    sets a flag and returns `true` — it never verifies Claude still has that
    session. If the session is gone (other machine, `~/.claude` pruned, foreign
    id), the next `--resume` starts blank while Aurora still replays the
-   transcript — so it *looks* resumed while the model has amnesia.
+   transcript — so it _looks_ resumed while the model has amnesia.
 2. **Interrupted turns vanish.** `saveExchange` writes the user+assistant pair
    only after the turn fully completes. Ctrl-C during a long answer, or a crash,
    loses both the question and the partial answer. No graceful SIGINT.
@@ -91,3 +91,26 @@ session is the fast path.
 
 Implementation order within Phase 1 starts with the persistence layer
 (crash-safety + `complete` flag), the lowest-risk, highest-value slice.
+
+## Phase 1 progress
+
+- [x] **Crash-safe persistence** — user turn saved on submit; assistant turn
+      flagged `complete:false` on error/interrupt; SQLite `complete` column +
+      migration. (commit `5597814`)
+- [x] **Graceful SIGINT** — first Ctrl-C cancels the in-flight turn via
+      `provider.abort()` (kills the child, keeps the partial flagged incomplete)
+      and returns to the prompt; a second Ctrl-C at an idle prompt quits.
+- [x] **Resume-failure detection & rehydration fallback** — provider gains
+      `seed(turns)`; when a native `--resume` fails with a session-not-found
+      error and nothing has streamed, `send()` transparently starts a fresh
+      session seeded with the stored transcript (bounded to the last
+      `SEED_MAX_TURNS`) and retries once, emitting a status line. The CLI seeds
+      the provider on `/resume` and on launch attach.
+- [x] **Launch flags** — `aurora --resume [id]` (no id = most recent) and
+      `aurora --new` / `--fresh`; the startup "Store:" line shows the source
+      (`· resumed` / `· continued` / `· new`).
+
+Deferred to Phase 2: the seeded-fallback notice is shown lazily as a status line
+on the first turn (when the stale session is actually detected) rather than at
+launch. The Telegram bridge keeps its existing crash-safety (user turn saved up
+front); a per-turn cancel there is out of scope (Ctrl-C stops the whole server).

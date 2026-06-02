@@ -26,6 +26,11 @@ const AURORA_PERSONA = [
  */
 const ALLOWED_TOOLS = ['WebSearch', 'WebFetch', 'Read', 'Glob', 'Grep'];
 
+/** How many recent turns to carry as context when seeding a fresh session. */
+const SEED_MAX_TURNS = 12;
+/** Cap each seeded turn so a long answer can't blow up the system prompt. */
+const SEED_MAX_CHARS = 4000;
+
 /**
  * Claude provider, driven through the local `claude` CLI in headless mode.
  * Uses the user's existing Claude Code subscription auth — no API key needed.
@@ -33,6 +38,12 @@ const ALLOWED_TOOLS = ['WebSearch', 'WebFetch', 'Read', 'Glob', 'Grep'];
  * Continuity: we mint a session id up front. The first turn creates the session
  * (`--session-id`); every later turn resumes it (`--resume`). `reset()` mints a
  * new id, starting a clean conversation.
+ *
+ * Trustworthy resume (v0.3.3): a native `--resume` can fail if Claude no longer
+ * has that session (other machine, pruned `~/.claude`, foreign id). When that
+ * happens on the first turn, we transparently fall back to a fresh session
+ * seeded with Aurora's own stored transcript (see `seed()`), so the model keeps
+ * its context instead of silently starting blank.
  */
 export class ClaudeProvider extends Provider {
   static id = 'claude';
@@ -45,23 +56,65 @@ export class ClaudeProvider extends Provider {
     this.model = config.model || null; // null => CLI default
     this.sessionId = randomUUID();
     this.started = false;
+
+    // Fallback context: a bounded transcript adopted from Aurora's store, used
+    // to seed a fresh session if a native resume turns out to be stale.
+    this.seedTurns = null;
+    this.useSeed = false;
+
+    // Cancellation: the in-flight child process and a flag set by abort().
+    this._child = null;
+    this._aborted = false;
   }
 
   reset() {
     this.sessionId = randomUUID();
     this.started = false;
+    this.seedTurns = null;
+    this.useSeed = false;
   }
 
   /**
    * Resume a prior session: point at its id and mark it started, so the next
    * send() uses `--resume <id>` and the CLI restores that conversation's own
    * context. (Aurora's stored turns are a parallel log; Claude keeps the real
-   * session state.)
+   * session state.) Pair with seed() so we can recover if that resume is stale.
    */
   resume(sessionId) {
     if (!sessionId) return false;
     this.sessionId = sessionId;
     this.started = true;
+    return true;
+  }
+
+  /**
+   * Adopt a stored transcript as fallback context. If a native `--resume` later
+   * fails, the next turn starts a fresh session and prepends these turns as a
+   * context preamble so the model isn't left with amnesia. Bounded to the last
+   * SEED_MAX_TURNS turns; older context is dropped (summarization is a later
+   * phase). Returns whether any usable turns were taken.
+   */
+  seed(turns) {
+    const usable = (Array.isArray(turns) ? turns : []).filter((t) => t && t.text);
+    this.seedTurns = usable.slice(-SEED_MAX_TURNS);
+    this.useSeed = this.seedTurns.length > 0;
+    return this.useSeed;
+  }
+
+  /**
+   * Cancel the in-flight turn: kill the child `claude` process and flag the run
+   * as aborted so send() ends cleanly (no spurious error) and the caller can
+   * keep whatever streamed so far. Safe to call when nothing is running.
+   */
+  abort() {
+    this._aborted = true;
+    const child = this._child;
+    if (!child) return false;
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      // already gone — nothing to cancel
+    }
     return true;
   }
 
@@ -90,14 +143,56 @@ export class ClaudeProvider extends Provider {
       args.push('--resume', this.sessionId);
     } else {
       args.push('--session-id', this.sessionId);
-      args.push('--append-system-prompt', AURORA_PERSONA);
+      // A fresh session that carries seeded context appends the transcript to
+      // the persona so the model continues where the saved conversation left off.
+      const system =
+        this.useSeed && this.seedTurns?.length
+          ? AURORA_PERSONA + '\n\n' + seedPreamble(this.seedTurns)
+          : AURORA_PERSONA;
+      args.push('--append-system-prompt', system);
     }
     return args;
   }
 
   async *send(text) {
+    // Whether this turn relies on a native `--resume` (vs. creating/seeding a
+    // session). Captured before #stream flips `started`, so the fallback check
+    // below knows a resume was actually attempted.
+    const usedResume = this.started;
+    try {
+      yield* this.#stream(text);
+    } catch (e) {
+      if (this.#shouldFallback(usedResume, e)) {
+        // The native session is gone. Start fresh, seeded from the store, and
+        // retry once. Nothing streamed yet (resume failures error immediately),
+        // so the user sees a clean recovery rather than a dropped turn.
+        yield {
+          type: 'status',
+          text: 'native session unavailable — resuming from saved transcript',
+        };
+        this.sessionId = randomUUID();
+        this.started = false; // buildArgs will create + seed a new session
+        yield* this.#stream(text);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  /** Whether a failed turn can recover by seeding a fresh session. */
+  #shouldFallback(usedResume, error) {
+    return Boolean(
+      usedResume && !this._sawDelta && this.seedTurns?.length && isSessionNotFound(error?.message),
+    );
+  }
+
+  /** One turn against the CLI: spawn, stream events, settle exit status. */
+  async *#stream(text) {
     const args = this.buildArgs(text);
     const child = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    this._child = child;
+    this._aborted = false;
+    this._sawDelta = false;
 
     // Async queue bridging readline 'line' events to the generator.
     const queue = [];
@@ -147,15 +242,23 @@ export class ClaudeProvider extends Provider {
 
     this.started = true;
 
-    while (true) {
-      while (queue.length) yield queue.shift();
-      if (finished) break;
-      await new Promise((resolve) => {
-        notify = resolve;
-      });
+    try {
+      while (true) {
+        while (queue.length) yield this.#track(queue.shift());
+        if (finished) break;
+        await new Promise((resolve) => {
+          notify = resolve;
+        });
+      }
+      // Drain anything that arrived between the last check and close.
+      while (queue.length) yield this.#track(queue.shift());
+    } finally {
+      this._child = null;
     }
-    // Drain anything that arrived between the last check and close.
-    while (queue.length) yield queue.shift();
+
+    // Cancelled on purpose (Ctrl-C): treat the kill as a clean stop so the
+    // caller keeps the partial answer instead of seeing an error.
+    if (this._aborted) return;
 
     if (spawnError) {
       if (spawnError.code === 'ENOENT') {
@@ -169,6 +272,46 @@ export class ClaudeProvider extends Provider {
       throw new Error(`claude exited with code ${exitCode}${stderr ? `:\n${stderr.trim()}` : ''}`);
     }
   }
+
+  /** Note when real text has streamed (so we don't retry mid-answer). */
+  #track(ev) {
+    if (ev.type === 'delta') this._sawDelta = true;
+    return ev;
+  }
+}
+
+/**
+ * Classify whether an error from the CLI means "that resume session no longer
+ * exists" — the cue to fall back to a seeded fresh session rather than failing.
+ */
+export function isSessionNotFound(message = '') {
+  const m = String(message).toLowerCase();
+  return (
+    m.includes('no conversation found') ||
+    m.includes('session not found') ||
+    m.includes('no session found') ||
+    (m.includes('session') && m.includes('not found')) ||
+    (m.includes('resume') && m.includes('not found'))
+  );
+}
+
+/** Render seeded turns as a bounded transcript for the fresh-session preamble. */
+function seedPreamble(turns) {
+  const body = turns
+    .map((t) => {
+      const who = t.role === 'user' ? 'User' : 'Aurora';
+      const text = String(t.text).slice(0, SEED_MAX_CHARS);
+      return `${who}: ${text}`;
+    })
+    .join('\n\n');
+  return [
+    'The following is the conversation so far, resumed from a saved session.',
+    'Treat it as prior context and continue naturally — do not repeat it back.',
+    '',
+    '--- TRANSCRIPT START ---',
+    body,
+    '--- TRANSCRIPT END ---',
+  ].join('\n');
 }
 
 /**
