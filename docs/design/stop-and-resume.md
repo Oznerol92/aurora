@@ -110,6 +110,21 @@ Implementation order within Phase 1 starts with the persistence layer
       `aurora --new` / `--fresh`; the startup "Store:" line shows the source
       (`· resumed` / `· continued` / `· new`).
 
+## Single-writer instances + ephemeral `--solo`
+
+Persistence assumes **one writer per machine**. To enforce that, only one
+"primary" aurora — the instance that owns the DB and the inbound listeners — may
+run at a time. The primary holds a lock file in the machine-global data dir
+(`src/instance.js`, keyed by pid with a liveness check so a crashed primary's
+stale lock is ignored). A second *plain* launch is **refused** and pointed at
+`aurora --solo`; `--solo` now means **fully ephemeral** — no listeners *and* no
+DB writes — so any number of solo instances coexist without fighting over the
+store or double-binding the Telegram poller.
+
+This also makes cross-restart recall trivial without a shared cross-session
+store: the single primary auto-resumes its own session on relaunch (the existing
+launch flow), so "tell aurora X → quit → relaunch → ask about X" just works.
+
 Deferred to Phase 2: the seeded-fallback notice is shown lazily as a status line
 on the first turn (when the stale session is actually detected) rather than at
 launch. The Telegram bridge keeps its existing crash-safety (user turn saved up

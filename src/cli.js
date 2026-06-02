@@ -18,6 +18,7 @@ import { runFirstRunSetup, shouldRunSetup } from './setup.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
+import { primaryLockHolder, acquirePrimaryLock, releasePrimaryLock } from './instance.js';
 import { TEMPLATE } from './template.js';
 
 // Single source of truth for the version: package.json. `npm version` bumps it,
@@ -62,13 +63,41 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const isServe = argv.includes('--serve') || argv.includes('--telegram');
-  // REPL by default also starts listeners (Telegram); --solo keeps it local.
+  // REPL by default also starts listeners (Telegram); --solo runs the chat
+  // local AND ephemeral (no listeners, no DB) — see the single-writer rule below.
   const solo = argv.includes('--solo');
+
+  // Single-writer rule: only one "primary" aurora (the instance that owns the DB
+  // and the inbound listeners) may run at a time, so two instances never fight
+  // over the store or double-bind the Telegram poller. A second plain launch is
+  // refused and pointed at `aurora --solo`, which runs ephemeral. Solo instances
+  // skip the check and may coexist freely.
+  if (!solo) {
+    const holder = primaryLockHolder();
+    if (holder) {
+      console.error(
+        '\n' +
+          warn(
+            '  An aurora is already running' + (holder.pid ? ` (pid ${holder.pid})` : '') + '.',
+          ) +
+          '\n  ' +
+          info('Start a second, ephemeral session with: ') +
+          'aurora --solo\n',
+      );
+      process.exit(1);
+    }
+    acquirePrimaryLock();
+  }
+
+  // Solo is fully ephemeral: no inbound listeners (below) and no persistence, so
+  // it can't touch the primary's DB. Force the store off regardless of config,
+  // and skip the persistence questionnaire — there's nothing to persist.
+  if (solo) config.store = 'none';
 
   // First-run questionnaire: offer a persistence backend (with hints based on
   // what's installed) before anything opens a store. Interactive REPL only, and
   // only until the user has answered once.
-  if (shouldRunSetup(config, { isServe, isTty: Boolean(process.stdin.isTTY) })) {
+  if (!solo && shouldRunSetup(config, { isServe, isTty: Boolean(process.stdin.isTTY) })) {
     await runFirstRunSetup(config);
   }
 
@@ -129,6 +158,7 @@ export async function main(argv = process.argv.slice(2)) {
   console.log('\n' + banner());
   console.log(renderMarkdown(TEMPLATE));
   console.log('\n' + info('  Backend: ') + provider.describe());
+  if (solo) console.log(info('  Mode:    ') + 'solo (ephemeral — conversation not saved)');
   if (hasStore) {
     console.log(
       info('  Store:   ') +
@@ -191,6 +221,7 @@ export async function main(argv = process.argv.slice(2)) {
     } catch {
       // closing the store should never block exit
     }
+    releasePrimaryLock(); // give up the single-writer lock so the next launch is primary
     console.log('\n' + info('Goodbye.') + '\n');
     process.exit(0);
   };
@@ -930,7 +961,9 @@ function printUsage() {
       '                         bridge when configured, so you can chat from your phone)',
       '  aurora --resume [id]   resume a saved conversation on launch (no id = most recent)',
       '  aurora --new           start a fresh conversation, ignoring the active session',
-      '  aurora --solo          interactive chat only — do not start any listeners',
+      '  aurora --solo          ephemeral chat: no listeners and no saved history.',
+      '                         Use this to run a second aurora while one is already',
+      '                         running (only one primary instance is allowed at a time).',
       '  aurora --model <name>  start with a specific model',
       '  aurora --serve         run as a server (no REPL): start every configured',
       '                         listener (Telegram bridge + future webhooks). `npm start` runs this.',
