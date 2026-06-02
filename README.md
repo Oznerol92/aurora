@@ -25,14 +25,21 @@ node bin/aurora.js
 ## Usage
 
 ```bash
-aurora                      # start a chat (shows the research template first)
+aurora                      # start a chat; also starts the Telegram bridge if configured
+aurora --solo               # chat only — don't start any listeners
 aurora --model <name>       # start with a specific model, e.g. claude-sonnet-4-6
-aurora --serve              # run as a server: start every configured listener
+aurora --serve              # run as a server (no REPL): start every configured listener
 aurora --help
 ```
 
-`npm start` runs `aurora --serve` (server mode); `npm run chat` opens the
-interactive REPL.
+Plain `aurora` opens the interactive REPL **and** brings up any configured
+inbound listener (the Telegram bridge) in the background, so you can talk to
+Aurora from your phone while the terminal stays open — both share the one active
+session, so it's a single conversation. Use `--solo` for a purely-local chat.
+Listeners start on their own credentials, so this is independent of the
+`/notify` toggle; with no Telegram credentials set, plain `aurora` is just the
+REPL. `npm start` runs `aurora --serve` (headless server, no REPL); `npm run
+chat` opens the REPL.
 
 ### In-chat commands
 
