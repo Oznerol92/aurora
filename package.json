@@ -30,6 +30,7 @@
   "files": [
     "bin",
     "src",
+    "brain",
     "README.md",
     "CHANGELOG.md"
   ],

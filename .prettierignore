@@ -12,3 +12,4 @@ notes.md
 # __BENCH_DATA__ injection point); its generated output is reproducible.
 bench/report.template.html
 bench/results/
+

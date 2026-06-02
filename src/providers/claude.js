@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { Provider } from './base.js';
+import { composeSystemPrompt } from './prompt.js';
+import { buildBrainIndex, selectRelevantCards, formatTurnBrain } from '../brain/corpus.js';
 
 /**
  * Aurora's persona, appended to Claude's system prompt on the first turn of a
@@ -62,6 +64,15 @@ export class ClaudeProvider extends Provider {
     this.seedTurns = null;
     this.useSeed = false;
 
+    // Curated method "brain" and the user's voice profile. Both are config-level
+    // (not per-session): set once from the store/corpus and reused, so
+    // reset()/rotate keeps them. The brain is held as cards: an always-on index
+    // is injected on a fresh session, and the most relevant cards are retrieved
+    // and injected into each turn (see #augment).
+    this.brainCards = [];
+    this.brainIndex = null;
+    this.personaText = null;
+
     // Cancellation: the in-flight child process and a flag set by abort().
     this._child = null;
     this._aborted = false;
@@ -99,6 +110,21 @@ export class ClaudeProvider extends Provider {
     this.seedTurns = usable.slice(-SEED_MAX_TURNS);
     this.useSeed = this.seedTurns.length > 0;
     return this.useSeed;
+  }
+
+  /**
+   * Supply the curated method brain as cards. Precomputes the always-on index
+   * (injected on the next fresh session); relevant cards are retrieved per turn
+   * in #augment. Pass [] (or nothing) to disable the brain.
+   */
+  setBrainCards(cards) {
+    this.brainCards = Array.isArray(cards) ? cards : [];
+    this.brainIndex = this.brainCards.length ? buildBrainIndex(this.brainCards) : null;
+  }
+
+  /** User voice/characteristics injected on the next fresh session (null to clear). */
+  setPersona(text) {
+    this.personaText = text || null;
   }
 
   /**
@@ -143,24 +169,31 @@ export class ClaudeProvider extends Provider {
       args.push('--resume', this.sessionId);
     } else {
       args.push('--session-id', this.sessionId);
-      // A fresh session that carries seeded context appends the transcript to
-      // the persona so the model continues where the saved conversation left off.
-      const system =
-        this.useSeed && this.seedTurns?.length
-          ? AURORA_PERSONA + '\n\n' + seedPreamble(this.seedTurns)
-          : AURORA_PERSONA;
+      // Fresh session: assemble the system prompt from the base persona, the
+      // user's voice profile, the method brain, and any seeded transcript. Only
+      // happens here — a --resume turn injects nothing (the CLI restores state).
+      const system = composeSystemPrompt({
+        persona: AURORA_PERSONA,
+        personaProfile: this.personaText,
+        brain: this.brainIndex,
+        seed: this.useSeed && this.seedTurns?.length ? seedPreamble(this.seedTurns) : null,
+      });
       args.push('--append-system-prompt', system);
     }
     return args;
   }
 
   async *send(text) {
+    // Prepend the brain cards most relevant to THIS message. Done here (not in
+    // buildArgs) so it rides every turn — fresh or resumed — and so Aurora's
+    // stored transcript and seed preamble keep the user's raw text, unpolluted.
+    const augmented = this.#augment(text);
     // Whether this turn relies on a native `--resume` (vs. creating/seeding a
     // session). Captured before #stream flips `started`, so the fallback check
     // below knows a resume was actually attempted.
     const usedResume = this.started;
     try {
-      yield* this.#stream(text);
+      yield* this.#stream(augmented);
     } catch (e) {
       if (this.#shouldFallback(usedResume, e)) {
         // The native session is gone. Start fresh, seeded from the store, and
@@ -172,11 +205,18 @@ export class ClaudeProvider extends Provider {
         };
         this.sessionId = randomUUID();
         this.started = false; // buildArgs will create + seed a new session
-        yield* this.#stream(text);
+        yield* this.#stream(augmented);
       } else {
         throw e;
       }
     }
+  }
+
+  /** Prepend the per-turn brain guidance to a message, or return it unchanged. */
+  #augment(text) {
+    if (!this.brainCards.length) return text;
+    const block = formatTurnBrain(selectRelevantCards(this.brainCards, text));
+    return block ? `${block}\n\n${text}` : text;
   }
 
   /** Whether a failed turn can recover by seeding a fresh session. */

@@ -74,6 +74,19 @@ export class Provider {
     return false;
   }
 
+  /**
+   * Supply the curated method "brain" cards. The provider builds an always-on
+   * index from them and retrieves the most relevant per turn. No-op by default.
+   * @param {Array<object>} _cards
+   */
+  setBrainCards(_cards) {}
+
+  /**
+   * Supply the user's voice/characteristics instruction to inject on the next
+   * fresh session. No-op by default. @param {string|null} _text
+   */
+  setPersona(_text) {}
+
   /** Short, display-friendly session identifier (or null). */
   shortSession() {
     return null;

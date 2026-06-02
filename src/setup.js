@@ -2,6 +2,7 @@ import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { saveConfig } from './config.js';
 import { info, warn, hint } from './ui.js';
+import { personaDefaultsFromBrain, PERSONA_SCOPE } from './persona.js';
 
 const require = createRequire(import.meta.url);
 
@@ -47,17 +48,11 @@ export function shouldRunSetup(config, { isServe, isTty }) {
 }
 
 /**
- * First-run questionnaire: asks whether to save conversations and where, showing
- * hints based on what's installed. Mutates and persists `config`, and always
- * marks setup as done so it only runs once. Interactive (own readline); callers
- * should only invoke it when `shouldRunSetup` is true.
+ * Build an `ask(question)` over a readline that queues lines as they arrive, so
+ * an already-buffered answer (e.g. piped input) isn't dropped between questions,
+ * and EOF resolves a pending prompt with the default rather than hanging.
  */
-export async function runFirstRunSetup(config) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
-  // Queue lines as they arrive so an answer that's already buffered (e.g. piped
-  // input) isn't dropped between questions, and EOF resolves a pending prompt
-  // with the default rather than hanging.
+function createBufferedAsk(rl) {
   const buffered = [];
   let waiting = null;
   rl.on('line', (line) => {
@@ -76,12 +71,23 @@ export async function runFirstRunSetup(config) {
       w('');
     }
   });
-  const ask = (q) =>
+  return (q) =>
     new Promise((resolve) => {
       process.stdout.write(q);
       if (buffered.length) resolve(buffered.shift());
       else waiting = resolve;
     });
+}
+
+/**
+ * First-run questionnaire: asks whether to save conversations and where, showing
+ * hints based on what's installed. Mutates and persists `config`, and always
+ * marks setup as done so it only runs once. Interactive (own readline); callers
+ * should only invoke it when `shouldRunSetup` is true.
+ */
+export async function runFirstRunSetup(config) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = createBufferedAsk(rl);
   const sqlite = isSqliteAvailable();
 
   try {
@@ -144,6 +150,66 @@ export async function runFirstRunSetup(config) {
     config.setupDone = true;
     saveConfig(config);
     console.log(hint() + '\n');
+  } finally {
+    rl.close();
+  }
+  return config;
+}
+
+/**
+ * Should we offer the one-time persona questionnaire? Only with a real store to
+ * write to (persona never lives in config.json), interactively, and only until
+ * the user has been asked once.
+ */
+export function shouldRunPersonaSetup(config, hasStore, { isServe, isTty }) {
+  return Boolean(
+    !isServe && isTty && hasStore && !config.persona?.enabled && !config.persona?.prompted,
+  );
+}
+
+/**
+ * One-time persona questionnaire: a few optional questions so Aurora writes in
+ * the user's voice. Seeds sensible defaults from the brain's voice cards, writes
+ * the profile to the store (not config), and flips the config toggles. Callers
+ * should gate on shouldRunPersonaSetup and pass an open, persona-capable store.
+ */
+export async function runPersonaSetup(store, config) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = createBufferedAsk(rl);
+  config.persona ||= {};
+
+  try {
+    console.log(
+      '\n' + info('Make Aurora write in your voice') + ' ' + warn('(optional, one time)'),
+    );
+    console.log(
+      'A few quick questions so Aurora replicates how you write — typos and wrong\n' +
+        'words fixed, your style kept. Press Enter to skip any (or all).\n',
+    );
+    const lang = String(await ask('Primary language (e.g. en / it) [skip]: ')).trim();
+    const voice = String(
+      await ask('In one line, how would you describe your writing voice? [skip]: '),
+    ).trim();
+    const samples = String(
+      await ask('Paste a sentence or two that sound like you [skip]: '),
+    ).trim();
+    const never = String(await ask('Anything you never want to sound like? [skip]: ')).trim();
+
+    config.persona.prompted = true;
+
+    if (lang || voice || samples || never) {
+      const fields = { ...personaDefaultsFromBrain() };
+      if (lang) fields.langPrimary = lang;
+      if (voice) fields.voiceRules = fields.voiceRules ? `${voice}\n${fields.voiceRules}` : voice;
+      if (samples) fields.samplePhrases = samples;
+      if (never) fields.dontList = fields.dontList ? `${never}; ${fields.dontList}` : never;
+      await store.savePersona(PERSONA_SCOPE, fields);
+      config.persona.enabled = true;
+      console.log('\n' + info('Saved your voice profile. ') + 'View or edit it with /persona.');
+    } else {
+      console.log('\n' + info('Skipped. ') + 'Set it up anytime with /persona.');
+    }
+    saveConfig(config);
   } finally {
     rl.close();
   }
