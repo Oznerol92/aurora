@@ -9,7 +9,8 @@
  *   - open()                       prepare the backend (create files/tables). Idempotent.
  *   - saveTurn(sessionId, turn)    persist one { role, text, ts, model?, costUsd? }
  *   - getConversation(sessionId)   return ordered array of turns (or [])
- *   - listConversations()          return [{ sessionId, turns, updatedAt }]
+ *   - listConversations()          return [{ sessionId, turns, updatedAt, title? }]
+ *                                  (title = first user message, for previews)
  *   - close()                      flush/close handles. Idempotent.
  *
  * All methods may be async. Implementations must never throw from a failed

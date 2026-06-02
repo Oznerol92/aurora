@@ -10,10 +10,20 @@ const DEFAULTS = {
   model: null, // null => provider default
   claudeBin: 'claude',
 
+  // Set true once the first-run questionnaire has run (see src/setup.js), so it
+  // only prompts once even if the user declines a store.
+  setupDone: false,
+
   // Persistence is opt-in. 'none' keeps Aurora stateless (default);
-  // 'json' and 'sqlite' persist conversations under the config dir.
-  // See src/store/.
+  // 'json' and 'sqlite' persist conversations. See src/store/.
   store: 'none',
+
+  // Where a persistent store keeps its data:
+  //   'global'  — one shared history under ~/.config/aurora/data (default)
+  //   'project' — a git-style ./.aurora directory in the current folder
+  // A ./.aurora that already exists is used automatically regardless. See
+  // src/store/location.js.
+  storeScope: 'global',
 
   // Optional Telegram notifications when a turn finishes.
   // SECURITY: secrets are NEVER stored here. The bot token and chat id are read

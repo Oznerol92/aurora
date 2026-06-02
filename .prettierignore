@@ -1,0 +1,14 @@
+node_modules/
+package-lock.json
+coverage/
+
+# release-please owns the changelog's formatting; don't let Prettier reflow it.
+CHANGELOG.md
+
+# Local scratch (also gitignored).
+notes.md
+
+# Benchmark report shell is a hand-tuned static page (inline CSS/JS + a
+# __BENCH_DATA__ injection point); its generated output is reproducible.
+bench/report.template.html
+bench/results/

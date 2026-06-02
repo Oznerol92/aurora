@@ -1,15 +1,18 @@
 name: Release
 
-# Fires when a version tag is pushed (e.g. v0.2.0). The release flow is:
+# Fires when a version tag is pushed. Versioning is manual and gated by review:
+# changes are promoted work-branch → pre-release → release via approved PRs, and
+# a maintainer cuts a release by bumping package.json + CHANGELOG, tagging, and
+# pushing the tag.
 #
-#   npm version patch   # bumps package.json, commits, creates tag v0.x.y
-#   git push --follow-tags
+#   # pre-release (from the `pre-release` branch): minor line, e.g. v0.4.0
+#   # stable      (from the `release` branch):     major line, e.g. v1.0.0
+#   git tag v0.4.0 && git push origin v0.4.0
 #
-# This workflow then re-runs the CI checks and, if they pass, publishes a
-# GitHub Release with auto-generated notes. It guards that the tag matches the
-# version in package.json, so a mistyped tag fails loudly instead of shipping a
-# mislabeled release. GitHub-only: no npm publish, no secrets beyond the
-# built-in GITHUB_TOKEN.
+# This workflow verifies the tag matches package.json, re-runs the checks, then
+# creates the GitHub Release (marked pre-release for 0.x / -rc / -beta tags) and
+# publishes to npm (no-op until NPM_TOKEN is set; pre-releases use the `next`
+# dist-tag so they never become `latest`).
 
 on:
   push:
@@ -17,12 +20,14 @@ on:
       - 'v*'
 
 permissions:
-  contents: write # required to create the GitHub Release
+  contents: read
 
 jobs:
   verify:
     name: verify
     runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.classify.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,10 +45,33 @@ jobs:
           pkg="$(node -p "require('./package.json').version")"
           tag="${GITHUB_REF_NAME#v}"
           if [ "$pkg" != "$tag" ]; then
-            echo "::error::tag v$tag does not match package.json version $pkg"
+            echo "::error::release tag v$tag does not match package.json version $pkg"
             exit 1
           fi
           echo "tag and package.json agree on $pkg"
+
+      # 0.x.y, or any tag with a -rc/-beta/-alpha suffix, is a pre-release.
+      - name: Classify release
+        id: classify
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          if [[ "$tag" == 0.* || "$tag" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "tag $tag → pre-release"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "tag $tag → stable"
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Test
+        run: npm test
 
       - name: Syntax-check all sources
         run: |
@@ -56,12 +84,12 @@ jobs:
           node bin/aurora.js --version
           node bin/aurora.js --help
 
-  release:
+  github-release:
     name: github release
     needs: verify
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # required to create the GitHub Release
     steps:
       - uses: actions/checkout@v4
 
@@ -69,6 +97,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ needs.verify.outputs.prerelease }}
 
   npm-publish:
     name: npm publish
@@ -91,14 +120,20 @@ jobs:
 
       # No-ops cleanly when NPM_TOKEN isn't configured, so the GitHub Release
       # still ships. To start publishing to npm, add an NPM_TOKEN repo secret
-      # (an npm automation token) — nothing else needs to change.
+      # (an npm automation token) — nothing else needs to change. Pre-releases
+      # publish under the `next` dist-tag so they never displace `latest`.
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
         run: |
           set -euo pipefail
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
             echo "NPM_TOKEN not set — skipping npm publish (GitHub Release still created)."
             exit 0
           fi
-          npm publish --provenance --access public
+          if [ "$PRERELEASE" = "true" ]; then
+            npm publish --provenance --access public --tag next
+          else
+            npm publish --provenance --access public
+          fi

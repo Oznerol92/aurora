@@ -6,6 +6,63 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **First-run setup.** On first launch the CLI asks whether to save
+  conversations and where (global vs project), showing hints based on what's
+  installed — SQLite is offered only when `better-sqlite3` is present, otherwise
+  it points at `npm install better-sqlite3`. Runs once; change anytime with
+  `/store`.
+- **Shared conversation across CLI and Telegram.** With a store enabled, the
+  REPL and the Telegram bridge attach to one **active session**: a chat you
+  start on Telegram is picked up (and replayed) when you open the CLI, and
+  vice-versa. `/new` on either side starts a fresh shared thread. The Telegram
+  bridge now persists its turns (previously it saved nothing).
+- **Telegram from one command.** Plain `aurora` now starts every available
+  listener (the Telegram bridge) in the background alongside the REPL, so a
+  single terminal drives both the command line and your phone on one shared
+  session — no separate `--serve` process needed. The bridge boots whenever its
+  credentials are set, independent of the `/notify` toggle. New **`--solo`** flag
+  runs a purely-local REPL that starts no listeners (use it for a second terminal
+  so it doesn't double-poll Telegram). `--serve` remains the headless, no-REPL
+  server.
+- **Conversation history.** With persistence on (`/store json` or `sqlite`),
+  `/history` lists saved conversations — each with a one-line preview of its
+  opening message — and `/resume [id]` reattaches to one (no id resumes the most
+  recent), reconnecting the provider session and replaying the saved turns.
+- **Export.** `/export [id]` writes a conversation to a Markdown file (titled
+  from its opening message) — a portable artifact of a research session.
+- **Project-scoped storage.** `/store scope project` keeps a git-style
+  `./.aurora/` history in the current directory; `global` (default) keeps one
+  shared log under `~/.config/aurora/data`. An existing `./.aurora/` is picked
+  up automatically.
+- **Test suite.** Zero-dependency `node --test` specs under `test/` covering the
+  `.env` loader, config, store round-trips, session resume, and the research
+  template. Run with `npm test`.
+- **Linting & formatting.** ESLint (flat config) + Prettier, wired into CI via
+  `npm run lint` and `npm run format:check`. `npm run format` / `lint:fix` apply
+  fixes locally.
+- **Dependabot** (`.github/dependabot.yml`) for weekly, grouped npm and
+  GitHub-Actions updates.
+- **Issue & PR templates** under `.github/`.
+
+### Changed
+
+- **Release process.** Adopted a two-branch promotion model — work branches →
+  `pre-release` → `release`, each gated by an approving PR review. `release` is
+  now the stable/default branch and `master` is retired. Versioning is manual at
+  tag time; `.github/workflows/release.yml` fires on a pushed `v*` tag, verifies
+  it against `package.json`, and marks `0.x`/`-rc` tags as GitHub pre-releases
+  (publishing to npm under the `next` dist-tag).
+- CI now lints, checks formatting, and runs the test suite (in addition to the
+  byte-check and CLI smoke tests), and runs on the `release`/`pre-release`
+  branches.
+
+### Removed
+
+- `release-please` automation, in favor of the manual, review-gated promotion
+  model above.
+
 ## [0.3.0] - 2026-06-01
 
 ### Added

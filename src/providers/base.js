@@ -43,6 +43,37 @@ export class Provider {
   /** Start a fresh conversation (drop any session state). */
   reset() {}
 
+  /**
+   * Adopt an existing session so the next turn continues it. Used by /resume to
+   * pick a saved conversation back up. Providers that can't resume should leave
+   * this as a no-op (the CLI tells the user resuming isn't supported).
+   * @param {string} _sessionId
+   * @returns {boolean} whether the session was adopted
+   */
+  resume(_sessionId) {
+    return false;
+  }
+
+  /**
+   * Adopt a stored transcript as fallback context, so a provider can recover if
+   * a native resume turns out to be stale. No-op by default.
+   * @param {Array<{role:string, text:string}>} _turns
+   * @returns {boolean} whether any context was taken
+   */
+  seed(_turns) {
+    return false;
+  }
+
+  /**
+   * Cancel the in-flight turn (e.g. on Ctrl-C). Implementations should stop the
+   * underlying request and let `send()` end cleanly so the caller keeps any
+   * partial output. No-op by default.
+   * @returns {boolean} whether anything was cancelled
+   */
+  abort() {
+    return false;
+  }
+
   /** Short, display-friendly session identifier (or null). */
   shortSession() {
     return null;

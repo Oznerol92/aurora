@@ -13,10 +13,15 @@ const REGISTRY = {
   [SqliteStore.id]: SqliteStore,
 };
 
-/** Construct (but do not open) a store by id. Falls back to NoneStore. */
+/**
+ * Construct (but do not open) a store by id. Falls back to NoneStore. The
+ * store's data location is derived from storeOptions plus the top-level
+ * `storeScope` ('global' | 'project'), threaded in here so a backend never has
+ * to know about the wider config shape.
+ */
 export function getStore(id, config = {}) {
   const Cls = REGISTRY[id] || NoneStore;
-  return new Cls(config.storeOptions || {});
+  return new Cls({ ...(config.storeOptions || {}), scope: config.storeScope });
 }
 
 /** List store ids for display. */

@@ -53,7 +53,11 @@ export async function fetchTelegramChats() {
     for (const update of data.result || []) {
       const chat = update.message?.chat || update.my_chat_member?.chat;
       if (!chat) continue;
-      const name = chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || chat.username || '';
+      const name =
+        chat.title ||
+        [chat.first_name, chat.last_name].filter(Boolean).join(' ') ||
+        chat.username ||
+        '';
       seen.set(chat.id, { id: chat.id, name, type: chat.type });
     }
     return { ok: true, chats: [...seen.values()] };

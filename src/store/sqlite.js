@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { Store } from './base.js';
-import { configDir } from '../config.js';
+import { resolveDataDir } from './location.js';
 
 /**
  * SQLite store, backed by better-sqlite3. That package ships a native binding,
@@ -18,7 +18,7 @@ export class SqliteStore extends Store {
 
   constructor(config = {}) {
     super(config);
-    const dir = config.dataDir || join(configDir, 'data');
+    const dir = resolveDataDir(config);
     this.path = join(dir, 'aurora.sqlite');
     this.dir = dir;
     this.db = null;
@@ -45,10 +45,26 @@ export class SqliteStore extends Store {
         text       TEXT NOT NULL,
         ts         TEXT NOT NULL,
         model      TEXT,
-        cost_usd   REAL
+        cost_usd   REAL,
+        complete   INTEGER NOT NULL DEFAULT 1
       );
       CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
     `);
+    this.#migrate();
+  }
+
+  // Additive, idempotent migrations for databases created by older versions.
+  // `complete` (v0.3.3) marks interrupted/partial turns; rows that predate it
+  // default to complete. PRAGMA user_version tracks the schema for future steps.
+  #migrate() {
+    const cols = this.db
+      .prepare('PRAGMA table_info(turns)')
+      .all()
+      .map((c) => c.name);
+    if (!cols.includes('complete')) {
+      this.db.exec('ALTER TABLE turns ADD COLUMN complete INTEGER NOT NULL DEFAULT 1');
+    }
+    this.db.pragma('user_version = 1');
   }
 
   async saveTurn(sessionId, turn) {
@@ -56,23 +72,38 @@ export class SqliteStore extends Store {
     // Parameterized — no string interpolation, so no SQL injection.
     this.db
       .prepare(
-        'INSERT INTO turns (session_id, role, text, ts, model, cost_usd) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO turns (session_id, role, text, ts, model, cost_usd, complete) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
-      .run(sessionId, turn.role, turn.text, turn.ts, turn.model ?? null, turn.costUsd ?? null);
+      .run(
+        sessionId,
+        turn.role,
+        turn.text,
+        turn.ts,
+        turn.model ?? null,
+        turn.costUsd ?? null,
+        turn.complete === false ? 0 : 1,
+      );
   }
 
   async getConversation(sessionId) {
     if (!this.db) return [];
     return this.db
-      .prepare('SELECT role, text, ts, model, cost_usd AS costUsd FROM turns WHERE session_id = ? ORDER BY id')
-      .all(sessionId);
+      .prepare(
+        'SELECT role, text, ts, model, cost_usd AS costUsd, complete FROM turns WHERE session_id = ? ORDER BY id',
+      )
+      .all(sessionId)
+      .map((r) => ({ ...r, complete: r.complete !== 0 }));
   }
 
   async listConversations() {
     if (!this.db) return [];
     return this.db
       .prepare(
-        'SELECT session_id AS sessionId, COUNT(*) AS turns, MAX(ts) AS updatedAt FROM turns GROUP BY session_id',
+        `SELECT session_id AS sessionId, COUNT(*) AS turns, MAX(ts) AS updatedAt,
+                (SELECT text FROM turns f
+                  WHERE f.session_id = t.session_id AND f.role = 'user'
+                  ORDER BY id LIMIT 1) AS title
+           FROM turns t GROUP BY session_id`,
       )
       .all();
   }
