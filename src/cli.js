@@ -14,7 +14,14 @@ import {
 import { saveUserTurn, saveAssistantTurn } from './store/persist.js';
 import { previewTitle, firstUserText } from './store/title.js';
 import { conversationToMarkdown } from './store/export.js';
-import { runFirstRunSetup, shouldRunSetup } from './setup.js';
+import {
+  runFirstRunSetup,
+  shouldRunSetup,
+  shouldRunPersonaSetup,
+  runPersonaSetup,
+} from './setup.js';
+import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
+import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
@@ -112,6 +119,17 @@ export async function main(argv = process.argv.slice(2)) {
     store = getStore('none', config);
   }
   const hasStore = store.constructor.id !== 'none';
+
+  // One-time persona questionnaire (needs an open store to write to), then wire
+  // the method brain + the user's voice profile into the provider so every fresh
+  // session injects them. Skipped in serve/solo/non-TTY by the guards.
+  if (
+    !solo &&
+    shouldRunPersonaSetup(config, hasStore, { isServe, isTty: Boolean(process.stdin.isTTY) })
+  ) {
+    await runPersonaSetup(store, config);
+  }
+  await applyBrainAndPersona(provider, store, config);
 
   // Decide which conversation this launch attaches to. By default we silently
   // pick up the shared "active session" (so the CLI and Telegram bridge continue
@@ -443,6 +461,14 @@ async function handleCommand(text, ctx) {
       await handleNotify(arg, ctx);
       return true;
 
+    case 'brain':
+      await handleBrain(arg, ctx);
+      return true;
+
+    case 'persona':
+      await handlePersona(arg, ctx);
+      return true;
+
     case 'clear':
       console.clear();
       return true;
@@ -457,6 +483,214 @@ async function handleCommand(text, ctx) {
       console.log('\n' + warn(`Unknown command: /${cmd}. Try /help.`) + '\n');
       return true;
   }
+}
+
+/**
+ * (Re)load the brain cards + persona instruction and hand them to the provider.
+ * Called once at startup and again whenever /brain or /persona change them, so
+ * the next session reflects the change. Best-effort: a failure just clears that
+ * piece rather than breaking the chat.
+ */
+async function applyBrainAndPersona(provider, store, config) {
+  try {
+    const cards = config.brain?.enabled !== false ? loadBrainCards() : [];
+    provider.setBrainCards?.(cards);
+  } catch {
+    provider.setBrainCards?.([]);
+  }
+  try {
+    provider.setPersona?.(await loadPersonaInstruction(store, config));
+  } catch {
+    provider.setPersona?.(null);
+  }
+}
+
+/** /brain — show, toggle, or inspect the curated method brain. */
+async function handleBrain(arg, ctx) {
+  const [sub, ...rest] = arg.split(/\s+/);
+  const param = rest.join(' ').trim();
+  const cards = loadBrainCards();
+
+  if (!sub || sub === 'list') {
+    if (!cards.length) {
+      console.log(
+        '\n' + warn('No brain cards found.') + ' Expected Markdown cards under brain/.\n',
+      );
+      return;
+    }
+    const on = ctx.config.brain?.enabled !== false;
+    console.log(
+      '\n' + info('Method brain ') + (on ? '' : warn('(disabled) ')) + `· ${cards.length} cards`,
+    );
+    for (const c of cards) {
+      const tags = c.tags?.length ? warn(`  [${c.tags.join(', ')}]`) : '';
+      console.log(`  ${c.id.padEnd(20)} ${warn(c.type.padEnd(10))} ${c.title}${tags}`);
+    }
+    console.log(
+      info('\n  All cards are indexed each session; the most relevant are pulled into each turn.') +
+        info('\n  Preview a query with /brain why <text>.') +
+        '\n',
+    );
+    return;
+  }
+
+  if (sub === 'why') {
+    if (!param) {
+      console.log('\n' + warn('Usage: ') + '/brain why <text>\n');
+      return;
+    }
+    const picked = selectRelevantCards(cards, param);
+    if (!picked.length) {
+      console.log('\n' + info('No cards matched. ') + 'The turn would carry the index only.\n');
+      return;
+    }
+    console.log('\n' + info(`Cards Aurora would pull for: `) + `"${param}"`);
+    for (const c of picked) console.log(`  ${c.id.padEnd(20)} ${warn(c.type)}  ${c.title}`);
+    console.log('');
+    return;
+  }
+
+  if (sub === 'show') {
+    const card = cards.find((c) => c.id === param);
+    if (!card) {
+      console.log('\n' + warn(`No card with id "${param}".`) + ' Try /brain list.\n');
+      return;
+    }
+    console.log(
+      '\n' + info(card.title) + ` ${warn(`(${card.type}, priority ${card.priority})`)}\n`,
+    );
+    console.log(card.body + '\n');
+    return;
+  }
+
+  if (sub === 'on' || sub === 'off') {
+    ctx.config.brain ||= {};
+    ctx.config.brain.enabled = sub === 'on';
+    saveConfig(ctx.config);
+    await applyBrainAndPersona(ctx.provider, ctx.store, ctx.config);
+    console.log(
+      '\n' +
+        info(`Brain ${sub === 'on' ? 'enabled' : 'disabled'}.`) +
+        ' Per-turn retrieval applies immediately; the session index refreshes on /new.\n',
+    );
+    return;
+  }
+
+  console.log('\n' + warn('Usage: ') + '/brain [list | show <id> | why <text> | on | off]\n');
+}
+
+/** /persona — view and shape the user's voice profile. */
+async function handlePersona(arg, ctx) {
+  if (!ctx.hasStore) {
+    console.log(
+      '\n' + warn('Persona needs a store. ') + 'Enable one with /store sqlite (or json).\n',
+    );
+    return;
+  }
+  const [sub, ...rest] = arg.split(/\s+/);
+  const param = rest.join(' ').trim();
+
+  if (!sub || sub === 'show') {
+    const p = await ctx.store.getPersona(PERSONA_SCOPE);
+    const on = ctx.config.persona?.enabled === true;
+    if (!p) {
+      console.log('\n' + info('No persona set. ') + 'Add one with /persona set <field> <value>.');
+      console.log(info('  Fields: ') + PERSONA_FIELDS.join(', ') + '\n');
+      return;
+    }
+    console.log('\n' + info('Your voice profile ') + (on ? '' : warn('(disabled) ')));
+    for (const f of PERSONA_FIELDS) {
+      if (p[f]) console.log(`  ${f.padEnd(14)} ${String(p[f]).replace(/\n/g, ' ⏎ ')}`);
+    }
+    console.log(
+      info('\n  Edit: ') +
+        '/persona set <field> <value> · ' +
+        info('toggle: ') +
+        '/persona on|off\n',
+    );
+    return;
+  }
+
+  if (sub === 'set') {
+    const [field, ...valParts] = param.split(/\s+/);
+    const value = valParts.join(' ').trim();
+    if (!PERSONA_FIELDS.includes(field) || !value) {
+      console.log(
+        '\n' +
+          warn('Usage: ') +
+          '/persona set <field> <value>\n  ' +
+          info('Fields: ') +
+          PERSONA_FIELDS.join(', ') +
+          '\n',
+      );
+      return;
+    }
+    await ctx.store.savePersona(PERSONA_SCOPE, { [field]: value });
+    ctx.config.persona ||= {};
+    ctx.config.persona.enabled = true;
+    ctx.config.persona.prompted = true;
+    saveConfig(ctx.config);
+    await applyBrainAndPersona(ctx.provider, ctx.store, ctx.config);
+    console.log('\n' + info(`Updated ${field}.`) + ' Applies to the next /new session.\n');
+    return;
+  }
+
+  if (sub === 'ingest') {
+    if (!param) {
+      console.log('\n' + warn('Usage: ') + '/persona ingest <file>\n');
+      return;
+    }
+    let text;
+    try {
+      text = readFileSync(param, 'utf8');
+    } catch (e) {
+      console.log('\n' + warn('Could not read ') + param + ': ' + e.message + '\n');
+      return;
+    }
+    const existing = (await ctx.store.getPersona(PERSONA_SCOPE))?.samplePhrases || '';
+    const merged = (existing ? existing + '\n' : '') + text.trim();
+    await ctx.store.savePersona(PERSONA_SCOPE, { samplePhrases: merged.slice(0, 8000) });
+    ctx.config.persona ||= {};
+    ctx.config.persona.enabled = true;
+    ctx.config.persona.prompted = true;
+    saveConfig(ctx.config);
+    await applyBrainAndPersona(ctx.provider, ctx.store, ctx.config);
+    console.log('\n' + info('Ingested writing samples. ') + 'Aurora will echo your phrasing.\n');
+    return;
+  }
+
+  if (sub === 'clear') {
+    await ctx.store.savePersona(
+      PERSONA_SCOPE,
+      Object.fromEntries(PERSONA_FIELDS.map((f) => [f, ''])),
+    );
+    ctx.config.persona ||= {};
+    ctx.config.persona.enabled = false;
+    saveConfig(ctx.config);
+    await applyBrainAndPersona(ctx.provider, ctx.store, ctx.config);
+    console.log('\n' + info('Persona cleared.') + '\n');
+    return;
+  }
+
+  if (sub === 'on' || sub === 'off') {
+    ctx.config.persona ||= {};
+    ctx.config.persona.enabled = sub === 'on';
+    ctx.config.persona.prompted = true;
+    saveConfig(ctx.config);
+    await applyBrainAndPersona(ctx.provider, ctx.store, ctx.config);
+    console.log(
+      '\n' +
+        info(`Persona ${sub === 'on' ? 'enabled' : 'disabled'}.`) +
+        ' Applies to the next /new session.\n',
+    );
+    return;
+  }
+
+  console.log(
+    '\n' +
+      warn('Usage: ') +
+      '/persona [show | set <field> <value> | ingest <file> | clear | on | off]\n',
+  );
 }
 
 function handleProvider(arg, ctx) {
@@ -941,6 +1175,8 @@ function printHelp() {
         ['/resume [id]', 'reattach to a saved conversation (no id = most recent)'],
         ['/export [id]', 'save a conversation to a Markdown file (no id = current)'],
         ['/notify [on|off|test|whoami]', 'Telegram alerts; whoami finds your chat id'],
+        ['/brain [list|show|why|on|off]', 'the curated method brain Aurora writes/researches by'],
+        ['/persona [show|set|ingest]', 'shape Aurora to write in your voice'],
         ['/config', 'show config file path and contents'],
         ['/clear', 'clear the screen'],
         ['/exit', 'quit (or Ctrl-D)'],

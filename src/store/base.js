@@ -33,4 +33,22 @@ export class Store {
     return [];
   }
   async close() {}
+
+  /**
+   * Persona: the user's voice/characteristics profile, one row per `scope`.
+   * Returns the stored object (or null). No-op backends return null.
+   * @param {string} _scope
+   */
+  async getPersona(_scope = 'default') {
+    return null;
+  }
+
+  /**
+   * Merge `fields` into the persona for `scope` and persist. Returns the merged
+   * object (or null when the backend doesn't persist).
+   * @param {string} _scope @param {object} _fields
+   */
+  async savePersona(_scope = 'default', _fields = {}) {
+    return null;
+  }
 }

@@ -94,6 +94,63 @@ test('abort() is safe to call when nothing is running', () => {
   assert.equal(p.abort(), false, 'no child to cancel');
 });
 
+const SAMPLE_CARDS = [
+  {
+    id: 'voice-core',
+    type: 'voice',
+    title: 'Recurring structural patterns',
+    tags: ['voice', 'structure'],
+    body: 'DISTINCTIVE-CARD-BODY about hooks and numbers.',
+    priority: 1,
+  },
+];
+
+test('setBrainCards/setPersona are injected on a fresh session (index only, not bodies)', () => {
+  const p = new ClaudeProvider();
+  p.setBrainCards(SAMPLE_CARDS);
+  p.setPersona('USER VOICE PROFILE BODY');
+  const sys = systemPrompt(p.buildArgs('draft something'));
+  assert.match(sys, /You are Aurora/, 'base persona kept');
+  assert.match(sys, /USER VOICE PROFILE BODY/);
+  assert.match(sys, /AURORA METHOD BRAIN/, 'the always-on index is injected');
+  assert.match(sys, /voice-core/, 'the index lists each card');
+  assert.doesNotMatch(
+    sys,
+    /DISTINCTIVE-CARD-BODY/,
+    'full card bodies are retrieved per turn, not always-on',
+  );
+  // Voice profile is ordered before the brain so it survives truncation.
+  assert.ok(sys.indexOf('USER VOICE PROFILE BODY') < sys.indexOf('AURORA METHOD BRAIN'));
+});
+
+test('brain/persona are NOT injected on a resumed turn', () => {
+  const p = new ClaudeProvider();
+  p.setBrainCards(SAMPLE_CARDS);
+  p.setPersona('USER VOICE PROFILE BODY');
+  p.resume('11111111-2222-3333-4444-555555555555');
+  const args = p.buildArgs('next');
+  assert.ok(args.includes('--resume'));
+  assert.equal(systemPrompt(args), null, 'resumed sessions restore their own context');
+});
+
+test('brain/persona survive reset() (they are config-level, not per-session)', () => {
+  const p = new ClaudeProvider();
+  p.setBrainCards(SAMPLE_CARDS);
+  p.setPersona('USER VOICE PROFILE BODY');
+  p.reset();
+  const sys = systemPrompt(p.buildArgs('x'));
+  assert.match(sys, /AURORA METHOD BRAIN/, 'brain persists across /new');
+  assert.match(sys, /USER VOICE PROFILE BODY/, 'persona persists across /new');
+});
+
+test('setBrainCards([]) clears the brain index', () => {
+  const p = new ClaudeProvider();
+  p.setBrainCards(SAMPLE_CARDS);
+  p.setBrainCards([]);
+  const sys = systemPrompt(p.buildArgs('x'));
+  assert.doesNotMatch(sys, /AURORA METHOD BRAIN/);
+});
+
 test('isSessionNotFound recognises a stale-resume error but not unrelated ones', () => {
   assert.ok(isSessionNotFound('No conversation found with session ID: abcd'));
   assert.ok(isSessionNotFound('Session not found'));

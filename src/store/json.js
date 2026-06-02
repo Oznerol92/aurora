@@ -18,7 +18,7 @@ export class JsonStore extends Store {
     const dir = resolveDataDir(config);
     this.path = join(dir, 'conversations.json');
     this.dir = dir;
-    this.data = { conversations: {} };
+    this.data = { conversations: {}, persona: {} };
   }
 
   async open() {
@@ -27,9 +27,10 @@ export class JsonStore extends Store {
       try {
         this.data = JSON.parse(readFileSync(this.path, 'utf8'));
         this.data.conversations ||= {};
+        this.data.persona ||= {};
       } catch {
         // Corrupt file: start clean rather than crash the chat.
-        this.data = { conversations: {} };
+        this.data = { conversations: {}, persona: {} };
       }
     }
   }
@@ -53,6 +54,22 @@ export class JsonStore extends Store {
       updatedAt: c.updatedAt,
       title: c.turns.find((t) => t.role === 'user')?.text || '',
     }));
+  }
+
+  async getPersona(scope = 'default') {
+    return this.data.persona?.[scope] ?? null;
+  }
+
+  async savePersona(scope = 'default', fields = {}) {
+    this.data.persona ||= {};
+    const next = {
+      ...(this.data.persona[scope] || {}),
+      ...fields,
+      updatedAt: new Date().toISOString(),
+    };
+    this.data.persona[scope] = next;
+    this.#flush();
+    return next;
   }
 
   // Atomic write: serialize to a temp file then rename, so a crash mid-write

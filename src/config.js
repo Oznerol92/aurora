@@ -25,6 +25,16 @@ const DEFAULTS = {
   // src/store/location.js.
   storeScope: 'global',
 
+  // The curated method "brain" (see src/brain/ and the brain/ corpus). When
+  // enabled, a digest of the core method cards is injected into every fresh
+  // session's system prompt. Non-secret toggle only.
+  brain: { enabled: true },
+
+  // The user's voice/characteristics profile. The profile text itself lives in
+  // the store (never here — it's personal); config holds only the toggles.
+  // `enabled` gates injection; `prompted` records that the one-time setup ran.
+  persona: { enabled: false, prompted: false },
+
   // Optional Telegram notifications when a turn finishes.
   // SECURITY: secrets are NEVER stored here. The bot token and chat id are read
   // only from the environment (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID, which can

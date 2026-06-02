@@ -49,13 +49,21 @@ export class SqliteStore extends Store {
         complete   INTEGER NOT NULL DEFAULT 1
       );
       CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id);
+
+      CREATE TABLE IF NOT EXISTS persona (
+        scope      TEXT PRIMARY KEY,
+        data       TEXT NOT NULL,
+        updated_at TEXT
+      );
     `);
     this.#migrate();
   }
 
   // Additive, idempotent migrations for databases created by older versions.
   // `complete` (v0.3.3) marks interrupted/partial turns; rows that predate it
-  // default to complete. PRAGMA user_version tracks the schema for future steps.
+  // default to complete. The `persona` table (v0.3.4) is created by open()'s
+  // CREATE TABLE IF NOT EXISTS, so older DBs gain it on open with no data loss.
+  // PRAGMA user_version tracks the schema: 1 = turns.complete, 2 = persona.
   #migrate() {
     const cols = this.db
       .prepare('PRAGMA table_info(turns)')
@@ -64,7 +72,31 @@ export class SqliteStore extends Store {
     if (!cols.includes('complete')) {
       this.db.exec('ALTER TABLE turns ADD COLUMN complete INTEGER NOT NULL DEFAULT 1');
     }
-    this.db.pragma('user_version = 1');
+    this.db.pragma('user_version = 2');
+  }
+
+  async getPersona(scope = 'default') {
+    if (!this.db) return null;
+    const row = this.db.prepare('SELECT data FROM persona WHERE scope = ?').get(scope);
+    if (!row) return null;
+    try {
+      return JSON.parse(row.data);
+    } catch {
+      return null;
+    }
+  }
+
+  async savePersona(scope = 'default', fields = {}) {
+    if (!this.db) return null;
+    const current = (await this.getPersona(scope)) || {};
+    const next = { ...current, ...fields, updatedAt: new Date().toISOString() };
+    this.db
+      .prepare(
+        `INSERT INTO persona (scope, data, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(scope) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+      )
+      .run(scope, JSON.stringify(next), next.updatedAt);
+    return next;
   }
 
   async saveTurn(sessionId, turn) {
