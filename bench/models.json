@@ -1,0 +1,32 @@
+{
+  "notes": "Model registry for the benchmark. To add a model, add an entry. `adapter` selects how it is invoked. The 'claude-cli' adapter shells out to the local `claude` CLI with --model, matching how Aurora itself calls Claude. Future adapters (openai-api, gemini-api) would call those vendors' APIs directly from the runner WITHOUT making them first-class Aurora providers, so Aurora stays Claude-only by design.",
+  "active": ["opus", "sonnet"],
+  "models": {
+    "opus": {
+      "adapter": "claude-cli",
+      "model": "opus",
+      "label": "Claude Opus 4.8"
+    },
+    "sonnet": {
+      "adapter": "claude-cli",
+      "model": "sonnet",
+      "label": "Claude Sonnet 4.6"
+    },
+    "haiku": {
+      "adapter": "claude-cli",
+      "model": "haiku",
+      "label": "Claude Haiku 4.5",
+      "_disabled": "remove from comment and add to active[] to include"
+    },
+    "gpt": {
+      "adapter": "openai-api",
+      "model": "gpt-5",
+      "label": "OpenAI GPT (placeholder — adapter not yet implemented)"
+    },
+    "gemini": {
+      "adapter": "gemini-api",
+      "model": "gemini-2.5-pro",
+      "label": "Google Gemini (placeholder — adapter not yet implemented)"
+    }
+  }
+}

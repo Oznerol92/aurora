@@ -4,6 +4,8 @@ A research-grade AI chat in your terminal. Aurora opens with the **Aurora Resear
 
 It's **provider-agnostic** by design: the UI talks to a small provider interface, so new AIs slot in without touching anything else. Today it ships with one backend — **Claude**, driven through your local `claude` (Claude Code) CLI, so it uses your existing subscription auth with no API key.
 
+Plain `aurora` also brings up a two-way **Telegram bridge** in the background (when configured), so the same conversation follows you to your phone — one command, terminal and Telegram on one shared session.
+
 ## Requirements
 
 - Node.js ≥ 18
@@ -25,14 +27,21 @@ node bin/aurora.js
 ## Usage
 
 ```bash
-aurora                      # start a chat (shows the research template first)
+aurora                      # start a chat; also starts the Telegram bridge if configured
+aurora --solo               # chat only — don't start any listeners
 aurora --model <name>       # start with a specific model, e.g. claude-sonnet-4-6
-aurora --serve              # run as a server: start every configured listener
+aurora --serve              # run as a server (no REPL): start every configured listener
 aurora --help
 ```
 
-`npm start` runs `aurora --serve` (server mode); `npm run chat` opens the
-interactive REPL.
+Plain `aurora` opens the interactive REPL **and** brings up any configured
+inbound listener (the Telegram bridge) in the background, so you can talk to
+Aurora from your phone while the terminal stays open — both share the one active
+session, so it's a single conversation. Use `--solo` for a purely-local chat.
+Listeners start on their own credentials, so this is independent of the
+`/notify` toggle; with no Telegram credentials set, plain `aurora` is just the
+REPL. `npm start` runs `aurora --serve` (headless server, no REPL); `npm run
+chat` opens the REPL.
 
 ### In-chat commands
 
@@ -86,10 +95,12 @@ id to pick up the most recent. **`/export [id]`** writes a conversation to a
 Markdown file you can keep or share (no id exports the current one).
 
 **One conversation across the CLI and Telegram.** With a store enabled, the REPL
-and the `--serve` Telegram bridge attach to the same _active session_: a chat
-you start on Telegram is shown and picked up the next time you open `aurora` on
-the command line, and what you type in the terminal continues on Telegram.
-`/new` on either side starts a fresh shared thread. (SQLite is recommended if
+and the Telegram bridge attach to the same _active session_ — and because plain
+`aurora` now starts the bridge alongside the REPL (see below), a single command
+gives you both. A chat you start on Telegram is shown and picked up the next time
+you open `aurora` on the command line, and what you type in the terminal
+continues on Telegram. `/new` on either side starts a fresh shared thread.
+(SQLite is recommended if
 you'll have the server and the CLI running at the same time — it handles
 concurrent writes; the JSON store is best for one-at-a-time use. Full model
 context carries over only when both are launched from the same directory, since
@@ -145,6 +156,18 @@ only messages from your `TELEGRAM_CHAT_ID` are processed — a public bot can be
 messaged by anyone, so every other sender is ignored, and the bridge refuses to
 start without that id. (`aurora --telegram` still works as an alias for
 `--serve`.)
+
+**You usually don't need `--serve` for Telegram.** Plain `aurora` already starts
+every available listener (the bridge boots whenever `TELEGRAM_BOT_TOKEN` and
+`TELEGRAM_CHAT_ID` are set) alongside the REPL, so one terminal drives both the
+command line and your phone. Reach for `--serve` when you want a **headless**
+server with no REPL — e.g. running it under systemd/pm2.
+
+Run only **one** poller at a time, though: Telegram lets a single client
+long-poll `getUpdates`, so two live bridges fight over it. If you open a second
+terminal while a bridge is already running, start it with **`aurora --solo`** —
+that gives you a purely-local REPL that starts no listeners. (`--solo` is also
+the way to launch a quick local chat without pinging Telegram at all.)
 
 ## Security
 

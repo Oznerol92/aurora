@@ -34,6 +34,13 @@ const LISTENERS = [
   // },
 ];
 
+/** Start one listener forever; failures are logged, never thrown. */
+function launchListener(l, { provider, config, store }, log) {
+  return l
+    .start({ provider, config, store, logLine: (m) => log(`[${l.name}] ${m}`) })
+    .catch((e) => log(`${l.name}: stopped — ${e?.message || String(e)}`));
+}
+
 /**
  * Start all available listeners concurrently. Throws only if nothing is
  * configured (so `npm start` fails loudly instead of idling silently).
@@ -56,11 +63,19 @@ export async function runServer({ provider, config, store, logLine }) {
 
   // Run every listener concurrently. Each is meant to run forever; if one
   // throws, surface it but let the others keep serving.
-  await Promise.all(
-    active.map((l) =>
-      l
-        .start({ provider, config, store, logLine: (m) => log(`[${l.name}] ${m}`) })
-        .catch((e) => log(`${l.name}: stopped — ${e?.message || String(e)}`)),
-    ),
-  );
+  await Promise.all(active.map((l) => launchListener(l, { provider, config, store }, log)));
+}
+
+/**
+ * Bring up available listeners ALONGSIDE the interactive REPL, without blocking.
+ * Unlike runServer this never throws when nothing is configured and logs no
+ * "skipped" noise — a purely-local chat stays quiet. Each listener still runs
+ * forever in the background; we just don't await it, so the REPL keeps the
+ * foreground. Returns the names that started.
+ */
+export function startListeners({ provider, config, store, logLine }) {
+  const log = logLine || ((m) => console.log(m));
+  const active = LISTENERS.filter((l) => l.available(config));
+  for (const l of active) launchListener(l, { provider, config, store }, log);
+  return active.map((l) => l.name);
 }

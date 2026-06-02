@@ -11,7 +11,7 @@ import { previewTitle, firstUserText } from './store/title.js';
 import { conversationToMarkdown } from './store/export.js';
 import { runFirstRunSetup, shouldRunSetup } from './setup.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
-import { runServer } from './serve.js';
+import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { TEMPLATE } from './template.js';
 
@@ -57,6 +57,8 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   const isServe = argv.includes('--serve') || argv.includes('--telegram');
+  // REPL by default also starts listeners (Telegram); --solo keeps it local.
+  const solo = argv.includes('--solo');
 
   // First-run questionnaire: offer a persistence backend (with hints based on
   // what's installed) before anything opens a store. Interactive REPL only, and
@@ -114,6 +116,21 @@ export async function main(argv = process.argv.slice(2)) {
     console.log(info('  Store:   ') + config.store + ` (session ${shortId(sessionId)})`);
   }
   if (telegramEnabled(config)) console.log(info('  Notify:  ') + 'telegram');
+
+  // Bring up inbound listeners (the Telegram bridge today) alongside the REPL,
+  // so you can talk to Aurora from your phone while the terminal stays open —
+  // both share the one active session, so it's a single conversation. They run
+  // in the background; pass --solo for a purely-local chat. Listeners start on
+  // their own credentials (same rule as --serve), independent of /notify.
+  if (!solo) {
+    const started = startListeners({
+      provider,
+      config,
+      store,
+      logLine: (m) => console.log(info('  • ') + m),
+    });
+    if (started.length) console.log(info('  Live on: ') + started.join(', '));
+  }
   console.log(hint() + '\n');
 
   // Pick the shared conversation back up: replay its recent turns (including any
@@ -750,10 +767,12 @@ function printUsage() {
       'aurora — a research-grade AI chat in your terminal',
       '',
       'Usage:',
-      '  aurora                 start an interactive chat',
+      '  aurora                 start an interactive chat (also starts the Telegram',
+      '                         bridge when configured, so you can chat from your phone)',
+      '  aurora --solo          interactive chat only — do not start any listeners',
       '  aurora --model <name>  start with a specific model',
-      '  aurora --serve         run as a server: start every configured listener',
-      '                         (Telegram bridge + future webhooks). `npm start` runs this.',
+      '  aurora --serve         run as a server (no REPL): start every configured',
+      '                         listener (Telegram bridge + future webhooks). `npm start` runs this.',
       '  aurora --telegram      alias for --serve (kept for back-compat)',
       '  aurora --help          show this',
       '  aurora --version       print version',

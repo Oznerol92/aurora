@@ -1,0 +1,66 @@
+{
+  "version": "0.1.0",
+  "notes": "Starter question set for the Aurora Research Method (ARM) benchmark. Mix of Regime B (well-documented, canonical sources exist) and Regime A (scattered / emerging / contested), plus hybrids. Regime tag is the EXPECTED regime, not ground truth — part of what the benchmark measures is whether ARM helps more in Regime A.",
+  "questions": [
+    {
+      "id": "B1-react19",
+      "regime": "B",
+      "domain": "web frameworks",
+      "prompt": "What are the documented breaking changes and new features introduced in React 19 compared to React 18? Cover the migration-relevant items."
+    },
+    {
+      "id": "B2-owasp",
+      "regime": "B",
+      "domain": "security",
+      "prompt": "Summarize the OWASP Top 10 (2021 edition) web application security risks, with the official description of each category."
+    },
+    {
+      "id": "B3-http3",
+      "regime": "B",
+      "domain": "networking",
+      "prompt": "What are the main technical differences between HTTP/2 and HTTP/3, including the transport layer and head-of-line blocking behaviour?"
+    },
+    {
+      "id": "B4-python-packaging",
+      "regime": "B",
+      "domain": "language tooling",
+      "prompt": "How did Python packaging move from the classic setuptools/setup.py model to the PEP 517/518 build-system model? Cover the standards and what changed for package authors."
+    },
+    {
+      "id": "A1-llm-agents-prod",
+      "regime": "A",
+      "domain": "AI in production",
+      "prompt": "Map the current landscape of production deployments of LLM agents in enterprise software engineering (2024-2026). Distinguish what is actually shipped to users from demos, prototypes, and vendor claims."
+    },
+    {
+      "id": "A2-vectordb-incidents",
+      "regime": "A",
+      "domain": "data infrastructure",
+      "prompt": "What are the documented real-world failure modes, scaling limits, and incidents of vector database systems run at scale (2023-2026)?"
+    },
+    {
+      "id": "A3-stablecoin-reg",
+      "regime": "A",
+      "domain": "regulation",
+      "prompt": "Map the regulatory landscape for stablecoin issuance across the EU (MiCA), the US, and the UK as of 2025-2026, including what is settled versus still in flux per jurisdiction."
+    },
+    {
+      "id": "A4-edge-slm",
+      "regime": "A",
+      "domain": "on-device ML",
+      "prompt": "What are the documented patterns, tooling, and tradeoffs for running fine-tuned small language models on-device (edge / mobile) in production (2024-2026)?"
+    },
+    {
+      "id": "H1-pgvector-rag",
+      "regime": "hybrid",
+      "domain": "data infrastructure",
+      "prompt": "What are the current best practices and documented tradeoffs for using PostgreSQL with pgvector as the vector store in a production RAG system (2024-2026)? (Postgres basics are well documented; pgvector-at-scale-for-RAG is less so.)"
+    },
+    {
+      "id": "H2-passkeys",
+      "regime": "hybrid",
+      "domain": "auth",
+      "prompt": "What are the current best practices for adopting WebAuthn / passkeys in consumer web apps, and what real-world adoption friction and edge cases are documented (2024-2026)? (The spec is canonical; deployment friction is scattered.)"
+    }
+  ]
+}

@@ -14,10 +14,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   it points at `npm install better-sqlite3`. Runs once; change anytime with
   `/store`.
 - **Shared conversation across CLI and Telegram.** With a store enabled, the
-  REPL and the `--serve` Telegram bridge attach to one **active session**: a
-  chat you start on Telegram is picked up (and replayed) when you open the CLI,
-  and vice-versa. `/new` on either side starts a fresh shared thread. The
-  Telegram bridge now persists its turns (previously it saved nothing).
+  REPL and the Telegram bridge attach to one **active session**: a chat you
+  start on Telegram is picked up (and replayed) when you open the CLI, and
+  vice-versa. `/new` on either side starts a fresh shared thread. The Telegram
+  bridge now persists its turns (previously it saved nothing).
+- **Telegram from one command.** Plain `aurora` now starts every available
+  listener (the Telegram bridge) in the background alongside the REPL, so a
+  single terminal drives both the command line and your phone on one shared
+  session — no separate `--serve` process needed. The bridge boots whenever its
+  credentials are set, independent of the `/notify` toggle. New **`--solo`** flag
+  runs a purely-local REPL that starts no listeners (use it for a second terminal
+  so it doesn't double-poll Telegram). `--serve` remains the headless, no-REPL
+  server.
 - **Conversation history.** With persistence on (`/store json` or `sqlite`),
   `/history` lists saved conversations — each with a one-line preview of its
   opening message — and `/resume [id]` reattaches to one (no id resumes the most
