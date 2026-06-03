@@ -45,6 +45,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Dependabot** (`.github/dependabot.yml`) for weekly, grouped npm and
   GitHub-Actions updates.
 - **Issue & PR templates** under `.github/`.
+- **Method "brain."** Aurora now writes and researches by a curated corpus of
+  method cards under `brain/`. A compact index of every card is injected at the
+  start of each session, and on every turn the cards most relevant to your
+  message (scored locally on tags/title/body — no network) are pulled into
+  context. Manage it with `/brain [list | show <id> | why <text> | on | off]`;
+  `/brain why <text>` previews which cards a message would pull.
+- **Voice profile (persona).** A one-time, optional questionnaire captures how
+  you write (values, voice rules, do/don't, sample phrases). Aurora then writes
+  in your voice while silently fixing typos — never flattening you into generic
+  AI prose. Stored in the active store (never in `config.json`). Manage with
+  `/persona [show | set <field> <value> | ingest <file> | clear | on | off]`.
 
 ### Changed
 
@@ -57,11 +68,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI now lints, checks formatting, and runs the test suite (in addition to the
   byte-check and CLI smoke tests), and runs on the `release`/`pre-release`
   branches.
+- The brain is no longer a single always-on digest (which silently truncated at
+  6 KB and left most cards dormant). Every card is now reachable via per-turn
+  retrieval; `priority` is only a ranking tiebreaker.
 
 ### Removed
 
 - `release-please` automation, in favor of the manual, review-gated promotion
   model above.
+- The `to-implement/sito_didattico` teaching-site sources — their method content
+  is now encoded in the `brain/` corpus, the canonical source.
 
 ## [0.3.0] - 2026-06-01
 
