@@ -116,8 +116,8 @@ Persistence assumes **one writer per machine**. To enforce that, only one
 "primary" aurora — the instance that owns the DB and the inbound listeners — may
 run at a time. The primary holds a lock file in the machine-global data dir
 (`src/instance.js`, keyed by pid with a liveness check so a crashed primary's
-stale lock is ignored). A second *plain* launch is **refused** and pointed at
-`aurora --solo`; `--solo` now means **fully ephemeral** — no listeners *and* no
+stale lock is ignored). A second _plain_ launch is **refused** and pointed at
+`aurora --solo`; `--solo` now means **fully ephemeral** — no listeners _and_ no
 DB writes — so any number of solo instances coexist without fighting over the
 store or double-binding the Telegram poller.
 

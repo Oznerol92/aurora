@@ -14,18 +14,21 @@ Trigger phrase: **"promote to v0.3.x"** (or "move on to v0.3.x").
 ## Steps (current branch = the finished work branch, e.g. `v0.3.3`)
 
 1. **Push the work branch** so the remote has the final commits:
+
    ```sh
    git push origin <work-branch>      # often already in sync — a no-op is fine
    ```
 
 2. **Bring `pre-release` up to date, then fast-forward in the work branch.**
    The work branch descends from `origin/pre-release`, so both merges are clean fast-forwards:
+
    ```sh
    git checkout pre-release
    git merge --ff-only origin/pre-release     # reconcile any stale local pre-release
    git merge --ff-only <work-branch>
    git push origin pre-release                # the one remote-touching step — confirm before running
    ```
+
    If `--ff-only` fails, stop and inspect — the branches diverged and need a real review/merge,
    not an automated fast-forward.
 
