@@ -32,6 +32,7 @@ import {
   formatAnswers,
   buildRecap,
 } from './protocol.js';
+import { createPasteInput } from './paste.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { primaryLockHolder, acquirePrimaryLock, releasePrimaryLock } from './instance.js';
@@ -226,8 +227,12 @@ export async function main(argv = process.argv.slice(2)) {
     }
   }
 
+  // Route stdin through the paste filter so a multi-line paste arrives as one
+  // message shown as "[Pasted N lines]" rather than N separate turns. No-op on
+  // piped/non-TTY input, so tests and pipes keep the old line-by-line behaviour.
+  const paste = createPasteInput(process.stdin, process.stdout);
   const rl = readline.createInterface({
-    input: process.stdin,
+    input: paste.input,
     output: process.stdout,
     prompt: promptLabel(),
   });
@@ -243,6 +248,7 @@ export async function main(argv = process.argv.slice(2)) {
   let eofReached = false; // stdin EOF / Ctrl-D: drain the queue, then quit
 
   const finish = async () => {
+    paste.disable(); // turn bracketed paste mode back off before we leave
     try {
       await ctx.store.close();
     } catch {
@@ -252,6 +258,8 @@ export async function main(argv = process.argv.slice(2)) {
     console.log('\n' + info('Goodbye.') + '\n');
     process.exit(0);
   };
+  // Safety net: restore the terminal even on an unexpected exit.
+  process.on('exit', paste.disable);
 
   const drain = async () => {
     if (working) return;
@@ -277,9 +285,14 @@ export async function main(argv = process.argv.slice(2)) {
   };
 
   rl.prompt();
+  paste.enable(); // turn on bracketed paste mode now that the REPL is live
 
   rl.on('line', (line) => {
-    const text = line.trim();
+    // Swap any "[Pasted N lines]" placeholders back to their real text before
+    // the line is processed, so the model receives the full paste.
+    const raw = paste.store.size ? paste.store.expand(line) : line;
+    paste.store.reset();
+    const text = raw.trim();
     if (!text) {
       if (!working) rl.prompt();
       return;

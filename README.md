@@ -345,6 +345,7 @@ src/bridge/
   telegram.js            two-way Telegram bridge (a listener)
 src/ui.js                banner, markdown rendering, spinner, styling
 src/protocol.js          turn-boundary Q&A + recap protocol (ask/done blocks)
+src/paste.js             multi-line paste → "[Pasted N lines]" (bracketed paste)
 src/template.js          the Aurora Research Method (startup screen)
 src/config.js            load/save ~/.config/aurora/config.json
 src/providers/

@@ -8,6 +8,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Multi-line paste in the REPL.** Pasting a block now collapses to a
+  `[Pasted N lines]` placeholder and is sent as a **single** message, instead of
+  arriving as N separate turns that flood the screen. Built on the terminal's
+  bracketed-paste mode; the full text is restored when you press Enter.
+  Single-line pastes are unchanged, piped/non-TTY input is untouched, and it can
+  be turned off with `AURORA_NO_PASTE`.
 - **Back-and-forth questions + finish recaps.** Aurora can now talk back at turn
   boundaries instead of guessing: when a decision or missing fact would change
   what it produces, it asks rather than assumes. In the terminal the question
