@@ -74,34 +74,39 @@ Re-run it any time after grading to refresh.
 
 `run.js` shells out to the local `claude` CLI with `--model`, the same way Aurora invokes Claude. Web tools (`WebSearch`, `WebFetch`) are enabled for **both** conditions, so the only difference between ARM and baseline is the discipline in the system prompt.
 
-## Publishing the report
+## Publishing the report (Netlify)
 
 `results/index.html` is a **single self-contained file** — CSS, JS, and every run's
-data are inlined, with no external requests. So hosting it is plain static hosting:
-regenerate it, then copy that one file to a web root. No Node or database runs on
-the host.
+data are inlined, with no external requests. Hosting it is plain static hosting:
+regenerate it, then push that one file to [Netlify](https://www.netlify.com/)
+(free tier). Nothing runs on the host.
 
-`bench/publish.sh` does exactly that — rebuilds the report and `rsync`s
-`index.html` to a server (e.g. an nginx droplet). The target is read from the
-environment (or `.env`), never committed:
+`bench/publish.sh` does it: rebuild the report, then deploy via the Netlify CLI.
+The target comes from the environment (or `.env`), never committed:
 
 ```bash
-# in .env or your shell:
-#   AURORA_BM_HOST=deploy@aurora-bm.werewolf.solutions
-#   AURORA_BM_PATH=/var/www/aurora-bm
-bash bench/publish.sh --dry-run   # preview the transfer
-bash bench/publish.sh             # build + upload
+# one-time: create a site and a token, then in .env (or your shell):
+#   NETLIFY_AUTH_TOKEN=...   # Netlify → User settings → Applications → new token
+#   NETLIFY_SITE_ID=...      # Site settings → General → API ID
+#   (create the site once with: npx netlify-cli sites:create)
+
+bash bench/publish.sh --dry-run   # draft deploy → preview URL, not live
+bash bench/publish.sh             # deploy to production
 ```
 
-A ready-to-edit nginx server block is in
-[`deploy/nginx-aurora-bm.conf.example`](deploy/nginx-aurora-bm.conf.example)
-(server name, root, TLS-via-certbot, optional basic-auth).
+The script stages a clean folder with only `index.html` (so the raw run JSON in
+`results/` is never uploaded) plus a Netlify `_headers` file, then deploys it.
+The Netlify CLI is fetched on demand via `npx`.
+
+**Why not Netlify's git auto-build?** The report's data lives in gitignored
+`results/`, and generating it needs the local `claude` CLI + vendor keys — none
+of which exist in a Netlify build. So you build locally and upload the finished
+file; the deploy is a **frozen snapshot** that updates only when you re-run
+`publish.sh`.
 
 > **Heads-up:** the report inlines the full model output for every run it
-> contains. A public URL makes all of that world-readable — put it behind
-> basic-auth or an IP allowlist (see the nginx example) if a run could carry
-> anything you don't want public. It's also a **frozen snapshot**: it only
-> updates when you re-run `publish.sh`.
+> contains, and Netlify's **free tier has no password protection** — the site is
+> public. Don't deploy a run you wouldn't want world-readable.
 
 ## Scoring
 

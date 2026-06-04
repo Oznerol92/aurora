@@ -1,2 +1,5 @@
 # Benchmark run artifacts are reproducible — regenerate with run.js/grade.js/report.js.
 results/
+
+# Publish staging dir assembled by publish.sh.
+site/
