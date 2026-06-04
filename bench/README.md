@@ -74,6 +74,35 @@ Re-run it any time after grading to refresh.
 
 `run.js` shells out to the local `claude` CLI with `--model`, the same way Aurora invokes Claude. Web tools (`WebSearch`, `WebFetch`) are enabled for **both** conditions, so the only difference between ARM and baseline is the discipline in the system prompt.
 
+## Publishing the report
+
+`results/index.html` is a **single self-contained file** — CSS, JS, and every run's
+data are inlined, with no external requests. So hosting it is plain static hosting:
+regenerate it, then copy that one file to a web root. No Node or database runs on
+the host.
+
+`bench/publish.sh` does exactly that — rebuilds the report and `rsync`s
+`index.html` to a server (e.g. an nginx droplet). The target is read from the
+environment (or `.env`), never committed:
+
+```bash
+# in .env or your shell:
+#   AURORA_BM_HOST=deploy@aurora-bm.werewolf.solutions
+#   AURORA_BM_PATH=/var/www/aurora-bm
+bash bench/publish.sh --dry-run   # preview the transfer
+bash bench/publish.sh             # build + upload
+```
+
+A ready-to-edit nginx server block is in
+[`deploy/nginx-aurora-bm.conf.example`](deploy/nginx-aurora-bm.conf.example)
+(server name, root, TLS-via-certbot, optional basic-auth).
+
+> **Heads-up:** the report inlines the full model output for every run it
+> contains. A public URL makes all of that world-readable — put it behind
+> basic-auth or an IP allowlist (see the nginx example) if a run could carry
+> anything you don't want public. It's also a **frozen snapshot**: it only
+> updates when you re-run `publish.sh`.
+
 ## Scoring
 
 - **`grade.js` (automated):** length, citations, link-resolve rate, vague-attribution count, disclaimer count, ARM tag compliance, cost, latency. Cheap and objective.
