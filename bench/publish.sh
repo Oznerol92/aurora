@@ -18,8 +18,8 @@
 #                        once with `npx netlify-cli sites:create` or in the UI.
 #
 # Usage:
-#   bash bench/publish.sh             # deploy to production
-#   bash bench/publish.sh --dry-run   # draft deploy → preview URL, not live
+#   bash bench/publish.sh            # deploy to PRODUCTION (the live site URL)
+#   bash bench/publish.sh --draft    # draft deploy → unique preview URL, NOT live
 #
 # Prereqs: network access; the Netlify CLI is fetched on demand via npx.
 #
@@ -30,8 +30,17 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(dirname "$here")"
-prod="--prod"
-[ "${1:-}" = "--dry-run" ] && prod=""
+
+# Production by default; --draft (alias --dry-run) does a preview-only deploy.
+mode="prod"
+case "${1:-}" in
+  --draft | --dry-run) mode="draft" ;;
+  "") ;;
+  *)
+    echo "unknown argument: $1 (use --draft for a preview deploy; no argument deploys to production)" >&2
+    exit 2
+    ;;
+esac
 
 # Read a single KEY from the real env, else from the repo .env. We extract just
 # the keys we need rather than sourcing the whole .env, so an unrelated line
@@ -60,7 +69,7 @@ node "$here/report.js" >/dev/null
 }
 
 # Assemble a clean publish dir holding ONLY the report (so the raw run JSON in
-# results/ is never uploaded) plus a Netlify _headers file.
+# results/, and the rest of the repo, are never uploaded) plus a _headers file.
 site="$here/site"
 rm -rf "$site"; mkdir -p "$site"
 cp "$report" "$site/index.html"
@@ -71,8 +80,16 @@ cat > "$site/_headers" <<'HDR'
   Referrer-Policy: no-referrer
 HDR
 
-if [ -n "$prod" ]; then echo "→ deploying to production"; else echo "→ draft deploy (preview URL only, not live)"; fi
-# shellcheck disable=SC2086
-npx --yes netlify-cli deploy --dir="$site" --site="$NETLIFY_SITE_ID" $prod
+# Build the deploy command. --dir pins the publish dir to our clean folder, so a
+# stray netlify.toml can't widen it to the whole repo. --prod promotes to the
+# live URL; without it Netlify keeps the deploy as a draft (preview only).
+deploy=(deploy --dir="$site" --site="$NETLIFY_SITE_ID")
+if [ "$mode" = "prod" ]; then
+  deploy+=(--prod)
+  echo "→ deploying to PRODUCTION (live site URL)"
+else
+  echo "→ draft deploy (preview URL only, not live)"
+fi
 
-echo "✓ published${prod:+ (production)}"
+npx --yes netlify-cli "${deploy[@]}"
+echo "✓ published ($mode)"
