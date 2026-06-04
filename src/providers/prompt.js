@@ -17,14 +17,18 @@ export const PERSONA_MAX_CHARS = 2000;
 /**
  * @param {object} parts
  * @param {string} [parts.persona]         base Aurora persona (always kept)
+ * @param {string} [parts.protocol]        interaction protocol (always kept)
  * @param {string} [parts.personaProfile]  user voice/characteristics instruction
  * @param {string} [parts.brain]           curated method digest
  * @param {string} [parts.seed]            resumed-transcript preamble
  * @returns {string}
  */
-export function composeSystemPrompt({ persona, personaProfile, brain, seed } = {}) {
+export function composeSystemPrompt({ persona, protocol, personaProfile, brain, seed } = {}) {
   const sections = [];
   if (persona) sections.push(String(persona).trim());
+  // The protocol sits right after the persona and is never clipped — it's a
+  // contract the model must follow on every turn, not optional background.
+  if (protocol) sections.push(String(protocol).trim());
   if (personaProfile) sections.push(clip(String(personaProfile).trim(), PERSONA_MAX_CHARS));
   if (brain) sections.push(clip(String(brain).trim(), BRAIN_MAX_CHARS));
   if (seed) sections.push(String(seed).trim());

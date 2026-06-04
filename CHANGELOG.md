@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Back-and-forth questions + finish recaps.** Aurora can now talk back at turn
+  boundaries instead of guessing: when a decision or missing fact would change
+  what it produces, it asks rather than assumes. In the terminal the question
+  appears as a numbered popup; over Telegram it arrives as numbered options you
+  reply to. Your answer is fed straight back into the same session, looping until
+  nothing is left to ask. When a turn finishes, Aurora pushes a recap to Telegram
+  — what it did plus any action items for you. Built on a small `aurora:ask` /
+  `aurora:done` protocol (`src/protocol.js`); the raw JSON is never shown.
 - **First-run setup.** On first launch the CLI asks whether to save
   conversations and where (global vs project), showing hints based on what's
   installed — SQLite is offered only when `better-sqlite3` is present, otherwise

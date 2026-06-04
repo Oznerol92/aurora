@@ -60,6 +60,42 @@ function makeCtx(store, provider) {
   return { ctx, captured };
 }
 
+// A provider that asks a question on its first turn, then finishes once the
+// answer comes back. Records the text of the follow-up turn for assertions.
+function askingProvider() {
+  return {
+    sessionId: 'sess-ask',
+    started: false,
+    turn: 0,
+    lastReceived: null,
+    resume(s) {
+      this.sessionId = s;
+      this.started = true;
+      return true;
+    },
+    reset() {
+      this.sessionId = 'sess-ask2';
+      this.started = false;
+    },
+    async *send(text) {
+      this.turn += 1;
+      this.lastReceived = text;
+      if (this.turn === 1) {
+        yield {
+          type: 'delta',
+          text:
+            'Happy to. One thing first.\n\n```aurora:ask\n' +
+            '{"questions":[{"header":"DB","question":"Which database?","options":["Postgres","SQLite"],"multiSelect":false}]}\n```',
+        };
+        yield { type: 'done', text: '', sessionId: this.sessionId };
+      } else {
+        yield { type: 'delta', text: 'Using ' + String(text) };
+        yield { type: 'done', text: '', sessionId: this.sessionId };
+      }
+    },
+  };
+}
+
 const fromOwner = (text) => ({ message: { chat: { id: 42 }, text } });
 
 test('an authorized message is answered, typed, and persisted to the shared session', async () => {
@@ -110,6 +146,53 @@ test('/new rotates the shared session and records the new active id', async () =
     assert.equal(provider.sessionId, 'sess-2', 'provider was reset');
     assert.equal(ctx.state.sessionId, 'sess-2');
     assert.equal(readActiveSession({ storeScope: 'project' }), 'sess-2');
+  });
+});
+
+test('an ask block sends numbered options, strips JSON, and sets a pending question', async () => {
+  await withProjectDir(async () => {
+    const store = new JsonStore({ scope: 'project' });
+    await store.open();
+    const provider = askingProvider();
+    const { ctx, captured } = makeCtx(store, provider);
+
+    await handleUpdate(fromOwner('build me an app'), ctx);
+
+    // Prose first (block stripped), then the numbered question.
+    assert.equal(captured.replies.length, 2);
+    assert.match(captured.replies[0], /One thing first/);
+    assert.doesNotMatch(captured.replies[0], /aurora:ask/);
+    assert.match(captured.replies[1], /Which database\?/);
+    assert.match(captured.replies[1], /1\. Postgres/);
+    assert.ok(ctx.state.pendingAsk, 'a question is now pending');
+  });
+});
+
+test('the reply to a pending question is mapped and fed back to the model', async () => {
+  await withProjectDir(async () => {
+    const store = new JsonStore({ scope: 'project' });
+    await store.open();
+    const provider = askingProvider();
+    const { ctx } = makeCtx(store, provider);
+
+    await handleUpdate(fromOwner('build me an app'), ctx);
+    await handleUpdate(fromOwner('1'), ctx); // "1" → Postgres
+
+    assert.equal(ctx.state.pendingAsk, null, 'pending question cleared');
+    assert.match(provider.lastReceived, /DB: Postgres/, 'answer fed back to the model');
+  });
+});
+
+test('/new clears a pending question', async () => {
+  await withProjectDir(async () => {
+    const store = new JsonStore({ scope: 'project' });
+    await store.open();
+    const { ctx } = makeCtx(store, askingProvider());
+
+    await handleUpdate(fromOwner('build me an app'), ctx);
+    assert.ok(ctx.state.pendingAsk);
+    await handleUpdate(fromOwner('/new'), ctx);
+    assert.equal(ctx.state.pendingAsk, null);
   });
 });
 

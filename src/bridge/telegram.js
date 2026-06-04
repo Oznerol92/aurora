@@ -1,6 +1,15 @@
 import { sendTelegram } from '../notify/telegram.js';
 import { attachSession, rotateSession } from '../store/session.js';
 import { saveUserTurn, saveAssistantTurn } from '../store/persist.js';
+import {
+  parseAskBlock,
+  parseDoneBlock,
+  stripProtocolBlocks,
+  formatAnswers,
+  interpretReply,
+  formatQuestionsForTelegram,
+  buildRecap,
+} from '../protocol.js';
 
 /**
  * Two-way Telegram bridge: long-poll getUpdates, feed each authorized message
@@ -105,53 +114,101 @@ export async function handleUpdate(update, ctx) {
     return;
   }
   if (text === '/new' || text === '/reset') {
-    // Rotate the shared session so the terminal starts fresh too.
+    // Rotate the shared session so the terminal starts fresh too. Drop any
+    // question we were waiting on — it belongs to the old conversation.
     state.sessionId = rotateSession(provider, config, hasStore);
+    state.pendingAsk = null;
     await notify('🔄 Started a fresh conversation.');
     return;
   }
 
-  log(`  ← "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
+  // If we asked the user something last turn, this message is the answer: map it
+  // onto the pending questions and feed it back to the model as a normal turn.
+  let outbound = text;
+  if (state.pendingAsk) {
+    const answers = interpretReply(text, state.pendingAsk.questions);
+    outbound = formatAnswers(state.pendingAsk.questions, answers);
+    state.pendingAsk = null;
+    log(`  ↳ answer "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
+  } else {
+    log(`  ← "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
+  }
   await typing();
 
   // Persist the incoming message up front (before the model is called) so it
   // survives a crash mid-answer and shows in the CLI's /history and /resume.
   if (hasStore) {
     state.sessionId = state.sessionId || provider.sessionId || null;
-    await saveUserTurn(store, state.sessionId, text);
+    await saveUserTurn(store, state.sessionId, outbound);
   }
 
-  let answer = '';
+  let fullAnswer = '';
   let meta = null;
   let errored = false;
   try {
-    for await (const ev of provider.send(text)) {
-      if (ev.type === 'delta') answer += ev.text;
+    for await (const ev of provider.send(outbound)) {
+      if (ev.type === 'delta') fullAnswer += ev.text;
       else if (ev.type === 'done') {
         meta = ev;
-        if (!answer && ev.text) answer = ev.text;
+        if (!fullAnswer && ev.text) fullAnswer = ev.text;
       }
     }
   } catch (e) {
     errored = true;
-    answer = '⚠️ ' + (e?.message || 'the model returned an error');
+    fullAnswer = '⚠️ ' + (e?.message || 'the model returned an error');
   }
 
-  await replyChunked(answer || '(no response)', notify);
+  // On error, surface the warning and stop — don't parse protocol blocks or
+  // persist a non-answer (the user turn is already saved above).
+  if (errored) {
+    await replyChunked(fullAnswer, notify);
+    log('  → ' + indent(fullAnswer));
+    return;
+  }
 
-  // Record the assistant reply under the shared session. On error the user turn
-  // is already saved (above); we skip the warning text so it isn't mistaken for
-  // a real answer on /resume.
-  if (hasStore && !errored) {
+  // Split the answer into what the user sees (prose, blocks stripped) and the
+  // machine signals (a pending question, or a finish recap).
+  const ask = parseAskBlock(fullAnswer);
+  const done = parseDoneBlock(fullAnswer);
+  const cleanAnswer = stripProtocolBlocks(fullAnswer);
+  const hasProse = Boolean(cleanAnswer);
+
+  if (hasProse) {
+    await replyChunked(cleanAnswer, notify);
+    log('  → ' + indent(cleanAnswer));
+  }
+
+  // Record the assistant reply under the shared session. When the turn is purely
+  // a question with no prose, store the rendered question so /resume stays legible.
+  if (hasStore) {
     state.sessionId = state.sessionId || meta?.sessionId || null;
-    await saveAssistantTurn(store, state.sessionId, answer, meta, { complete: true });
+    const stored = hasProse ? cleanAnswer : ask ? formatQuestionsForTelegram(ask.questions) : '';
+    if (stored) await saveAssistantTurn(store, state.sessionId, stored, meta, { complete: true });
   }
-  log('  → replied');
+
+  if (ask) {
+    // Wait for the user's answer; the next message will be fed back to the model.
+    state.pendingAsk = { questions: ask.questions };
+    await notify(formatQuestionsForTelegram(ask.questions));
+    log(`  ? awaiting answer to ${ask.questions.length} question(s)`);
+    return;
+  }
+
+  // Finished turn: the answer already went to Telegram, so only add a recap when
+  // it carries action items the user shouldn't miss.
+  if (done && done.actions.length) {
+    await notify(buildRecap(cleanAnswer, done));
+  }
 }
 
 /** Short, display-friendly form of a session id. */
 function shortId(id) {
   return id ? String(id).slice(0, 8) : 'n/a';
+}
+
+/** Indent continuation lines so a multi-line answer aligns under the → marker. */
+function indent(text) {
+  return String(text).replace(/\n/g, '\n    ');
 }
 
 /** Telegram caps messages at 4096 chars; split long answers across messages. */

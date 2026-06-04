@@ -23,6 +23,15 @@ import {
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
+import {
+  ProtocolStreamFilter,
+  parseAskBlock,
+  parseDoneBlock,
+  stripProtocolBlocks,
+  mapChoice,
+  formatAnswers,
+  buildRecap,
+} from './protocol.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { primaryLockHolder, acquirePrimaryLock, releasePrimaryLock } from './instance.js';
@@ -300,23 +309,62 @@ export async function main(argv = process.argv.slice(2)) {
   });
 }
 
+/**
+ * Drive one user message to a finished answer, looping over the interaction
+ * protocol: if the model ends a turn with an `aurora:ask` block, prompt the user
+ * (a numbered popup), feed the answers back into the SAME session, and continue
+ * until a turn comes back with no question. That final turn is a "finish" and
+ * pushes a recap to Telegram.
+ */
 async function streamResponse(ctx, text) {
-  const { provider, store, config } = ctx;
+  const { config } = ctx;
+  let message = text; // the current turn's user text (answers on follow-ups)
 
-  // Persist the user turn up front (before the model is called) so an interrupt
-  // or crash mid-answer can't lose the question. Pin the session id now so the
-  // user turn and the assistant turn land under the same conversation.
-  const sessionId = ctx.sessionId || provider.sessionId || null;
-  ctx.sessionId = sessionId;
-  await saveUserTurn(store, sessionId, text);
+  while (true) {
+    // Persist the user turn up front (before the model is called) so an interrupt
+    // or crash mid-answer can't lose it. Pin the session id now so the user turn
+    // and the assistant turn land under the same conversation.
+    const sessionId = ctx.sessionId || ctx.provider.sessionId || null;
+    ctx.sessionId = sessionId;
+    await saveUserTurn(ctx.store, sessionId, message);
 
+    const turn = await runTurn(ctx, message);
+    if (turn.interrupted || turn.errored) return;
+
+    // A pending question takes priority: ask the user, then loop with the answers.
+    const ask = parseAskBlock(turn.fullAnswer);
+    if (ask) {
+      const answers = await askInTerminal(ctx.rl, ask.questions);
+      if (answers == null) {
+        console.log('\n' + warn('  ⏸ left the question unanswered') + '\n');
+        return;
+      }
+      message = formatAnswers(ask.questions, answers);
+      continue;
+    }
+
+    // No question → this turn finished the job. Recap to Telegram.
+    await maybeNotify(config, turn.cleanAnswer, parseDoneBlock(turn.fullAnswer));
+    return;
+  }
+}
+
+/**
+ * Stream a single model turn to the terminal and persist it. Returns
+ * `{ fullAnswer, cleanAnswer, meta, interrupted, errored }`, where `fullAnswer`
+ * keeps any protocol blocks (for the caller to parse) and `cleanAnswer` is what
+ * the user saw / what was stored. Protocol JSON is suppressed on screen via the
+ * stream filter.
+ */
+async function runTurn(ctx, text) {
+  const { provider, store } = ctx;
   ctx.interrupted = false; // set by the SIGINT handler if Ctrl-C lands mid-turn
   process.stdout.write('\n');
   const spinner = startSpinner();
+  const filter = new ProtocolStreamFilter();
   let headerPrinted = false;
   let gotText = false;
   let meta = null;
-  let answer = '';
 
   const ensureHeader = () => {
     if (!headerPrinted) {
@@ -324,6 +372,12 @@ async function streamResponse(ctx, text) {
       process.stdout.write(auroraLabel() + '\n');
       headerPrinted = true;
     }
+  };
+  const show = (chunk) => {
+    if (!chunk) return;
+    ensureHeader();
+    gotText = true;
+    process.stdout.write(chunk);
   };
 
   try {
@@ -333,10 +387,7 @@ async function streamResponse(ctx, text) {
         // Status lines appear before the answer body starts.
         if (!gotText) console.log(statusLine(ev.text));
       } else if (ev.type === 'delta') {
-        ensureHeader();
-        gotText = true;
-        answer += ev.text;
-        process.stdout.write(ev.text);
+        show(filter.push(ev.text));
       } else if (ev.type === 'done') {
         meta = ev;
       }
@@ -345,32 +396,36 @@ async function streamResponse(ctx, text) {
     spinner.stop();
     // Save whatever streamed before the failure, marked incomplete, so /resume
     // shows it and the model can continue from where it was cut off.
-    if (answer) {
-      await saveAssistantTurn(store, ctx.sessionId, answer, meta, { complete: false });
-    }
+    const partial = stripProtocolBlocks(filter.full);
+    if (partial) await saveAssistantTurn(store, ctx.sessionId, partial, meta, { complete: false });
     throw e;
   }
 
+  show(filter.end()); // flush any held-back (non-marker) tail
   spinner.stop();
 
-  // Ctrl-C mid-answer: keep whatever streamed (flagged incomplete so /resume
-  // shows it and the model can continue), then return to the prompt without
-  // treating the cancellation as an error.
+  // Full text keeps the protocol blocks; fall back to the final result when no
+  // deltas streamed (so a block-only turn is still parseable downstream).
+  const fullAnswer = filter.full || meta?.text || '';
+  const cleanAnswer = stripProtocolBlocks(fullAnswer);
+
+  // Ctrl-C mid-answer: keep whatever streamed (flagged incomplete), then return
+  // to the prompt without treating the cancellation as an error.
   if (ctx.interrupted) {
-    if (answer) {
-      await saveAssistantTurn(store, ctx.sessionId, answer, meta, { complete: false });
+    if (cleanAnswer) {
+      await saveAssistantTurn(store, ctx.sessionId, cleanAnswer, meta, { complete: false });
     }
     process.stdout.write('\n' + warn('  ⏸ stopped (Ctrl-C again to quit)') + '\n\n');
-    return;
+    return { interrupted: true, fullAnswer, cleanAnswer, meta };
   }
 
   if (meta?.isError && !gotText) {
     console.log(error('  ✖ ' + (meta.text || 'the model returned an error')) + '\n');
-    return;
+    return { errored: true, fullAnswer, cleanAnswer: '', meta };
   }
-  if (!gotText && meta?.text) {
+  if (!gotText && cleanAnswer) {
     // No streaming deltas arrived, but we have a final result — print it.
-    process.stdout.write(auroraLabel() + '\n' + meta.text);
+    process.stdout.write(auroraLabel() + '\n' + cleanAnswer);
   }
 
   process.stdout.write('\n');
@@ -382,20 +437,68 @@ async function streamResponse(ctx, text) {
   if (ml) console.log(ml);
   process.stdout.write('\n');
 
-  // --- Side effects: persist + notify (both best-effort) ---------------
-  // Persist the completed assistant turn under the shared session id (so CLI +
-  // Telegram land in one thread), falling back to whatever the provider reported.
-  const finalText = gotText ? answer : meta?.text || '';
+  // Persist the completed assistant turn (blocks stripped) under the shared
+  // session id, falling back to whatever the provider reported for the id.
   ctx.sessionId = ctx.sessionId || meta?.sessionId || null;
-  await saveAssistantTurn(store, ctx.sessionId, finalText, meta, { complete: true });
-  await maybeNotify(config, finalText);
+  if (cleanAnswer) {
+    await saveAssistantTurn(store, ctx.sessionId, cleanAnswer, meta, { complete: true });
+  }
+  return { fullAnswer, cleanAnswer, meta };
 }
 
-/** Send a Telegram ping when the turn finishes, if enabled. */
-async function maybeNotify(config, answer) {
-  if (!config?.notify?.telegram?.notifyOnDone || !telegramEnabled(config)) return;
-  const preview = answer.replace(/\s+/g, ' ').trim().slice(0, 280);
-  const res = await sendTelegram(`Aurora finished a turn:\n\n${preview}`, config);
+/**
+ * Render the model's questions as a numbered terminal "popup" and collect the
+ * answers. Numbers map to options; free text is taken literally; multiSelect
+ * accepts comma-separated picks. Resolves to an array of answers (aligned to the
+ * questions), or null if the input stream closed before answering.
+ */
+function askInTerminal(rl, questions) {
+  return new Promise((resolve) => {
+    const answers = [];
+    rl.resume(); // the REPL pauses readline during streaming; we need input now
+
+    // If stdin closes mid-question, don't hang the loop. One handler for the
+    // whole prompt sequence, removed once we settle, so listeners don't pile up.
+    const onClose = () => resolve(null);
+    rl.once('close', onClose);
+    const settle = (value) => {
+      rl.removeListener('close', onClose);
+      resolve(value);
+    };
+
+    const askOne = (i) => {
+      if (i >= questions.length) {
+        rl.pause();
+        settle(answers);
+        return;
+      }
+      const q = questions[i];
+      const head = q.header ? warn(`[${q.header}] `) : '';
+      console.log('\n' + info('❓ ' + head + q.question));
+      q.options.forEach((opt, n) => console.log(`   ${warn(String(n + 1))}. ${opt}`));
+      const prompt = q.options.length
+        ? q.multiSelect
+          ? '   number(s) (comma-separated) or your own answer ❯ '
+          : '   number or your own answer ❯ '
+        : '   your answer ❯ ';
+      rl.question(info(prompt), (raw) => {
+        answers.push(mapChoice(raw, q));
+        askOne(i + 1);
+      });
+    };
+
+    askOne(0);
+  });
+}
+
+/**
+ * Push a recap to Telegram when a turn finishes (best-effort). Uses the
+ * model-authored `done` block when present, else a short preview of the answer.
+ * Honors the `/notify` master switch and only fires when Telegram is configured.
+ */
+async function maybeNotify(config, answer, done) {
+  if (!telegramEnabled(config) || config?.notify?.telegram?.notifyOnDone === false) return;
+  const res = await sendTelegram(buildRecap(answer, done), config);
   if (!res.ok) console.log(warn('  telegram: ' + res.error));
 }
 

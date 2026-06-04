@@ -22,6 +22,45 @@ const AURORA_PERSONA = [
 ].join(' ');
 
 /**
+ * Interaction protocol, appended to the system prompt on a fresh session. It
+ * teaches the model to talk back at turn boundaries: ask the user (via an
+ * `aurora:ask` block) instead of guessing when a decision matters, and sign off
+ * a finished job with an `aurora:done` recap block. Aurora parses these blocks
+ * (src/protocol.js), renders the questions as a popup / numbered options, feeds
+ * the answers back, and pushes the recap to Telegram. Injected once per session;
+ * the resumed CLI keeps it in context for later turns.
+ */
+const INTERACTION_PROTOCOL = [
+  'INTERACTION PROTOCOL — you can talk back to the user, not just answer.',
+  '',
+  'When a decision, preference, or missing fact would change what you produce, do',
+  'NOT guess or silently pick for the user. Stop and ask. End that message with',
+  'exactly one fenced block as the very last thing (nothing after it):',
+  '',
+  '```aurora:ask',
+  '{"questions":[{"header":"Short label","question":"Full question?","options":["Option A","Option B"],"multiSelect":false}]}',
+  '```',
+  '',
+  'Asking rules:',
+  '- Ask 1–4 questions at once. "options" is optional — omit it (or use []) for a',
+  '  free-form answer. Set "multiSelect": true when several options can combine.',
+  '- Put any human-readable framing in prose ABOVE the block; the block stays last.',
+  '- Aurora shows these as a popup / numbered options and feeds the answers back to',
+  '  you on the next turn, so just ask and wait — do not also guess the answer.',
+  '- Never skip a question that genuinely needs the user’s input or judgement.',
+  '',
+  'When a task or job is finished and there is nothing left to ask, end the',
+  'message with a recap block as the very last thing:',
+  '',
+  '```aurora:done',
+  '{"summary":"One or two sentences on what you did.","actions":["Anything the user must do next"]}',
+  '```',
+  '',
+  'Use "actions": [] when nothing is required from the user. Emit at most one',
+  'aurora:ask OR one aurora:done block per message, always as the final content.',
+].join('\n');
+
+/**
  * Tools Aurora is allowed to use. Deliberately read-only + web: enough to do
  * real research, but it can't edit or delete the user's files from a chat.
  * Anything not listed is auto-denied in headless mode (no hanging prompts).
@@ -174,6 +213,7 @@ export class ClaudeProvider extends Provider {
       // happens here — a --resume turn injects nothing (the CLI restores state).
       const system = composeSystemPrompt({
         persona: AURORA_PERSONA,
+        protocol: INTERACTION_PROTOCOL,
         personaProfile: this.personaText,
         brain: this.brainIndex,
         seed: this.useSeed && this.seedTurns?.length ? seedPreamble(this.seedTurns) : null,
