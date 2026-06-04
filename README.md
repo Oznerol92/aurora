@@ -72,6 +72,32 @@ is restricted to read-only + web tools (`WebSearch`, `WebFetch`, `Read`, `Glob`,
 
 Config lives at `~/.config/aurora/config.json`.
 
+## Talking back: questions & finish recaps
+
+Aurora can hold a real back-and-forth instead of guessing. When a decision, a
+preference, or a missing fact would change what it produces, it **stops and
+asks** rather than assuming:
+
+- **In the terminal**, the question appears as a numbered popup — type a number
+  to pick an option, comma-separated numbers for a multi-select, or just type
+  your own answer.
+- **Over Telegram**, the same question arrives as numbered options you reply to.
+
+Your answer is fed straight back into the _same_ session, and Aurora keeps asking
+until nothing is left to settle — so a task that needs your input pauses for it
+instead of running off in the wrong direction.
+
+When a turn **finishes** (nothing left to ask), Aurora pushes a short **recap**
+to Telegram — what it did, plus any action items for you — so a long job started
+at your desk pings your phone when it's done. The recap uses the model's own
+sign-off when present, otherwise a trimmed summary of the answer.
+
+This rides on a tiny turn-boundary protocol (`aurora:ask` / `aurora:done`
+fenced blocks the model emits, parsed in `src/protocol.js`); the raw JSON is
+filtered out of the stream, so you only ever see the question or the recap, never
+the markup. Recaps follow the `/notify` toggle (see
+[Notifications](#notifications-optional)).
+
 ## Persistence (optional)
 
 **On first launch**, Aurora runs a one-time setup that asks whether to save your
@@ -120,8 +146,10 @@ Switching backends or scopes is non-destructive; each keeps its own file.
 
 ## Notifications (optional)
 
-Aurora can ping you on **Telegram** when a turn finishes — handy for long
-research runs. Enable with `/notify on`, test with `/notify test`.
+Aurora can ping you on **Telegram** when a turn finishes — a short recap of what
+it did plus any action items (see
+[Talking back: questions & finish recaps](#talking-back-questions--finish-recaps)).
+Handy for long research runs. Enable with `/notify on`, test with `/notify test`.
 
 ```bash
 export TELEGRAM_BOT_TOKEN=...   # from @BotFather
@@ -195,6 +223,29 @@ The provider layer is already scalable. To add, say, OpenAI:
 2. Register it in `src/providers/index.js`.
 
 Nothing in the CLI or UI needs to change — `/provider openai` will just work.
+
+## Benchmark (dev tool)
+
+[`bench/`](bench/) holds the **ARM benchmark** — it measures the Aurora Research
+Method against a freeform baseline across models, to answer "does the structured
+method beat freeform research, and where?" It runs each model × condition ×
+question, grades the outputs with cheap objective metrics (citation count,
+link-resolve rate, vague-attribution count, honest-disclaimer count, cost,
+latency), and builds a single self-contained HTML report.
+
+```bash
+node bench/run.js --only B1-react19 --concurrency 1   # a quick smoke
+node bench/grade.js <runId>                            # metrics
+node bench/report.js                                   # build results/index.html
+bash bench/publish.sh                                  # deploy it to Netlify
+```
+
+It can compare Claude (via the `claude` CLI) against other vendors (OpenAI,
+Gemini) for a few cents, with a cost cap — but those vendor calls live **only in
+the benchmark**; they don't add a provider to Aurora, which stays Claude-only by
+design. The latest report is published at <https://aurora-bm.netlify.app>. See
+[`bench/README.md`](bench/README.md) for the full workflow (run → grade → report
+→ publish), the cheap multi-vendor smoke, and the scoring rubric.
 
 ## Versioning & releases
 
@@ -293,6 +344,7 @@ src/setup.js             first-run questionnaire (pick a store, install hints)
 src/bridge/
   telegram.js            two-way Telegram bridge (a listener)
 src/ui.js                banner, markdown rendering, spinner, styling
+src/protocol.js          turn-boundary Q&A + recap protocol (ask/done blocks)
 src/template.js          the Aurora Research Method (startup screen)
 src/config.js            load/save ~/.config/aurora/config.json
 src/providers/

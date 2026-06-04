@@ -20,10 +20,14 @@ bench/
   run.js                runs model x condition x question -> results/<runId>/
   grade.js              automated metrics + aggregate table
   report.js             builds the self-contained HTML report
-  report.template.html  page shell (styles, charts, markdown renderer)
-  results/<runId>/      raw outputs + metrics.json + scoreboard.csv
+  report.template.html  page shell (styles, interactive charts, markdown renderer)
+  publish.sh            build + deploy results/index.html to Netlify
+  results/<runId>/      raw outputs + metrics.json + scoreboard.csv  (gitignored)
   results/index.html    browsable report across all runs (open in a browser)
+  site/                 publish staging dir (gitignored; assembled by publish.sh)
 ```
+
+**The full pipeline:** `run.js` → `grade.js` → `report.js` → (optional) `publish.sh`.
 
 ## Run it
 
@@ -32,6 +36,16 @@ node bench/run.js                  # all active models (opus, sonnet), both cond
 node bench/run.js --only B1-react19,A1-llm-agents-prod --concurrency 1   # quick smoke test
 node bench/grade.js <runId>        # runId is printed by run.js (and is the results/ folder name)
 node bench/report.js               # build results/index.html, then open it in a browser
+```
+
+Pin a readable run id with `ARM_RUN_ID` (otherwise it's a timestamp). An
+all-models smoke across Claude + the cheap vendor tiers:
+
+```bash
+ARM_RUN_ID=smoke-all-models \
+  node bench/run.js --models opus,sonnet,gpt-mini,gemini-flash --only B1-react19 --concurrency 4
+node bench/grade.js smoke-all-models
+node bench/report.js
 ```
 
 ### Cheap multi-vendor smoke (~$0.50 cap)
@@ -67,10 +81,19 @@ you have a key for.
 `report.js` is the read-friendly view. It scans every `results/<runId>/`, folds
 in each run's `metrics.json` (if graded), and writes a single self-contained
 `results/index.html` — no server, no network, no build step. Open it straight
-from disk. The page carries interactive ARM-vs-baseline charts (one per metric,
-averaged per model), a sortable scoreboard, and a sidebar to navigate every run
-and every individual output with its research text rendered as styled markdown.
-Re-run it any time after grading to refresh.
+from disk. The page carries:
+
+- an **ARM impact** panel — diverging bars showing, per metric, whether ARM
+  improved on the baseline (green = better; "lower is better" metrics like
+  vague-attributions, cost, and latency are flipped so green always means
+  better);
+- **interactive ARM-vs-baseline charts** (one per metric, averaged per model) —
+  click a bar to open that output, click a legend label to toggle a series;
+- a **sortable scoreboard**, and a sidebar to navigate every run and every
+  individual output with its research text rendered as styled markdown.
+
+Re-run it any time after grading to refresh. A run selector (top-right) switches
+between runs; the newest loads first.
 
 `run.js` shells out to the local `claude` CLI with `--model`, the same way Aurora invokes Claude. Web tools (`WebSearch`, `WebFetch`) are enabled for **both** conditions, so the only difference between ARM and baseline is the discipline in the system prompt.
 
@@ -81,6 +104,8 @@ data are inlined, with no external requests. Hosting it is plain static hosting:
 regenerate it, then push that one file to [Netlify](https://www.netlify.com/)
 (free tier). Nothing runs on the host.
 
+It's live at **<https://aurora-bm.netlify.app>**.
+
 `bench/publish.sh` does it: rebuild the report, then deploy via the Netlify CLI.
 The target comes from the environment (or `.env`), never committed:
 
@@ -90,13 +115,20 @@ The target comes from the environment (or `.env`), never committed:
 #   NETLIFY_SITE_ID=...      # Site settings → General → API ID
 #   (create the site once with: npx netlify-cli sites:create)
 
-bash bench/publish.sh --dry-run   # draft deploy → preview URL, not live
-bash bench/publish.sh             # deploy to production
+bash bench/publish.sh             # deploy straight to PRODUCTION (the live URL)
+bash bench/publish.sh --draft     # draft deploy → unique preview URL, NOT live
 ```
 
-The script stages a clean folder with only `index.html` (so the raw run JSON in
-`results/` is never uploaded) plus a Netlify `_headers` file, then deploys it.
-The Netlify CLI is fetched on demand via `npx`.
+A no-argument run goes straight to production; `--draft` is the only way to get a
+preview-only deploy. The script stages a clean folder with **only** `index.html`
+(so the raw run JSON in `results/`, and the rest of the repo, are never uploaded)
+plus a Netlify `_headers` file, and always pins `--dir` to that folder — so a
+stray `netlify.toml` can't widen the publish dir to the whole repo. The Netlify
+CLI is fetched on demand via `npx`.
+
+> **Don't run `netlify deploy` by hand from the repo root.** With no `--dir` it
+> defaults the publish directory to the whole project and serves your source
+> publicly. Always use `bench/publish.sh`, which pins the publish dir for you.
 
 **Why not Netlify's git auto-build?** The report's data lives in gitignored
 `results/`, and generating it needs the local `claude` CLI + vendor keys — none
@@ -123,10 +155,14 @@ file; the deploy is a **frozen snapshot** that updates only when you re-run
 
 ## Status
 
-Scaffold is in place. `opus`/`sonnet` are wired via `claude-cli`; the `openai-api`
-and `gemini-api` adapters are now implemented (cheap models `gpt-mini` /
-`gemini-flash`, plain completions, cost + token caps). Not yet run fully
-end-to-end — the first pass will shake out the `claude --output-format json`
-field names (`run.js` parses defensively) and the regex thresholds in `grade.js`.
-The vendor cheap-smoke path is plumbing-validated against the no-key failure mode;
-the first real call will confirm vendor model IDs and the `price` tables.
+Run end-to-end. `opus`/`sonnet` go through `claude-cli`; the `openai-api` and
+`gemini-api` adapters are implemented (cheap tiers `gpt-mini` / `gemini-flash`,
+plain completions, cost + token caps). The first real smoke (`smoke-all-models`,
+`B1-react19`, both conditions) confirmed the pipeline: opus/sonnet/gpt-mini ran,
+`gemini-flash` cleanly failed without a key, out-of-pocket spend was **$0.0009**,
+and the report published to <https://aurora-bm.netlify.app>.
+
+Still worth a second look on a wider run: the `gpt-mini` `price` table (verify
+against current OpenAI pricing), the `gemini-flash` model id (needs a key to
+confirm), and the `grade.js` regex thresholds — they were tuned by hand, not
+against a large sample.
