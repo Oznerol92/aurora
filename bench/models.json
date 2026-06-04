@@ -21,12 +21,26 @@
     "gpt": {
       "adapter": "openai-api",
       "model": "gpt-5",
-      "label": "OpenAI GPT (placeholder — adapter not yet implemented)"
+      "label": "OpenAI GPT-5 (premium tier — not for the cheap smoke)"
     },
     "gemini": {
       "adapter": "gemini-api",
       "model": "gemini-2.5-pro",
-      "label": "Google Gemini (placeholder — adapter not yet implemented)"
+      "label": "Google Gemini 2.5 Pro (premium tier — not for the cheap smoke)"
+    },
+    "gpt-mini": {
+      "adapter": "openai-api",
+      "model": "gpt-4o-mini",
+      "label": "OpenAI GPT-4o mini (cheap)",
+      "price": { "in": 0.15, "out": 0.6 },
+      "_price_note": "USD per 1M tokens (input/output). Verify against current OpenAI pricing and edit; cost is computed from real usage x these numbers."
+    },
+    "gemini-flash": {
+      "adapter": "gemini-api",
+      "model": "gemini-2.5-flash-lite",
+      "label": "Google Gemini 2.5 Flash-Lite (cheap)",
+      "price": { "in": 0.1, "out": 0.4 },
+      "_price_note": "USD per 1M tokens (input/output). Verify against current Gemini pricing and edit; cost is computed from real usage x these numbers."
     }
   }
 }

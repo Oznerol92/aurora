@@ -9,30 +9,63 @@
 //   node bench/run.js --models opus   # subset of models
 //   node bench/run.js --only A1-llm-agents-prod   # subset of questions
 //   node bench/run.js --concurrency 2 # parallel runs (default 2)
+//   node bench/run.js --models gpt-mini,gemini-flash --only B1-react19 --concurrency 1
+//                                     # cheap multi-vendor smoke (see --max-cost / --max-tokens)
 //
 // The 'claude-cli' adapter shells out to the local `claude` CLI with --model,
-// mirroring how Aurora itself invokes Claude. Other adapters are placeholders.
+// mirroring how Aurora itself invokes Claude. The 'openai-api' and 'gemini-api'
+// adapters call those vendors' HTTP APIs directly (plain completions, no web
+// tools) for cross-vendor comparison — they do NOT make those vendors
+// first-class Aurora providers; Aurora stays Claude-only by design.
 
 import { spawn } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadDotenv } from '../src/env.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(join(HERE, p), 'utf8');
 
+// Pick up OPENAI_API_KEY / GEMINI_API_KEY from the repo-root .env (real env
+// still wins). The claude-cli adapter needs no key — it uses your Claude Code
+// subscription auth via the local CLI.
+loadDotenv(join(HERE, '..', '.env'));
+
 function parseArgs(argv) {
-  const out = { models: null, only: null, concurrency: 2 };
+  // --max-cost: out-of-pocket spend backstop in USD for VENDOR adapters only
+  //   (default $0.50, matching the cheap-smoke use case). Once cumulative vendor
+  //   spend reaches it, remaining vendor jobs are skipped. claude-cli runs are
+  //   subscription-billed and are NOT gated by this. Note: the check is per-job
+  //   pre-dispatch, so with --concurrency N it can overshoot by up to the cost
+  //   of N in-flight jobs; --max-tokens bounds how big each overshoot can be.
+  // --max-tokens: cap output tokens per vendor call (default 1500), so a single
+  //   call's cost is bounded no matter how chatty the model gets.
+  const out = { models: null, only: null, concurrency: 2, maxCost: 0.5, maxTokens: 1500 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--models') out.models = argv[++i].split(',');
     else if (a === '--only') out.only = argv[++i].split(',');
     else if (a === '--concurrency') out.concurrency = Number(argv[++i]);
+    else if (a === '--max-cost') out.maxCost = Number(argv[++i]);
+    else if (a === '--max-tokens') out.maxTokens = Number(argv[++i]);
   }
   return out;
 }
 
-// --- adapters: map (modelCfg, systemPrompt, userPrompt) -> Promise<result> ---
+/**
+ * Cost from token usage and a per-million-token price table on the model
+ * config: `price: { in, out }` in USD per 1M tokens. Returns null if the model
+ * has no price table (e.g. the subscription-billed claude-cli adapter), so the
+ * field stays honestly empty rather than a fabricated 0.
+ */
+function costUsd(modelCfg, inTokens, outTokens) {
+  const p = modelCfg.price;
+  if (!p || (inTokens == null && outTokens == null)) return null;
+  return ((inTokens || 0) * (p.in || 0) + (outTokens || 0) * (p.out || 0)) / 1e6;
+}
+
+// --- adapters: (modelCfg, systemPrompt, userPrompt, opts) -> Promise<result> ---
 
 function runClaudeCli(modelCfg, systemPrompt, userPrompt) {
   const args = [
@@ -78,10 +111,90 @@ function runClaudeCli(modelCfg, systemPrompt, userPrompt) {
   });
 }
 
+/**
+ * OpenAI Chat Completions adapter. Plain (no tools) completion: the cheap-smoke
+ * path tests harness plumbing + ARM-discipline following, not live web research.
+ * Reads OPENAI_API_KEY from env/.env. Cost is computed from the API's own usage
+ * counts times the model's price table — so it's the real spend, not an estimate.
+ */
+async function runOpenAI(modelCfg, systemPrompt, userPrompt, opts = {}) {
+  const key = process.env.OPENAI_API_KEY;
+  const started = Date.now();
+  if (!key) return { ok: false, error: 'missing OPENAI_API_KEY', latency_ms: 0 };
+  try {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: modelCfg.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_completion_tokens: opts.maxTokens ?? 1500,
+      }),
+    });
+    const latency_ms = Date.now() - started;
+    const j = await r.json();
+    if (!r.ok)
+      return { ok: false, error: `openai ${r.status}: ${j?.error?.message || ''}`, latency_ms };
+    const u = j.usage || {};
+    return {
+      ok: true,
+      text: j.choices?.[0]?.message?.content ?? '',
+      cost_usd: costUsd(modelCfg, u.prompt_tokens, u.completion_tokens),
+      tokens_in: u.prompt_tokens ?? null,
+      tokens_out: u.completion_tokens ?? null,
+      latency_ms,
+    };
+  } catch (e) {
+    return { ok: false, error: String(e), latency_ms: Date.now() - started };
+  }
+}
+
+/**
+ * Google Gemini (Generative Language API) adapter. Plain generateContent call,
+ * same cheap-smoke contract as the OpenAI one. Reads GEMINI_API_KEY (falls back
+ * to GOOGLE_API_KEY). Cost from usageMetadata times the model price table.
+ */
+async function runGemini(modelCfg, systemPrompt, userPrompt, opts = {}) {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const started = Date.now();
+  if (!key) return { ok: false, error: 'missing GEMINI_API_KEY', latency_ms: 0 };
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelCfg.model)}:generateContent`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': key },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig: { maxOutputTokens: opts.maxTokens ?? 1500 },
+      }),
+    });
+    const latency_ms = Date.now() - started;
+    const j = await r.json();
+    if (!r.ok)
+      return { ok: false, error: `gemini ${r.status}: ${j?.error?.message || ''}`, latency_ms };
+    const text = (j.candidates?.[0]?.content?.parts ?? []).map((p) => p.text || '').join('');
+    const u = j.usageMetadata || {};
+    return {
+      ok: true,
+      text,
+      cost_usd: costUsd(modelCfg, u.promptTokenCount, u.candidatesTokenCount),
+      tokens_in: u.promptTokenCount ?? null,
+      tokens_out: u.candidatesTokenCount ?? null,
+      latency_ms,
+    };
+  } catch (e) {
+    return { ok: false, error: String(e), latency_ms: Date.now() - started };
+  }
+}
+
 const ADAPTERS = {
   'claude-cli': runClaudeCli,
-  'openai-api': () => Promise.resolve({ ok: false, error: 'openai-api adapter not implemented' }),
-  'gemini-api': () => Promise.resolve({ ok: false, error: 'gemini-api adapter not implemented' }),
+  'openai-api': runOpenAI,
+  'gemini-api': runGemini,
 };
 
 // --- simple concurrency pool ---
@@ -129,13 +242,36 @@ async function main() {
     }
   }
 
-  console.log(`ARM benchmark: ${jobs.length} runs -> ${outDir}`);
+  // The --max-cost backstop gates only adapters that incur real out-of-pocket
+  // API spend (vendor HTTP APIs). claude-cli is billed against your Claude Code
+  // subscription, not per call, so it is NOT throttled by the cap — a full
+  // Claude benchmark runs unbounded, as it did before the cap existed.
+  const isBilled = (job) => job.modelCfg.adapter !== 'claude-cli';
+  console.log(
+    `ARM benchmark: ${jobs.length} runs -> ${outDir}  (vendor cost cap $${opts.maxCost}, ${opts.maxTokens} max out tokens/vendor call; Claude runs are subscription-billed and uncapped)`,
+  );
   let done = 0;
+  let spent = 0; // all reported cost (Claude subscription-equiv + vendor), for the summary
+  let vendorSpent = 0; // real out-of-pocket vendor spend — what --max-cost gates
   await pool(jobs, opts.concurrency, async (job) => {
     const adapter = ADAPTERS[job.modelCfg.adapter];
-    const res = adapter
-      ? await adapter(job.modelCfg, conditions[job.condition], job.q.prompt)
-      : { ok: false, error: `no adapter: ${job.modelCfg.adapter}` };
+    let res;
+    if (!adapter) {
+      res = { ok: false, error: `no adapter: ${job.modelCfg.adapter}` };
+    } else if (isBilled(job) && vendorSpent >= opts.maxCost) {
+      res = {
+        ok: false,
+        error: `skipped: vendor cost cap $${opts.maxCost} reached ($${vendorSpent.toFixed(4)} vendor spend)`,
+      };
+    } else {
+      res = await adapter(job.modelCfg, conditions[job.condition], job.q.prompt, {
+        maxTokens: opts.maxTokens,
+      });
+      if (typeof res.cost_usd === 'number') {
+        spent += res.cost_usd;
+        if (isBilled(job)) vendorSpent += res.cost_usd;
+      }
+    }
     const record = {
       runId,
       model: job.modelId,
@@ -156,6 +292,9 @@ async function main() {
   });
 
   console.log(`\nDone. Raw outputs in ${outDir}`);
+  console.log(
+    `Reported cost: $${spent.toFixed(4)} total — of which $${vendorSpent.toFixed(4)} is out-of-pocket vendor spend (cap $${opts.maxCost}). Claude figures are subscription-billed, not extra charges.`,
+  );
   console.log(`Next: node bench/grade.js ${runId}`);
 }
 

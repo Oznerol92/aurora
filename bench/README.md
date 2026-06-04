@@ -34,6 +34,36 @@ node bench/grade.js <runId>        # runId is printed by run.js (and is the resu
 node bench/report.js               # build results/index.html, then open it in a browser
 ```
 
+### Cheap multi-vendor smoke (~$0.50 cap)
+
+Test the harness against **other vendor APIs** for a few cents. Implemented
+adapters: `openai-api`, `gemini-api` (plain completions — **no web tools** on the
+cheap path, so this exercises plumbing + ARM-discipline following, not live
+research). Set the relevant key first (`OPENAI_API_KEY` / `GEMINI_API_KEY` in
+`.env` or the environment — see `.env.example`):
+
+```bash
+node bench/run.js --models gpt-mini,gemini-flash --only B1-react19 --concurrency 1
+```
+
+That's 1 question × 2 conditions × 2 vendors = 4 calls, typically a few cents.
+Two backstops keep it bounded:
+
+- `--max-cost 0.50` (default) — once cumulative **out-of-pocket vendor** spend
+  hits the cap, remaining vendor jobs are skipped. **Only vendor adapters are
+  gated**; `claude-cli` is subscription-billed and runs uncapped (so a full
+  `node bench/run.js` Claude run is never throttled by this). The check is
+  per-job pre-dispatch, so with `--concurrency N` it can overshoot the cap by up
+  to the cost of N in-flight jobs — keep concurrency low for a tight ceiling.
+- `--max-tokens 1500` (default) — caps output tokens per vendor call, which
+  bounds how large any single overshoot can be.
+
+Cost is computed from each API's **real usage counts** × the `price` table in
+`models.json` (USD per 1M tokens) — verify those numbers against current vendor
+pricing and edit as needed. A job whose key is missing records a clean
+`FAIL (missing …_API_KEY)` rather than crashing, so you can run only the vendor
+you have a key for.
+
 `report.js` is the read-friendly view. It scans every `results/<runId>/`, folds
 in each run's `metrics.json` (if graded), and writes a single self-contained
 `results/index.html` — no server, no network, no build step. Open it straight
@@ -52,10 +82,17 @@ Re-run it any time after grading to refresh.
 
 ## Adding a model
 
-1. Add an entry to `models.json` under `models` and put its id in `active[]`.
+1. Add an entry to `models.json` under `models` and put its id in `active[]` (or pass it via `--models`).
 2. If it's another Claude tier (`haiku`), it works immediately via the `claude-cli` adapter.
-3. For a new vendor (OpenAI, Gemini), implement its adapter in `run.js` (`ADAPTERS`). These adapters call the vendor API **directly from the benchmark** — they do NOT add a provider to Aurora itself, which stays Claude-only by design.
+3. For a vendor already wired (`openai-api`, `gemini-api`), just point `model` at the tier you want and give it a `price: { in, out }` table (USD per 1M tokens) for cost reporting.
+4. For a brand-new vendor, add an adapter to `run.js` (`ADAPTERS`) following the `runOpenAI`/`runGemini` shape: return `{ ok, text, cost_usd, latency_ms }`. These adapters call the vendor API **directly from the benchmark** — they do NOT add a provider to Aurora itself, which stays Claude-only by design.
 
 ## Status
 
-Scaffold is in place and `opus`/`sonnet` are wired. Not yet run end-to-end — the first pass will shake out the `claude --output-format json` field names (`run.js` parses defensively) and the regex thresholds in `grade.js`.
+Scaffold is in place. `opus`/`sonnet` are wired via `claude-cli`; the `openai-api`
+and `gemini-api` adapters are now implemented (cheap models `gpt-mini` /
+`gemini-flash`, plain completions, cost + token caps). Not yet run fully
+end-to-end — the first pass will shake out the `claude --output-format json`
+field names (`run.js` parses defensively) and the regex thresholds in `grade.js`.
+The vendor cheap-smoke path is plumbing-validated against the no-key failure mode;
+the first real call will confirm vendor model IDs and the `price` tables.

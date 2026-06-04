@@ -71,7 +71,13 @@ function loadRun(runId) {
       metrics,
       cost_usd: rec.cost_usd ?? (row ? row.cost_usd : null) ?? null,
       latency_ms: rec.latency_ms ?? (row ? row.latency_ms : null) ?? null,
-      usage: rec.raw?.usage ?? null,
+      // Claude reports usage under raw.usage; the vendor adapters report flat
+      // tokens_in/tokens_out. Normalize so the report's token block shows either.
+      usage:
+        rec.raw?.usage ??
+        (rec.tokens_in != null || rec.tokens_out != null
+          ? { input_tokens: rec.tokens_in, output_tokens: rec.tokens_out }
+          : null),
     });
   }
   outputs.sort((a, b) =>
