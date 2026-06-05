@@ -64,6 +64,8 @@ function parseArgs(argv) {
     maxTokens: 1500,
     questions: 'questions.json',
     conditions: null,
+    tools: true,
+    timeoutMs: 180000,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -74,6 +76,8 @@ function parseArgs(argv) {
     else if (a === '--max-tokens') out.maxTokens = Number(argv[++i]);
     else if (a === '--questions') out.questions = argv[++i];
     else if (a === '--conditions') out.conditions = argv[++i].split(',');
+    else if (a === '--no-tools') out.tools = false;
+    else if (a === '--timeout') out.timeoutMs = Number(argv[++i]) * 1000;
   }
   return out;
 }
@@ -92,7 +96,7 @@ function costUsd(modelCfg, inTokens, outTokens) {
 
 // --- adapters: (modelCfg, systemPrompt, userPrompt, opts) -> Promise<result> ---
 
-function runClaudeCli(modelCfg, systemPrompt, userPrompt) {
+function runClaudeCli(modelCfg, systemPrompt, userPrompt, opts = {}) {
   const args = [
     '-p',
     userPrompt,
@@ -102,26 +106,46 @@ function runClaudeCli(modelCfg, systemPrompt, userPrompt) {
     modelCfg.model,
     '--output-format',
     'json',
-    '--allowedTools',
-    'WebSearch',
-    'WebFetch',
   ];
+  // Web tools are on by default (the ARM benchmark grounds claims live). They can
+  // be turned off (--no-tools) for method/writing evals where search adds only
+  // latency and variance — and where a single hung search can stall the pool.
+  if (opts.tools !== false) args.push('--allowedTools', 'WebSearch', 'WebFetch');
   const started = Date.now();
   return new Promise((resolve) => {
     const child = spawn('claude', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '',
-      stderr = '';
+      stderr = '',
+      settled = false;
+    const done = (r) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(r);
+    };
+    // Safety net: kill a call that hangs (e.g. a stuck web search) so one bad job
+    // never blocks the whole run, as happened before this guard existed.
+    const timer = setTimeout(
+      () => {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* already gone */
+        }
+        done({ ok: false, error: `timeout after ${opts.timeoutMs ?? 180000}ms`, latency_ms: Date.now() - started });
+      },
+      opts.timeoutMs ?? 180000,
+    );
     child.stdout.on('data', (d) => (stdout += d));
     child.stderr.on('data', (d) => (stderr += d));
-    child.on('error', (err) =>
-      resolve({ ok: false, error: String(err), latency_ms: Date.now() - started }),
-    );
+    child.on('error', (err) => done({ ok: false, error: String(err), latency_ms: Date.now() - started }));
     child.on('close', (code) => {
       const latency_ms = Date.now() - started;
-      if (code !== 0) return resolve({ ok: false, error: stderr || `exit ${code}`, latency_ms });
+      if (settled) return;
+      if (code !== 0) return done({ ok: false, error: stderr || `exit ${code}`, latency_ms });
       try {
         const j = JSON.parse(stdout);
-        resolve({
+        done({
           ok: true,
           text: j.result ?? j.text ?? '',
           cost_usd: j.total_cost_usd ?? j.cost_usd ?? null,
@@ -130,7 +154,7 @@ function runClaudeCli(modelCfg, systemPrompt, userPrompt) {
           raw: j,
         });
       } catch (e) {
-        resolve({ ok: false, error: `parse: ${e}`, stdout: stdout.slice(0, 2000), latency_ms });
+        done({ ok: false, error: `parse: ${e}`, stdout: stdout.slice(0, 2000), latency_ms });
       }
     });
   });
@@ -315,6 +339,8 @@ async function main() {
     } else {
       res = await adapter(job.modelCfg, resolved.system, job.q.prompt, {
         maxTokens: opts.maxTokens,
+        tools: opts.tools,
+        timeoutMs: opts.timeoutMs,
       });
       if (typeof res.cost_usd === 'number') {
         spent += res.cost_usd;
