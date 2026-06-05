@@ -22,6 +22,23 @@ const TELEGRAM_MAX_LEN = 4096;
 const TIMEOUT_MS = 10_000;
 
 /**
+ * Token-safe failure reason for a failed fetch. The 10s AbortController fires as
+ * an AbortError → "request timed out"; anything else is a connection-level
+ * failure. For those we surface the symbolic code (ENOTFOUND, ECONNRESET,
+ * UND_ERR_CONNECT_TIMEOUT, …) so an otherwise-opaque "network error" becomes
+ * actionable.
+ *
+ * SECURITY: we append ONLY `e.code`/`e.cause.code` — short symbolic codes that
+ * can't contain the token. We never include `e.message` or `e.cause.message`,
+ * which can echo the request URL (and the token lives in that URL's path).
+ */
+export function failureReason(e) {
+  if (e?.name === 'AbortError') return 'request timed out';
+  const code = e?.code || e?.cause?.code;
+  return code ? `network error (${code})` : 'network error';
+}
+
+/**
  * Resolve credentials from the ENVIRONMENT ONLY (never from config on disk).
  * Returns null if either value is missing.
  */
@@ -64,7 +81,7 @@ export async function fetchTelegramChats() {
     }
     return { ok: true, chats: [...seen.values()] };
   } catch (e) {
-    return { ok: false, error: e.name === 'AbortError' ? 'request timed out' : 'network error' };
+    return { ok: false, error: failureReason(e) };
   } finally {
     clearTimeout(timer);
   }
@@ -108,8 +125,7 @@ export async function sendTelegram(text, _config = {}, { parseMode } = {}) {
     }
     return { ok: true };
   } catch (e) {
-    const reason = e.name === 'AbortError' ? 'request timed out' : 'network error';
-    return { ok: false, error: reason };
+    return { ok: false, error: failureReason(e) };
   } finally {
     clearTimeout(timer);
   }
