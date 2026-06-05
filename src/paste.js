@@ -7,9 +7,15 @@ import { Transform } from 'node:stream';
  * 'line' events — so a single paste becomes N chat turns and the whole block
  * floods the screen. We turn on the terminal's *bracketed paste mode* and route
  * stdin through a filter that detects a paste, hides its body, and echoes a
- * compact `[Pasted N lines]` placeholder instead. The real text is kept and
- * swapped back in when the line is submitted, so the model still receives the
- * full paste as ONE message.
+ * compact `[Pasted text #N +M lines]` placeholder instead. The real text is kept
+ * and swapped back in when the line is submitted, so the model still receives
+ * the full paste as ONE message.
+ *
+ * Terminals (VTE/GNOME Terminal, xterm, …) commonly send the paste body with
+ * carriage returns (`\r`) as line separators, matching what the Return key
+ * sends. We normalize `\r\n` and lone `\r` to `\n` so the line count is right
+ * (a CR-only body would otherwise look like one line and slip past the collapse,
+ * letting readline split it into N turns) and the model gets clean newlines.
  *
  * It engages only on an interactive TTY (piped/test input is untouched, so the
  * old line-by-line behaviour is preserved), degrades gracefully on terminals
@@ -23,17 +29,26 @@ export const PASTE_OFF = '\x1b[?2004l';
 const START = '\x1b[200~';
 const END = '\x1b[201~';
 
+/** Collapse CR / CRLF line separators to plain `\n` (see module note). */
+export function normalizeNewlines(text) {
+  return text.replace(/\r\n?/g, '\n');
+}
+
 /** Lines in a pasted blob (a single trailing newline doesn't add a line). */
 export function countLines(text) {
   if (!text) return 0;
-  const t = text.endsWith('\n') ? text.slice(0, -1) : text;
+  const norm = normalizeNewlines(text);
+  const t = norm.endsWith('\n') ? norm.slice(0, -1) : norm;
   return t.split('\n').length;
 }
 
-/** The visible placeholder shown in place of a hidden paste body. */
-export function placeholder(text) {
+/**
+ * The visible placeholder shown in place of a hidden paste body, numbered per
+ * input line (`#1`, `#2`, …) like a file attachment: `[Pasted text #1 +12 lines]`.
+ */
+export function placeholder(text, index = 1) {
   const n = countLines(text);
-  return `[Pasted ${n} line${n === 1 ? '' : 's'}]`;
+  return `[Pasted text #${index} +${n} line${n === 1 ? '' : 's'}]`;
 }
 
 /** Longest suffix of `s` that is a proper prefix of `marker` (0 if none). */
@@ -47,18 +62,19 @@ function overlap(s, marker) {
 
 /**
  * Registry of pending pastes for the current input line. `register()` hides a
- * blob behind a placeholder and remembers it; `expand()` swaps every known
- * placeholder in a submitted line back to its original text (in registration
- * order, so identical placeholders expand correctly); `reset()` clears it once
- * a line is consumed.
+ * blob behind a numbered placeholder (`#1`, `#2`, … per line) and remembers it;
+ * `expand()` swaps every known placeholder in a submitted line back to its
+ * original text; `reset()` clears it once a line is consumed so numbering
+ * restarts at `#1` on the next line.
  */
 export class PasteStore {
   constructor() {
     this.items = [];
   }
   register(text) {
-    const token = placeholder(text);
-    this.items.push({ token, text });
+    const norm = normalizeNewlines(text);
+    const token = placeholder(norm, this.items.length + 1);
+    this.items.push({ token, text: norm });
     return token;
   }
   expand(line) {
@@ -147,8 +163,13 @@ export function createPasteInput(stdin = process.stdin, stdout = process.stdout)
   }
 
   // Multi-line pastes collapse to a placeholder; a single-line paste is
-  // forwarded as-is (it never caused the multi-turn/flood problem).
-  const filter = new PasteFilter((body) => (countLines(body) >= 2 ? store.register(body) : body));
+  // forwarded as-is (it never caused the multi-turn/flood problem). Either way
+  // the body is normalized to `\n` so a CR-separated paste is counted — and
+  // forwarded — as the terminal meant it, not split a line per carriage return.
+  const filter = new PasteFilter((body) => {
+    const text = normalizeNewlines(body);
+    return countLines(text) >= 2 ? store.register(text) : text;
+  });
   const tty = new Transform({
     transform(chunk, _enc, cb) {
       try {

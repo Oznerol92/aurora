@@ -228,7 +228,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   // Route stdin through the paste filter so a multi-line paste arrives as one
-  // message shown as "[Pasted N lines]" rather than N separate turns. No-op on
+  // message shown as "[Pasted text #N +M lines]" rather than N separate turns. No-op on
   // piped/non-TTY input, so tests and pipes keep the old line-by-line behaviour.
   const paste = createPasteInput(process.stdin, process.stdout);
   const rl = readline.createInterface({
@@ -288,7 +288,7 @@ export async function main(argv = process.argv.slice(2)) {
   paste.enable(); // turn on bracketed paste mode now that the REPL is live
 
   rl.on('line', (line) => {
-    // Swap any "[Pasted N lines]" placeholders back to their real text before
+    // Swap any "[Pasted text #N +M lines]" placeholders back to their real text before
     // the line is processed, so the model receives the full paste.
     const raw = paste.store.size ? paste.store.expand(line) : line;
     paste.store.reset();
