@@ -284,6 +284,15 @@ export async function main(argv = process.argv.slice(2)) {
     working = true;
     while (queue.length && !exitRequested) {
       const text = queue.shift();
+      // A `/store` listing arms a one-shot picker (ctx.storePick). Consume it
+      // here: if the next input is a bare number, treat it as the store choice
+      // rather than a message to the model. Any other input clears the picker.
+      const storePick = ctx.storePick;
+      ctx.storePick = null;
+      if (storePick && /^\d+$/.test(text)) {
+        await handleStore(text, ctx);
+        continue;
+      }
       if (text.startsWith('/')) {
         const keepGoing = await handleCommand(text, ctx);
         if (!keepGoing) exitRequested = true;
@@ -1056,14 +1065,16 @@ async function handleStore(arg, ctx) {
     return;
   }
 
+  const stores = listStores();
+
   if (!arg || arg === 'list') {
     console.log('\n' + info('Stores:'));
-    for (const s of listStores()) {
+    stores.forEach((s, i) => {
       const current = s.id === ctx.config.store;
       console.log(
-        `  ${current ? '●' : '○'} ${s.id} — ${s.label}${current ? warn('  ◀ current') : ''}`,
+        `  ${current ? '●' : '○'} ${i + 1}. ${s.id} — ${s.label}${current ? warn('  ◀ current') : ''}`,
       );
-    }
+    });
     console.log(
       info('\n  Scope: ') +
         (ctx.config.storeScope || 'global') +
@@ -1073,16 +1084,30 @@ async function handleStore(arg, ctx) {
     );
     console.log(
       info('  Switch with: ') +
-        '/store <id>   ·   /store scope global|project   (persistence is opt-in)\n',
+        'a number (e.g. 2), /store <id>, or /store scope global|project   (persistence is opt-in)\n',
     );
+    // Arm a one-shot picker: a bare number typed as the next input selects the
+    // matching store instead of being sent to the model. Cleared after one input.
+    ctx.storePick = stores.map((s) => s.id);
     return;
   }
-  const ids = listStores().map((s) => s.id);
-  if (!ids.includes(arg)) {
+
+  // Accept either a 1-based number from the list or a store id.
+  let arg_id = arg;
+  if (/^\d+$/.test(arg)) {
+    const picked = stores[parseInt(arg, 10) - 1];
+    if (!picked) {
+      console.log('\n' + warn(`No store #${arg}. Run /store to see the list.`) + '\n');
+      return;
+    }
+    arg_id = picked.id;
+  }
+  const ids = stores.map((s) => s.id);
+  if (!ids.includes(arg_id)) {
     console.log('\n' + warn(`Unknown store "${arg}". Options: ${ids.join(', ')}.`) + '\n');
     return;
   }
-  const next = getStore(arg, { ...ctx.config, store: arg });
+  const next = getStore(arg_id, { ...ctx.config, store: arg_id });
   try {
     await next.open();
   } catch (e) {
@@ -1095,9 +1120,9 @@ async function handleStore(arg, ctx) {
     // ignore close errors on the outgoing store
   }
   ctx.store = next;
-  ctx.config.store = arg;
+  ctx.config.store = arg_id;
   saveConfig(ctx.config);
-  console.log('\n' + info('Store set to: ') + arg + '\n');
+  console.log('\n' + info('Store set to: ') + arg_id + '\n');
 }
 
 /** List saved conversations (most recent first). Needs a non-`none` store. */
