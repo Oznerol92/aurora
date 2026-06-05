@@ -23,6 +23,7 @@ import {
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
+import { aiPreview } from './notify/preview.js';
 import {
   ProtocolStreamFilter,
   parseAskBlock,
@@ -662,15 +663,24 @@ function askInTerminal(rl, questions, printer = null) {
 
 /**
  * Push a styled recap to Telegram when a turn finishes (best-effort). Prefers the
- * model-authored `done` block — a "Done / Next steps" card — and falls back to a
- * short preview of the conclusion when a turn carries no block. Sent with HTML
- * parse mode so it renders as formatted text rather than literal markdown; all
- * dynamic content is escaped in `buildRecap`. Honors the `/notify` master switch
- * and only fires when Telegram is configured.
+ * model-authored `done` block — a "Done / Next steps" card. For a blockless turn
+ * it asks Claude (Sonnet) for a one-line gist of the whole turn (`aiPreview`),
+ * falling back to the deterministic `previewText` inside `buildRecap` if the
+ * summariser is disabled or fails. Sent with HTML parse mode; all dynamic content
+ * is escaped in `buildRecap`. Honors the `/notify` master switch and only fires
+ * when Telegram is configured. Disable the AI step with notify.telegram.aiPreview
+ * = false (then long turns get the leading-sentences preview instead).
  */
 async function maybeNotify(config, answer, done) {
   if (!telegramEnabled(config) || config?.notify?.telegram?.notifyOnDone === false) return;
-  const res = await sendTelegram(buildRecap(answer, done), config, { parseMode: 'HTML' });
+  let body = answer;
+  if (!done && config?.notify?.telegram?.aiPreview !== false) {
+    const gist = await aiPreview(answer, {
+      model: config?.notify?.telegram?.previewModel || 'sonnet',
+    });
+    if (gist) body = gist; // else buildRecap's previewText handles the full answer
+  }
+  const res = await sendTelegram(buildRecap(body, done), config, { parseMode: 'HTML' });
   if (!res.ok) console.log(warn('  telegram: ' + res.error));
 }
 
