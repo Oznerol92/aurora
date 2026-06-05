@@ -186,25 +186,41 @@ export function recapSource(finalMessage, fullNarration) {
 }
 
 /**
- * Build the Telegram recap for a finished turn. Prefers a model-authored `done`
- * block (summary + action items); otherwise falls back to a short preview of the
- * answer body. Pass the turn's conclusion as `answer` (see `recapSource`), not
- * the full streamed narration, or the preview shows the turn's preamble.
+ * Escape the three characters Telegram's HTML parse mode treats as markup, so any
+ * model- or user-authored text is shown literally instead of breaking the tags we
+ * add ourselves. (Quotes only matter inside attribute values, which we never emit.)
+ */
+export function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Build the Telegram recap for a finished turn as an HTML message (send it with
+ * parse_mode "HTML"). Prefers a model-authored `done` block, rendered as a styled
+ * "Done / Next steps" card: the summary is what was accomplished, the actions are
+ * what's next. Falls back to a short preview of the answer body only when a turn
+ * carries no `done` block. Pass the turn's conclusion as `answer` (see
+ * `recapSource`), not the full streamed narration, or the preview shows preamble.
+ *
+ * All dynamic text is HTML-escaped; only the structural tags are literal markup.
  */
 export function buildRecap(answer, done) {
   if (done) {
-    const lines = ['✅ Aurora finished.', '', done.summary || '(no summary provided)'];
+    const lines = ['✅ <b>Aurora finished</b>', '', escapeHtml(done.summary || '(no summary provided)')];
     if (done.actions.length) {
-      lines.push('', 'Your action items:');
-      for (const a of done.actions) lines.push(`• ${a}`);
+      lines.push('', '<b>Next steps</b>');
+      for (const a of done.actions) lines.push(`• ${escapeHtml(a)}`);
     } else {
-      lines.push('', 'Nothing needed from you.');
+      lines.push('', '<i>Nothing needed from you.</i>');
     }
     return lines.join('\n');
   }
   const body = stripProtocolBlocks(answer).replace(/\s+/g, ' ').trim();
-  const preview = body.length > 280 ? body.slice(0, 280).trimEnd() + '…' : body;
-  return `✅ Aurora finished a turn:\n\n${preview || '(no response)'}`;
+  const preview = body.length > 500 ? body.slice(0, 500).trimEnd() + '…' : body;
+  return `✅ <b>Aurora finished a turn</b>\n\n${escapeHtml(preview) || '<i>(no response)</i>'}`;
 }
 
 /**

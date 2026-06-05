@@ -22,12 +22,7 @@ import {
 } from './setup.js';
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
-import {
-  sendTelegram,
-  sendTelegramChunked,
-  telegramEnabled,
-  fetchTelegramChats,
-} from './notify/telegram.js';
+import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import {
   ProtocolStreamFilter,
   parseAskBlock,
@@ -666,30 +661,17 @@ function askInTerminal(rl, questions, printer = null) {
 }
 
 /**
- * Mirror a finished turn to Telegram (best-effort). The user is at the terminal,
- * so this is the remote copy: send the turn's conclusion in full, split across as
- * many messages as it takes (see `sendTelegramChunked`) rather than a truncated
- * preview. When the turn carries action items, follow with the model-authored
- * `done` recap so the asks aren't buried at the tail of a long answer; when there's
- * no prose at all, the `done` recap stands in so a finish is never silent.
- * Honors the `/notify` master switch and only fires when Telegram is configured.
+ * Push a styled recap to Telegram when a turn finishes (best-effort). Prefers the
+ * model-authored `done` block — a "Done / Next steps" card — and falls back to a
+ * short preview of the conclusion when a turn carries no block. Sent with HTML
+ * parse mode so it renders as formatted text rather than literal markdown; all
+ * dynamic content is escaped in `buildRecap`. Honors the `/notify` master switch
+ * and only fires when Telegram is configured.
  */
 async function maybeNotify(config, answer, done) {
   if (!telegramEnabled(config) || config?.notify?.telegram?.notifyOnDone === false) return;
-
-  const body = String(answer ?? '').trim();
-  if (body) {
-    const res = await sendTelegramChunked(`✅ Aurora finished a turn:\n\n${body}`, config);
-    if (!res.ok) {
-      console.log(warn('  telegram: ' + res.error));
-      return;
-    }
-  }
-
-  if ((done && done.actions.length) || !body) {
-    const res = await sendTelegram(buildRecap(body, done), config);
-    if (!res.ok) console.log(warn('  telegram: ' + res.error));
-  }
+  const res = await sendTelegram(buildRecap(answer, done), config, { parseMode: 'HTML' });
+  if (!res.ok) console.log(warn('  telegram: ' + res.error));
 }
 
 async function handleCommand(text, ctx) {

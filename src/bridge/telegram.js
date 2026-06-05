@@ -208,7 +208,9 @@ export async function handleUpdate(update, ctx) {
   // Finished turn: the answer already went to Telegram, so only add a recap when
   // it carries action items the user shouldn't miss.
   if (done && done.actions.length) {
-    await notify(buildRecap(cleanAnswer, done));
+    // The recap is HTML (escaped in buildRecap); send it directly so parse_mode is
+    // set, rather than through `notify`, which sends plain text.
+    await sendTelegram(buildRecap(cleanAnswer, done), config, { parseMode: 'HTML' });
   }
 }
 

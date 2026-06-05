@@ -10,6 +10,7 @@ import {
   formatQuestionsForTelegram,
   buildRecap,
   recapSource,
+  escapeHtml,
   ProtocolStreamFilter,
 } from '../src/protocol.js';
 
@@ -112,26 +113,48 @@ test('formatQuestionsForTelegram numbers options as plain text', () => {
   assert.match(msg, /2\. SQLite/);
 });
 
-test('buildRecap prefers the done block, falls back to a preview', () => {
-  const recap = buildRecap('ignored', { summary: 'Did the thing.', actions: ['Run tests'] });
-  assert.match(recap, /Did the thing\./);
-  assert.match(recap, /• Run tests/);
+test('escapeHtml escapes only the markup-significant characters', () => {
+  assert.equal(escapeHtml('a < b && c > d'), 'a &lt; b &amp;&amp; c &gt; d');
+  assert.equal(escapeHtml('<b>x</b>'), '&lt;b&gt;x&lt;/b&gt;');
+  assert.equal(escapeHtml('plain text'), 'plain text');
+  assert.equal(escapeHtml(null), '');
+  // Quotes are left alone — we never emit attribute values.
+  assert.equal(escapeHtml(`"it's fine"`), `"it's fine"`);
+});
 
-  const fallback = buildRecap('A plain answer with no block.', null);
-  assert.match(fallback, /A plain answer with no block\./);
+test('buildRecap renders the done block as a styled Done / Next steps card', () => {
+  const recap = buildRecap('ignored', { summary: 'Did the thing.', actions: ['Run tests'] });
+  assert.match(recap, /<b>Aurora finished<\/b>/);
+  assert.match(recap, /Did the thing\./);
+  assert.match(recap, /<b>Next steps<\/b>/);
+  assert.match(recap, /• Run tests/);
 
   const empty = buildRecap('', { summary: 'Done.', actions: [] });
   assert.match(empty, /Nothing needed from you\./);
+  assert.ok(!empty.includes('<b>Next steps</b>'), 'no Next steps header when there are no actions');
 });
 
-test('buildRecap truncates a long preview with an ellipsis', () => {
-  const long = buildRecap('x'.repeat(400), null);
-  assert.match(long, /…$/);
-  assert.ok(!long.includes('x'.repeat(281)), 'preview is clipped to 280 chars');
+test('buildRecap escapes HTML in the done summary and actions', () => {
+  const recap = buildRecap('ignored', {
+    summary: 'Wired <Foo> & <Bar>.',
+    actions: ['Set A=1 && B=2'],
+  });
+  assert.match(recap, /Wired &lt;Foo&gt; &amp; &lt;Bar&gt;\./);
+  assert.match(recap, /Set A=1 &amp;&amp; B=2/);
+  assert.ok(!recap.includes('<Foo>'), 'raw angle brackets from content are escaped');
+});
 
-  const short = buildRecap('Short and sweet.', null);
-  assert.match(short, /Short and sweet\.$/);
-  assert.ok(!short.includes('…'), 'a short answer is not given a trailing ellipsis');
+test('buildRecap falls back to an escaped preview when there is no done block', () => {
+  const fallback = buildRecap('A plain answer with no block.', null);
+  assert.match(fallback, /<b>Aurora finished a turn<\/b>/);
+  assert.match(fallback, /A plain answer with no block\./);
+
+  const long = buildRecap('x'.repeat(700), null);
+  assert.match(long, /…$/);
+  assert.ok(!long.includes('x'.repeat(501)), 'preview is clipped to 500 chars');
+
+  const tagged = buildRecap('see <script> tags', null);
+  assert.match(tagged, /see &lt;script&gt; tags/);
 });
 
 test('recapSource prefers the final result message over the full narration', () => {

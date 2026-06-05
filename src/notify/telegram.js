@@ -6,8 +6,10 @@
  *     TELEGRAM_CHAT_ID); config values are only a local fallback. Never commit
  *     a token — .gitignore covers .env, and /config masks secrets.
  *   - The token is never logged; failures report a generic message.
- *   - Messages are sent as plain text (no parse_mode), so user/research content
- *     can't be interpreted as Telegram markup or trigger formatting injection.
+ *   - Messages are plain text by default (no parse_mode), so user/research content
+ *     can't be interpreted as Telegram markup. The finish recap opts into HTML
+ *     parse mode, but every dynamic part is HTML-escaped first (see buildRecap),
+ *     so content still can't inject markup.
  *   - The request uses HTTPS and a hard timeout so a hung network call can't
  *     wedge the CLI.
  *
@@ -73,47 +75,23 @@ export function telegramEnabled(config = {}) {
 }
 
 /**
- * Split `text` into chunks no longer than Telegram's per-message limit so a long
- * turn arrives whole instead of being truncated. Pure (no I/O) so the splitting is
- * unit-testable; naive fixed-width slicing, matching the bridge's `replyChunked`.
- * Empty/blank input yields a single empty chunk so callers preserve their existing
- * empty-message handling.
- */
-export function chunkTelegram(text) {
-  const full = String(text ?? '');
-  if (!full) return [''];
-  const chunks = [];
-  for (let i = 0; i < full.length; i += TELEGRAM_MAX_LEN) {
-    chunks.push(full.slice(i, i + TELEGRAM_MAX_LEN));
-  }
-  return chunks;
-}
-
-/**
- * Send `text` to Telegram across as many messages as it takes to fit the 4096-char
- * limit (see `chunkTelegram`), so a long answer is mirrored in full rather than cut
- * off. Sequential and best-effort: stops at the first failed chunk and returns its
- * result. Returns { ok, error? } and never throws.
- */
-export async function sendTelegramChunked(text, config = {}) {
-  let res = { ok: false, error: 'empty message' };
-  for (const chunk of chunkTelegram(text)) {
-    res = await sendTelegram(chunk, config);
-    if (!res.ok) return res;
-  }
-  return res;
-}
-
-/**
  * Send a Telegram message. Best-effort: returns { ok, error? } and never throws,
  * so notification problems can't break the chat loop.
+ *
+ * By default the message is sent as plain text (no parse_mode), so arbitrary
+ * user/research content can't be interpreted as Telegram markup. Pass
+ * `{ parseMode: 'HTML' }` ONLY for text whose dynamic parts are already escaped
+ * (see `escapeHtml` / `buildRecap`); otherwise stray `<`/`>`/`&` break rendering.
  */
-export async function sendTelegram(text, _config = {}) {
+export async function sendTelegram(text, _config = {}, { parseMode } = {}) {
   const creds = resolveTelegramCreds();
   if (!creds) return { ok: false, error: 'telegram credentials not configured' };
 
   const body = String(text ?? '').slice(0, TELEGRAM_MAX_LEN);
   if (!body) return { ok: false, error: 'empty message' };
+
+  const payload = { chat_id: creds.chatId, text: body, disable_web_page_preview: true };
+  if (parseMode) payload.parse_mode = parseMode;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -121,8 +99,7 @@ export async function sendTelegram(text, _config = {}) {
     const res = await fetch(`https://api.telegram.org/bot${creds.botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      // No parse_mode → Telegram treats this strictly as plain text.
-      body: JSON.stringify({ chat_id: creds.chatId, text: body, disable_web_page_preview: true }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
     if (!res.ok) {
