@@ -94,6 +94,10 @@ export async function handleUpdate(update, ctx) {
   // Outbound effects default to the real Telegram calls; tests inject stubs.
   const notify = ctx.notify || ((text) => sendTelegram(text, config));
   const typing = ctx.typing || (() => sendChatAction(ctx.token, authorizedChatId, 'typing'));
+  // Optional: mirror the exchange into the terminal REPL so a chat that arrived
+  // over Telegram is visible there too (shared session = one conversation). No-op
+  // in headless --serve mode, where there is no terminal.
+  const mirror = ctx.mirror || (() => {});
 
   const msg = update.message;
   if (!msg || typeof msg.text !== 'string') return; // ignore non-text updates
@@ -133,6 +137,7 @@ export async function handleUpdate(update, ctx) {
   } else {
     log(`  ← "${text.slice(0, 60)}${text.length > 60 ? '…' : ''}"`);
   }
+  mirror({ kind: 'in', text }); // echo the incoming Telegram message to the terminal
   await typing();
 
   // Persist the incoming message up front (before the model is called) so it
@@ -162,6 +167,7 @@ export async function handleUpdate(update, ctx) {
   // persist a non-answer (the user turn is already saved above).
   if (errored) {
     await replyChunked(fullAnswer, notify);
+    mirror({ kind: 'out', text: fullAnswer });
     log('  → ' + indent(fullAnswer));
     return;
   }
@@ -175,6 +181,7 @@ export async function handleUpdate(update, ctx) {
 
   if (hasProse) {
     await replyChunked(cleanAnswer, notify);
+    mirror({ kind: 'out', text: cleanAnswer });
     log('  → ' + indent(cleanAnswer));
   }
 
@@ -189,7 +196,11 @@ export async function handleUpdate(update, ctx) {
   if (ask) {
     // Wait for the user's answer; the next message will be fed back to the model.
     state.pendingAsk = { questions: ask.questions };
-    await notify(formatQuestionsForTelegram(ask.questions));
+    const rendered = formatQuestionsForTelegram(ask.questions);
+    await notify(rendered);
+    // Mirror the numbered question too (the prose framing, if any, was already
+    // mirrored above) so the terminal shows the same options Telegram does.
+    mirror({ kind: 'out', text: rendered });
     log(`  ? awaiting answer to ${ask.questions.length} question(s)`);
     return;
   }

@@ -43,7 +43,7 @@ function fakeProvider() {
 }
 
 function makeCtx(store, provider) {
-  const captured = { replies: [], typing: 0 };
+  const captured = { replies: [], typing: 0, mirrored: [] };
   const ctx = {
     provider,
     config: { storeScope: 'project' },
@@ -56,6 +56,7 @@ function makeCtx(store, provider) {
     typing: () => {
       captured.typing += 1;
     },
+    mirror: (event) => captured.mirrored.push(event),
   };
   return { ctx, captured };
 }
@@ -116,6 +117,32 @@ test('an authorized message is answered, typed, and persisted to the shared sess
     assert.equal(conv[0].text, 'hello');
     assert.equal(conv[1].role, 'assistant');
     assert.match(conv[1].text, /HELLO/);
+
+    // The exchange is mirrored to the terminal: incoming message, then the answer.
+    assert.deepEqual(
+      captured.mirrored.map((e) => e.kind),
+      ['in', 'out'],
+    );
+    assert.equal(captured.mirrored[0].text, 'hello');
+    assert.match(captured.mirrored[1].text, /Ans: HELLO/);
+  });
+});
+
+test('a question turn mirrors the rendered question to the terminal', async () => {
+  await withProjectDir(async () => {
+    const store = new JsonStore({ scope: 'project' });
+    await store.open();
+    const { ctx, captured } = makeCtx(store, askingProvider());
+
+    await handleUpdate(fromOwner('build me an app'), ctx);
+
+    // The terminal sees the incoming message, then the rendered question (with
+    // its numbered options) — the same content Telegram receives.
+    assert.equal(captured.mirrored[0].kind, 'in');
+    assert.ok(
+      captured.mirrored.some((e) => e.kind === 'out' && /Which database\?/.test(e.text)),
+      'the question was mirrored to the terminal',
+    );
   });
 });
 

@@ -28,3 +28,7 @@ todo/
 
 # Local Netlify folder
 .netlify
+
+# Personal Claude Code config/hooks — machine-specific, not for the published repo
+.claude/settings.local.json
+.claude/hooks/

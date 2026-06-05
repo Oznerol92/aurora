@@ -204,12 +204,17 @@ export async function main(argv = process.argv.slice(2)) {
   // both share the one active session, so it's a single conversation. They run
   // in the background; pass --solo for a purely-local chat. Listeners start on
   // their own credentials (same rule as --serve), independent of /notify.
+  // Shared handle to the REPL's pinned-prompt printer, filled in once the prompt
+  // is live below. Background listeners capture it now and read it lazily, so a
+  // Telegram exchange can be mirrored into the terminal above the `you ❯` line.
+  const terminalMirror = { printer: null };
   if (!solo) {
     const started = startListeners({
       provider,
       config,
       store,
       logLine: (m) => console.log(info('  • ') + m),
+      mirror: (event) => renderBridgeMirror(event, terminalMirror.printer),
     });
     if (started.length) console.log(info('  Live on: ') + started.join(', '));
   }
@@ -247,6 +252,7 @@ export async function main(argv = process.argv.slice(2)) {
   // unchanged. The printer routes all turn output above the pinned prompt.
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
   const printer = interactive ? new PromptPrinter(rl, process.stdout) : null;
+  terminalMirror.printer = printer; // let the Telegram bridge draw above the prompt
 
   const ctx = { rl, provider, config, store, hasStore, sessionId, printer };
 
@@ -1282,6 +1288,25 @@ function replayTurns(turns, header, limit = 12) {
       const tail = t.complete === false ? ' ' + warn('⏸ (interrupted)') : '';
       console.log(auroraLabel() + tail + '\n' + renderMarkdown(t.text));
     }
+  }
+}
+
+/**
+ * Mirror a Telegram-bridge exchange into the terminal so a chat that arrived over
+ * Telegram is visible in the REPL too (one shared conversation). `kind: 'in'` is
+ * the incoming message; `kind: 'out'` is Aurora's answer/question. Routed through
+ * the pinned-prompt printer when interactive so it lands above `you ❯` without
+ * disturbing what the user is typing; falls back to plain logging off a TTY.
+ */
+function renderBridgeMirror(event, printer) {
+  const emit = (s = '') => (printer ? printer.line(s) : console.log(s));
+  if (event.kind === 'in') {
+    emit('');
+    emit(info('📱 Telegram › ') + event.text);
+  } else if (event.kind === 'out') {
+    emit(auroraLabel());
+    for (const line of renderMarkdown(String(event.text || '')).split('\n')) emit(line);
+    emit('');
   }
 }
 

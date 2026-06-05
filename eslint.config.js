@@ -6,7 +6,9 @@ import prettier from 'eslint-config-prettier';
 // Prettier (the `prettier` preset disables stylistic rules that would fight it).
 export default [
   {
-    ignores: ['node_modules/**', 'coverage/**'],
+    // .claude/ holds personal, gitignored Claude Code hooks (not part of the
+    // published package); don't lint them as project sources.
+    ignores: ['node_modules/**', 'coverage/**', '.claude/**'],
   },
   js.configs.recommended,
   {

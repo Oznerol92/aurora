@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Telegram exchanges mirror into the terminal.** When a message arrives over
+  the Telegram bridge while the REPL is open, the incoming message and Aurora's
+  answer (or question) now also render in the terminal — above the pinned prompt,
+  without disturbing what you're typing — so a chat started on your phone is one
+  shared, visible conversation in both places. The bridge gained an optional
+  `mirror` channel (no-op in headless `--serve`); turns were already persisted to
+  the shared session, so this is purely live display.
 - **Always-listening prompt (type-ahead).** On a real terminal the `you ❯`
   prompt now stays pinned at the bottom and typeable _while Aurora is answering_
   — input is never blocked. Anything you type mid-answer is queued and read at

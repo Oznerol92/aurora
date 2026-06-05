@@ -35,9 +35,9 @@ const LISTENERS = [
 ];
 
 /** Start one listener forever; failures are logged, never thrown. */
-function launchListener(l, { provider, config, store }, log) {
+function launchListener(l, { provider, config, store, mirror }, log) {
   return l
-    .start({ provider, config, store, logLine: (m) => log(`[${l.name}] ${m}`) })
+    .start({ provider, config, store, logLine: (m) => log(`[${l.name}] ${m}`), mirror })
     .catch((e) => log(`${l.name}: stopped — ${e?.message || String(e)}`));
 }
 
@@ -73,9 +73,9 @@ export async function runServer({ provider, config, store, logLine }) {
  * forever in the background; we just don't await it, so the REPL keeps the
  * foreground. Returns the names that started.
  */
-export function startListeners({ provider, config, store, logLine }) {
+export function startListeners({ provider, config, store, logLine, mirror }) {
   const log = logLine || ((m) => console.log(m));
   const active = LISTENERS.filter((l) => l.available(config));
-  for (const l of active) launchListener(l, { provider, config, store }, log);
+  for (const l of active) launchListener(l, { provider, config, store, mirror }, log);
   return active.map((l) => l.name);
 }
