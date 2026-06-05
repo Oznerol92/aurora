@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { PromptPrinter } from '../src/repl-prompt.js';
 
@@ -111,6 +111,39 @@ test('thinking() on a TTY draws a spinner row above the prompt and clears it on 
   assert.ok(rl.prompts > promptsBeforeStop, 'the prompt is redrawn after the row is cleared');
 
   t.stop(); // idempotent — must not throw or redraw again
+});
+
+test('thinking() repaints the spinner without redrawing the prompt (no cursor flash)', () => {
+  mock.timers.enable({ apis: ['setInterval'] });
+  try {
+    const out = fakeOut(true);
+    const rl = fakeRl('half-typed');
+    const p = new PromptPrinter(rl, out);
+
+    const t = p.thinking('Aurora is thinking');
+    const promptsAfterFirstFrame = rl.prompts; // the first frame establishes the layout
+    out.data = ''; // focus on what a repaint tick emits
+
+    mock.timers.tick(100); // one repaint frame
+
+    assert.equal(
+      rl.prompts,
+      promptsAfterFirstFrame,
+      'a repaint must NOT redraw the prompt — that bounce is the flash',
+    );
+    assert.ok(out.data.includes('\x1b[?25l'), 'the cursor is hidden during the repaint');
+    assert.ok(out.data.includes('\x1b7'), 'the live cursor position is saved');
+    assert.ok(out.data.includes('\x1b8'), 'the cursor position is restored after painting');
+    assert.ok(out.data.includes('\x1b[?25h'), 'the cursor is shown again after the repaint');
+    assert.ok(
+      SPINNER_FRAMES.some((f) => out.data.includes(f)),
+      'a new spinner frame is painted',
+    );
+
+    t.stop();
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test('line() keeps the thinking row pinned directly above the prompt', () => {

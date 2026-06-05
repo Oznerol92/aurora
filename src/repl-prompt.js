@@ -1,6 +1,16 @@
 import readline from 'node:readline';
 import chalk from 'chalk';
 
+// Raw cursor controls used while repainting the spinner row above the prompt.
+// HIDE/SHOW bracket the repaint so the brief cursor movement is never visible;
+// SAVE/RESTORE (DECSC/DECRC) park the cursor at its live input position and put
+// it back exactly, so we can paint the row above without calling rl.prompt() —
+// which is what used to bounce the cursor to the prompt and make it flash.
+const HIDE_CURSOR = '\x1b[?25l';
+const SHOW_CURSOR = '\x1b[?25h';
+const SAVE_CURSOR = '\x1b7';
+const RESTORE_CURSOR = '\x1b8';
+
 /**
  * Keeps the `you ❯` prompt pinned at the bottom of the terminal and typeable
  * while Aurora is answering. Every piece of turn output — the streamed answer,
@@ -38,7 +48,8 @@ export class PromptPrinter {
       // The "thinking" row is pinned directly above the prompt. To insert a content
       // line and keep that ordering, clear both the status and prompt rows, print the
       // content (which scrolls up into history), then re-lay the status row and the
-      // prompt beneath it.
+      // prompt beneath it. Hide the cursor across the reflow so it doesn't flash.
+      this.out.write(HIDE_CURSOR);
       readline.cursorTo(this.out, 0);
       readline.clearLine(this.out, 0); // prompt row
       readline.moveCursor(this.out, 0, -1);
@@ -46,6 +57,7 @@ export class PromptPrinter {
       this.out.write(text + '\n'); // content takes the old status row, then scrolls up
       this.out.write(this.statusText + '\n'); // re-draw the status row beneath the content
       this.rl.prompt(true);
+      this.out.write(SHOW_CURSOR);
       return;
     }
     readline.cursorTo(this.out, 0);
@@ -102,21 +114,27 @@ export class PromptPrinter {
       if (stopped) return;
       this.statusText = chalk.magenta(frames[i++ % frames.length]) + ' ' + chalk.dim(label + '…');
       if (!opened) {
-        // Open a fresh row directly above the prompt for the status line.
+        // First frame: open a fresh row directly above the prompt for the status
+        // line. This one redraws the prompt (it establishes the two-row layout);
+        // the cursor is hidden so even that initial move isn't seen.
+        out.write(HIDE_CURSOR);
         readline.cursorTo(out, 0);
         readline.clearLine(out, 0);
         out.write(this.statusText + '\n'); // scrolls up, leaving the prompt row below
         rl.prompt(true);
+        out.write(SHOW_CURSOR);
         opened = true;
       } else {
-        // Repaint the status row in place, one line above the prompt.
-        readline.cursorTo(out, 0);
+        // Repaint the status row one line above WITHOUT touching the prompt: hide
+        // the cursor, save its live input position, paint the row, restore it. Not
+        // calling rl.prompt(true) here is what kills the per-frame flash — the input
+        // line is never redrawn, so the cursor never bounces to the prompt and back.
+        out.write(HIDE_CURSOR + SAVE_CURSOR);
         readline.moveCursor(out, 0, -1);
+        readline.cursorTo(out, 0);
         readline.clearLine(out, 0);
         out.write(this.statusText);
-        readline.cursorTo(out, 0);
-        readline.moveCursor(out, 0, 1);
-        rl.prompt(true);
+        out.write(RESTORE_CURSOR + SHOW_CURSOR);
       }
     };
 
@@ -130,12 +148,16 @@ export class PromptPrinter {
         clearInterval(id);
         this.statusText = null;
         // Clear the status row, leaving a single blank separator above the prompt.
+        // This one redraws the prompt to re-establish a clean single-row layout;
+        // hide the cursor across it so the teardown move isn't seen.
+        out.write(HIDE_CURSOR);
         readline.cursorTo(out, 0);
         readline.moveCursor(out, 0, -1);
         readline.clearLine(out, 0);
         readline.cursorTo(out, 0);
         readline.moveCursor(out, 0, 1);
         rl.prompt(true);
+        out.write(SHOW_CURSOR);
       },
     };
   }
