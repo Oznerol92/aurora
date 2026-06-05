@@ -77,6 +77,7 @@
   }
   .badge.arm { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
   .badge.baseline { background: color-mix(in srgb, var(--accent2) 22%, transparent); color: var(--accent2); }
+  .badge.brain { background: color-mix(in srgb, #10b981 22%, transparent); color: #10b981; }
   .nav-item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
   .content { padding: 24px 28px 64px; overflow-x: hidden; max-width: 1100px; }
@@ -228,7 +229,15 @@ const state = { view: 'arm', runId: null, reasonRunId: null, sel: 'overview', fi
 const $ = (id) => document.getElementById(id);
 
 // ---------- helpers ----------
-const ARM = '#6366f1', BASE = '#f59e0b';
+const ARM = '#6366f1', BASE = '#f59e0b', BRAIN = '#10b981';
+const COND_COLOR = { baseline: BASE, arm: ARM, brain: BRAIN };
+const COND_ORDER = { baseline: 0, arm: 1, brain: 2 };
+function condColor(c){ return COND_COLOR[c] || '#8b949e'; }
+function conditionsOf(outs){
+  return [...new Set(outs.map(o=>o.condition))]
+    .sort((a,b)=>(COND_ORDER[a]??9)-(COND_ORDER[b]??9) || a.localeCompare(b));
+}
+function condHuman(c){ return c==='arm'?'the research discipline':c==='brain'?'the brain':c; }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function run(){ return DATA.runs.find(r => r.runId === state.runId) || DATA.runs[0]; }
 function reasonRun(){ const rs=DATA.reasoning||[]; return rs.find(r => r.runId === state.reasonRunId) || rs[0]; }
@@ -371,10 +380,13 @@ function chart({title, categories, series, format}){
        + `<line x1="${padL}" y1="${padT+plotH}" x2="${W-padR}" y2="${padT+plotH}" class="axis"/>${grid}${bars}${labels}</svg></figure>`;
 }
 
-// ---------- ARM impact (diverging bars: did ARM help?) ----------
+// ---------- condition impact (diverging bars: did a condition help vs baseline?) ----------
 // hi=true → higher is better; hi=false → lower is better. The bar always points
-// right/green when ARM improved the metric, left/red when it made it worse.
-function renderArmLift(outs, models){
+// right/green when the condition improved the metric over baseline, left/red when
+// it made it worse. One panel per non-baseline condition (arm, and brain when the
+// run has it) — so a brain-eval run shows arm-vs-baseline AND brain-vs-baseline.
+function renderLift(outs, models){
+  if(!outs.some(o=>o.condition==='baseline')) return '';
   const defs=[
     {m:'resolve_rate', t:'Link resolve rate', hi:true, f:pct},
     {m:'disclaimer_markers', t:'Honest-uncertainty markers', hi:true, f:v=>num(v,2)},
@@ -384,30 +396,34 @@ function renderArmLift(outs, models){
     {m:'cost_usd', t:'Cost', hi:false, f:usd},
     {m:'latency_ms', t:'Latency', hi:false, f:secs},
   ];
-  const rows=[];
-  for(const d of defs){
-    const arm=meanModels(outs,models,'arm',d.m);
-    const base=meanModels(outs,models,'baseline',d.m);
-    if(arm==null || base==null) continue;
-    const delta=arm-base;
-    const eps=Math.max(Math.abs(base),Math.abs(arm))*1e-6;
-    const improved = Math.abs(delta)<=eps ? null : (d.hi ? delta>0 : delta<0);
-    const mag = base!==0 ? Math.abs(delta)/Math.abs(base) : (Math.abs(delta)>eps?1:0);
-    const w = Math.min(mag,1)*50;
-    const cls = improved==null ? 'neutral' : (improved?'good':'bad');
-    const left = improved===false ? (50-w) : 50;
-    const ratio = base!==0 ? delta/Math.abs(base) : null;
-    rows.push(`<div class="lift-row">
-      <div class="lift-name">${esc(d.t)}</div>
-      <div class="lift-track"><div class="lift-center"></div>
-        <div class="lift-bar ${cls}" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></div></div>
-      <div class="lift-delta ${cls}">${signedPct(ratio)}<span class="lift-abs">${esc(d.f(base))} → ${esc(d.f(arm))}</span></div>
-    </div>`);
-  }
-  if(!rows.length) return '';
-  return `<div class="section-title">ARM impact — did the research discipline help?</div>
-    <p class="section-note">Averaged across ${models.length} model(s) in this run. Green/right = ARM improved the metric; red/left = ARM did worse. "Lower is better" metrics (vague attributions, cost, latency) are flipped so green always means better.</p>
-    <div class="lift">${rows.join('')}</div>`;
+  const conds = conditionsOf(outs).filter(c=>c!=='baseline');
+  const panels = conds.map(cond=>{
+    const rows=[];
+    for(const d of defs){
+      const cur=meanModels(outs,models,cond,d.m);
+      const base=meanModels(outs,models,'baseline',d.m);
+      if(cur==null || base==null) continue;
+      const delta=cur-base;
+      const eps=Math.max(Math.abs(base),Math.abs(cur))*1e-6;
+      const improved = Math.abs(delta)<=eps ? null : (d.hi ? delta>0 : delta<0);
+      const mag = base!==0 ? Math.abs(delta)/Math.abs(base) : (Math.abs(delta)>eps?1:0);
+      const w = Math.min(mag,1)*50;
+      const cls = improved==null ? 'neutral' : (improved?'good':'bad');
+      const left = improved===false ? (50-w) : 50;
+      const ratio = base!==0 ? delta/Math.abs(base) : null;
+      rows.push(`<div class="lift-row">
+        <div class="lift-name">${esc(d.t)}</div>
+        <div class="lift-track"><div class="lift-center"></div>
+          <div class="lift-bar ${cls}" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></div></div>
+        <div class="lift-delta ${cls}">${signedPct(ratio)}<span class="lift-abs">${esc(d.f(base))} → ${esc(d.f(cur))}</span></div>
+      </div>`);
+    }
+    if(!rows.length) return '';
+    return `<div class="section-title" style="display:flex;align-items:center;gap:8px"><span class="badge ${esc(cond)}">${esc(cond)}</span> impact — did ${esc(condHuman(cond))} help vs baseline?</div>
+      <p class="section-note">Averaged across ${models.length} model(s) in this run. Green/right = ${esc(cond)} improved the metric; red/left = it did worse. "Lower is better" metrics (vague attributions, cost, latency) are flipped so green always means better.</p>
+      <div class="lift">${rows.join('')}</div>`;
+  }).filter(Boolean);
+  return panels.join('');
 }
 
 // ---------- views ----------
@@ -431,17 +447,17 @@ function renderOverview(r){
     {m:'latency_ms', t:'Latency', f:v=>v==null?'–':(v/1000).toFixed(0)+'s'},
   ];
   const hasMetrics=outs.some(o=>o.metrics);
+  const conds=conditionsOf(outs);
   let charts='';
   if(hasMetrics){
     charts = metricDefs.map(d=>chart({
       title:d.t, categories:cats, format:d.f,
-      series:[
-        {name:'ARM', color:ARM, values:models.map(m=>aggV(outs,m,'arm',d.m)), keys:models.map(m=>repKey(outs,m,'arm'))},
-        {name:'baseline', color:BASE, values:models.map(m=>aggV(outs,m,'baseline',d.m)), keys:models.map(m=>repKey(outs,m,'baseline'))},
-      ],
+      series: conds.map(c=>(
+        {name:c, color:condColor(c), values:models.map(m=>aggV(outs,m,c,d.m)), keys:models.map(m=>repKey(outs,m,c))}
+      )),
     })).join('');
   }
-  const lift = hasMetrics ? renderArmLift(outs, models) : '';
+  const lift = hasMetrics ? renderLift(outs, models) : '';
 
   // cost-outlier heads-up (kept honest, data-driven)
   let note='';
@@ -495,7 +511,7 @@ function renderOverview(r){
     </div>
     ${note}
     ${lift}
-    ${hasMetrics?`<div class="section-title">ARM vs baseline — averaged per model</div><p class="section-note">Click a bar to open that output. Click a legend label to show/hide a series.</p><div class="charts">${charts}</div>`:`<div class="note">No <code>metrics.json</code> for this run yet — run <code>node bench/grade.js ${esc(r.runId)}</code> to populate charts and the scoreboard.</div>`}
+    ${hasMetrics?`<div class="section-title">Conditions — averaged per model</div><p class="section-note">One bar per condition (${esc(conds.join(', '))}). Click a bar to open that output. Click a legend label to show/hide a series.</p><div class="charts">${charts}</div>`:`<div class="note">No <code>metrics.json</code> for this run yet — run <code>node bench/grade.js ${esc(r.runId)}</code> to populate charts and the scoreboard.</div>`}
     <div class="section-title">Scoreboard</div>
     ${board}`;
 }
