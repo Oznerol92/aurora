@@ -1,0 +1,134 @@
+{
+  "version": "0.2.0-alpha",
+  "notes": "Accuracy/reasoning benchmark for Aurora. UNLIKE the ARM benchmark (which scores research discipline on open-ended questions with no single right answer), every item here has ONE verifiable ground-truth answer, so accuracy is graded deterministically — no LLM judge, no API cost beyond the answers themselves. v0.2.0 hardened the set: the v0.1 questions were famous riddles a cheap model has memorized (it scored 100%, so the benchmark could not discriminate). These use off-the-shelf numbers, trap variants (CRT bat-and-ball, average-speed), and harder multi-step items (modular exponent, inclusion-exclusion, clock angle) chosen to actually separate models. Every answer was hand-verified. `type` drives matching: 'number' compares the extracted numeric value; 'text' compares the normalized string (with `accept` aliases). The model is told to end with `FINAL: <answer>`.",
+  "questions": [
+    {
+      "id": "r01-warehouse",
+      "category": "arithmetic",
+      "prompt": "A warehouse has 1,248 boxes. 3/8 of them are shipped on Monday, and 1/4 of the remaining boxes are shipped on Tuesday. How many boxes are left after Tuesday? Give the number.",
+      "type": "number",
+      "answer": "585"
+    },
+    {
+      "id": "r02-laptop-tax",
+      "category": "percentage",
+      "prompt": "A laptop is listed at $1,200. A store applies a 15% discount, then adds 8% sales tax on the discounted price. What is the final price in dollars?",
+      "type": "number",
+      "answer": "1101.6",
+      "accept": ["1101.60"]
+    },
+    {
+      "id": "r03-pipes",
+      "category": "rate",
+      "prompt": "Pipe A can fill a tank in 4 hours. Pipe B can fill the same tank in 12 hours. If both run together, how many hours does it take to fill the tank? Give the number of hours.",
+      "type": "number",
+      "answer": "3"
+    },
+    {
+      "id": "r04-bat-ball",
+      "category": "logic-trap",
+      "prompt": "A bat and a ball cost $2.20 in total. The bat costs $2.00 more than the ball. How much does the ball cost, in cents?",
+      "type": "number",
+      "answer": "10"
+    },
+    {
+      "id": "r05-march-day",
+      "category": "date-arithmetic",
+      "prompt": "January 1, 2025 falls on a Wednesday. On what day of the week does March 1, 2025 fall? (2025 is not a leap year.)",
+      "type": "text",
+      "answer": "saturday"
+    },
+    {
+      "id": "r06-mod-exp",
+      "category": "number-theory",
+      "prompt": "What is the remainder when 7 raised to the power 100 is divided by 5?",
+      "type": "number",
+      "answer": "1"
+    },
+    {
+      "id": "r07-banana",
+      "category": "combinatorics",
+      "prompt": "How many distinct arrangements are there of the letters in the word BANANA?",
+      "type": "number",
+      "answer": "60"
+    },
+    {
+      "id": "r08-sequence",
+      "category": "sequence",
+      "prompt": "What is the next number in the sequence 2, 3, 5, 9, 17, ... ?",
+      "type": "number",
+      "answer": "33"
+    },
+    {
+      "id": "r09-change",
+      "category": "arithmetic",
+      "prompt": "Sara buys 3 notebooks at $4.50 each and 2 pens at $1.25 each. She pays with a $20 bill. How much change does she get, in dollars?",
+      "type": "number",
+      "answer": "4"
+    },
+    {
+      "id": "r10-ages",
+      "category": "algebra",
+      "prompt": "Five years ago, Maria was three times as old as her son. Now she is twice as old as her son. How old is Maria now?",
+      "type": "number",
+      "answer": "20"
+    },
+    {
+      "id": "r11-ordering",
+      "category": "logic",
+      "prompt": "In a race, Tom finished ahead of Sam, Sam finished ahead of Lee, and Lee finished ahead of Raj. Who finished last? Answer with one name.",
+      "type": "text",
+      "answer": "raj"
+    },
+    {
+      "id": "r12-reverse-discount",
+      "category": "percentage",
+      "prompt": "After a 20% discount, a jacket costs $96. What was its original price in dollars?",
+      "type": "number",
+      "answer": "120"
+    },
+    {
+      "id": "r13-inclusion-exclusion",
+      "category": "counting",
+      "prompt": "How many integers from 1 to 100 inclusive are divisible by 3 or by 5?",
+      "type": "number",
+      "answer": "47"
+    },
+    {
+      "id": "r14-rectangle",
+      "category": "geometry",
+      "prompt": "A rectangle has a perimeter of 36 cm and is twice as long as it is wide. What is its area in square centimeters?",
+      "type": "number",
+      "answer": "72"
+    },
+    {
+      "id": "r15-syllogism",
+      "category": "logic-trap",
+      "prompt": "All roses are flowers. Some flowers fade quickly. Therefore, some roses fade quickly. Is this conclusion logically valid? Answer yes or no.",
+      "type": "text",
+      "answer": "no",
+      "accept": ["invalid", "not valid"]
+    },
+    {
+      "id": "r16-average-speed",
+      "category": "rate",
+      "prompt": "A car travels 150 km at 50 km/h, then another 150 km at 75 km/h. What is the average speed for the whole trip, in km/h?",
+      "type": "number",
+      "answer": "60"
+    },
+    {
+      "id": "r17-fractions",
+      "category": "fractions",
+      "prompt": "Two-thirds of a number is 18. What is three-quarters of that same number?",
+      "type": "number",
+      "answer": "20.25"
+    },
+    {
+      "id": "r18-clock-angle",
+      "category": "geometry",
+      "prompt": "What is the angle, in degrees, between the hour hand and the minute hand of a clock at exactly 3:30?",
+      "type": "number",
+      "answer": "75"
+    }
+  ]
+}

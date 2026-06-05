@@ -86,6 +86,52 @@ function loadRun(runId) {
   return { runId, outputs };
 }
 
+// A reasoning run is any results dir carrying a summary.json (written by
+// bench/reasoning.js). Its records are accuracy-graded, not ARM-discipline
+// metrics, so it loads into a separate `reasoning` blob the report renders as
+// its own tab — the ARM SPA is untouched.
+function isReasoningRun(runId) {
+  return existsSync(join(RESULTS, runId, 'summary.json'));
+}
+
+function loadReasoning(runId) {
+  const dir = join(RESULTS, runId);
+  const summary = JSON.parse(readFileSync(join(dir, 'summary.json'), 'utf8'));
+  const files = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'summary.json');
+  const records = [];
+  for (const f of files) {
+    let rec;
+    try {
+      rec = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    } catch {
+      continue;
+    }
+    records.push({
+      questionId: rec.questionId,
+      category: rec.category ?? '',
+      prompt: rec.prompt ?? '',
+      type: rec.type ?? '',
+      expected: rec.expected ?? '',
+      extracted: rec.ok ? (rec.extracted ?? '') : '',
+      ok: rec.ok !== false,
+      correct: Boolean(rec.correct),
+      error: rec.error ?? null,
+      tokens_in: rec.tokens_in ?? null,
+      tokens_out: rec.tokens_out ?? null,
+      latency_ms: rec.latency_ms ?? null,
+      cost_usd: rec.cost_usd ?? null,
+    });
+  }
+  records.sort((a, b) => String(a.questionId).localeCompare(String(b.questionId)));
+  return {
+    runId,
+    model: summary.model,
+    modelLabel: summary.modelLabel || summary.model,
+    summary,
+    records,
+  };
+}
+
 function main() {
   if (!existsSync(RESULTS)) {
     console.error(`no results directory at ${RESULTS} — run bench/run.js first`);
@@ -102,7 +148,19 @@ function main() {
     process.exit(1);
   }
 
-  let runs = runIds.map(loadRun).filter((r) => r.outputs.length);
+  // Split ARM runs from reasoning runs — they have different shapes and tabs.
+  const reasoning = runIds.filter(isReasoningRun).map(loadReasoning);
+  let runs = runIds
+    .filter((id) => !isReasoningRun(id))
+    .map(loadRun)
+    .filter((r) => r.outputs.length);
+
+  if (!runs.length && !reasoning.length) {
+    console.error(
+      'no usable runs found under bench/results/ — run bench/run.js or bench/reasoning.js',
+    );
+    process.exit(1);
+  }
   if (only) {
     const picked = runs.find((r) => r.runId === only);
     if (!picked) {
@@ -115,6 +173,7 @@ function main() {
   const data = {
     generatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC',
     runs,
+    reasoning,
   };
 
   const template = readFileSync(join(HERE, 'report.template.html'), 'utf8');
@@ -128,7 +187,9 @@ function main() {
 
   const totalOutputs = runs.reduce((a, r) => a + r.outputs.length, 0);
   console.log(`Wrote ${out}`);
-  console.log(`  ${runs.length} run(s), ${totalOutputs} output(s) — open it in your browser:`);
+  console.log(
+    `  ${runs.length} ARM run(s), ${totalOutputs} output(s); ${reasoning.length} reasoning run(s) — open it in your browser:`,
+  );
   console.log(`  file://${out}`);
 }
 

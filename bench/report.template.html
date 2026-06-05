@@ -40,6 +40,13 @@
     background: var(--bg); color: var(--ink); cursor: pointer;
   }
   .topbar .gen { color: var(--muted); font-size: 12px; }
+  .tabs { display: inline-flex; gap: 4px; }
+  .tab {
+    font: inherit; font-weight: 600; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer;
+  }
+  .tab:hover { background: var(--chip); color: var(--ink); }
+  .tab.active { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 
   .layout { display: grid; grid-template-columns: 290px 1fr; min-height: calc(100vh - 53px); }
   .sidebar {
@@ -179,11 +186,16 @@
 </head>
 <body>
   <header class="topbar">
-    <span class="brand"><span class="mark">◆</span> ARM Benchmark <small>research-method report</small></span>
+    <span class="brand"><span class="mark">◆</span> Aurora Benchmarks</span>
+    <span class="tabs" id="tabs">
+      <button class="tab" id="tabArm" data-view="arm">Research method</button>
+      <button class="tab" id="tabReason" data-view="reasoning">Reasoning accuracy</button>
+    </span>
     <span class="spacer"></span>
     <span class="gen" id="gen"></span>
-    <label class="gen" for="runSelect">run:</label>
+    <label class="gen" id="runLabel" for="runSelect">run:</label>
     <select id="runSelect"></select>
+    <select id="reasonSelect"></select>
   </header>
   <div class="layout">
     <aside class="sidebar">
@@ -197,13 +209,14 @@
 <script>
 const DATA = __BENCH_DATA__;
 
-const state = { runId: null, sel: 'overview', filter: '', hidden: new Set(), sortK: null, sortDir: 'asc' };
+const state = { view: 'arm', runId: null, reasonRunId: null, sel: 'overview', filter: '', hidden: new Set(), sortK: null, sortDir: 'asc' };
 const $ = (id) => document.getElementById(id);
 
 // ---------- helpers ----------
 const ARM = '#6366f1', BASE = '#f59e0b';
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function run(){ return DATA.runs.find(r => r.runId === state.runId) || DATA.runs[0]; }
+function reasonRun(){ const rs=DATA.reasoning||[]; return rs.find(r => r.runId === state.reasonRunId) || rs[0]; }
 function outKey(o){ return `${o.model}__${o.condition}__${o.questionId}`; }
 function num(v, d=2){ if(v==null||isNaN(v)) return '–'; const r=Math.round(v*10**d)/10**d; return r.toLocaleString(undefined,{maximumFractionDigits:d}); }
 function pct(v){ return v==null?'–':(v*100).toFixed(0)+'%'; }
@@ -521,26 +534,102 @@ function renderNav(r){
   return html;
 }
 
+// ---------- reasoning (accuracy) views ----------
+function renderReasoning(r){
+  if(!r) return '<p class="empty">No reasoning runs found under bench/results/.</p>';
+  const s=r.summary, tot=(s.tokens_in||0)+(s.tokens_out||0);
+  const catRows=Object.entries(s.perCategory||{}).sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([k,v])=>`<tr><td class="l">${esc(k)}</td><td>${v.correct}/${v.n}</td><td>${pct(v.accuracy)}</td></tr>`).join('');
+  const qRows=r.records.map(o=>{
+    const cls = !o.ok ? '' : (o.correct?'best':'fail');
+    const status = !o.ok ? '<span style="color:var(--accent2)">err</span>' : (o.correct?'✓':'✗');
+    return `<tr>
+      <td class="l">${esc(o.questionId)}</td>
+      <td class="l">${esc(o.category)}</td>
+      <td class="l" style="max-width:360px;color:var(--muted)">${esc(o.prompt)}</td>
+      <td>${esc(o.expected)}</td>
+      <td>${esc(o.ok?o.extracted:(o.error||''))}</td>
+      <td class="${cls}">${status}</td>
+      <td>${o.tokens_in==null?'–':o.tokens_in}/${o.tokens_out==null?'–':o.tokens_out}</td>
+      <td>${secs(o.latency_ms)}</td>
+      <td>${usd(o.cost_usd)}</td>
+    </tr>`;
+  }).join('');
+  return `<h1 class="page">Reasoning accuracy — <span style="color:var(--muted)">${esc(r.runId)}</span></h1>
+    <p class="sub">${esc(r.modelLabel)} · ${s.n} questions · deterministic ground-truth grading</p>
+    <div class="cards">
+      <div class="card green"><div class="k">accuracy</div><div class="v">${pct(s.accuracy)}</div></div>
+      <div class="card"><div class="k">correct</div><div class="v">${s.correct}/${s.n}</div></div>
+      <div class="card amber"><div class="k">total cost</div><div class="v">${usd(s.total_cost_usd)}</div></div>
+      <div class="card"><div class="k">avg latency</div><div class="v">${secs(s.avg_latency_ms)}</div></div>
+      <div class="card"><div class="k">tokens (in/out)</div><div class="v">${num(tot,0)}</div></div>
+    </div>
+    <div class="note">Accuracy is graded <b>deterministically</b> against one ground-truth answer per question — no LLM judge, so the only spend is the model's own answers. Cost is the API's real token counts × the model's price table. <b>Alpha:</b> a small fixed question set, single model, no per-question retries — read the figures as directional, not a leaderboard.</div>
+    <div class="section-title">By category</div>
+    <table class="board"><thead><tr><th class="l">category</th><th>correct</th><th>accuracy</th></tr></thead><tbody>${catRows}</tbody></table>
+    <div class="section-title" style="margin-top:24px">Per question</div>
+    <table class="board"><thead><tr><th class="l">id</th><th class="l">category</th><th class="l">prompt</th><th>expected</th><th>model answer</th><th>✓/✗</th><th>tok in/out</th><th>latency</th><th>cost</th></tr></thead><tbody>${qRows}</tbody></table>`;
+}
+function renderReasoningNav(){
+  const rs=DATA.reasoning||[]; const cur=reasonRun();
+  let html='<div class="nav-group-title">Reasoning runs</div>';
+  for(const r of rs){
+    const active = cur && cur.runId===r.runId;
+    html += `<button class="nav-item ${active?'active':''}" data-rsel="${esc(r.runId)}">`
+          + `<span class="dot ${r.summary.accuracy===1?'ok':'bad'}"></span>`
+          + `<span class="label">${esc(r.runId)} · ${pct(r.summary.accuracy)}</span></button>`;
+  }
+  return html;
+}
+
 // ---------- wiring ----------
 function render(){
-  const r=run();
-  $('nav').innerHTML=renderNav(r);
-  const o = state.sel!=='overview' && r.outputs.find(x=>outKey(x)===state.sel);
-  $('view').innerHTML = o ? renderDetail(r,o) : renderOverview(r);
+  const arm = state.view!=='reasoning';
+  $('runSelect').style.display = arm ? '' : 'none';
+  $('runLabel').style.display = arm ? '' : 'none';
+  $('reasonSelect').style.display = arm ? 'none' : '';
+  $('tabArm').classList.toggle('active', arm);
+  $('tabReason').classList.toggle('active', !arm);
+  if(arm){
+    const r=run();
+    $('nav').innerHTML=renderNav(r);
+    const o = state.sel!=='overview' && r.outputs.find(x=>outKey(x)===state.sel);
+    $('view').innerHTML = o ? renderDetail(r,o) : renderOverview(r);
+  } else {
+    $('nav').innerHTML=renderReasoningNav();
+    $('view').innerHTML=renderReasoning(reasonRun());
+  }
   $('view').scrollTop=0;
   window.scrollTo(0,0);
 }
 
 function init(){
   $('gen').textContent = DATA.generatedAt ? 'generated '+DATA.generatedAt : '';
+  const hasArm = DATA.runs.length, hasReason = (DATA.reasoning||[]).length;
+  $('tabArm').style.display = hasArm ? '' : 'none';
+  $('tabReason').style.display = hasReason ? '' : 'none';
+
   const sel=$('runSelect');
   sel.innerHTML = DATA.runs.map(r=>`<option value="${esc(r.runId)}">${esc(r.runId)} (${r.outputs.length})</option>`).join('');
   state.runId = DATA.runs[0]?.runId || null;
-  sel.value = state.runId;
+  if(state.runId) sel.value = state.runId;
   sel.onchange = ()=>{ state.runId=sel.value; state.sel='overview'; render(); };
-  $('search').oninput = (e)=>{ state.filter=e.target.value; $('nav').innerHTML=renderNav(run()); };
+
+  const rsel=$('reasonSelect');
+  rsel.innerHTML = (DATA.reasoning||[]).map(r=>`<option value="${esc(r.runId)}">${esc(r.runId)} (${r.summary.n})</option>`).join('');
+  state.reasonRunId = (DATA.reasoning||[])[0]?.runId || null;
+  if(state.reasonRunId) rsel.value = state.reasonRunId;
+  rsel.onchange = ()=>{ state.reasonRunId=rsel.value; render(); };
+
+  // open on whichever track exists (ARM by default when both do)
+  state.view = hasArm ? 'arm' : 'reasoning';
+  $('search').oninput = (e)=>{ state.filter=e.target.value; if(state.view==='arm') $('nav').innerHTML=renderNav(run()); };
 
   document.body.addEventListener('click', (e)=>{
+    const tab=e.target.closest('[data-view]');
+    if(tab){ state.view=tab.dataset.view; if(state.view==='arm') state.sel='overview'; render(); return; }
+    const rnav=e.target.closest('[data-rsel]');
+    if(rnav){ state.reasonRunId=rnav.dataset.rsel; $('reasonSelect').value=state.reasonRunId; render(); return; }
     const lg=e.target.closest('[data-series]');
     if(lg){ const s=lg.dataset.series; if(state.hidden.has(s)) state.hidden.delete(s); else state.hidden.add(s); render(); return; }
     const navBtn=e.target.closest('[data-sel]');
@@ -561,7 +650,7 @@ function init(){
 
   render();
 }
-if(DATA.runs.length) init();
+if(DATA.runs.length || (DATA.reasoning||[]).length) init();
 else document.getElementById('view').innerHTML='<p class="empty">No benchmark runs found under bench/results/.</p>';
 </script>
 </body>
