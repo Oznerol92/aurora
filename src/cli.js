@@ -319,6 +319,33 @@ export async function main(argv = process.argv.slice(2)) {
       if (!working) rl.prompt();
       return;
     }
+
+    // Mid-answer steering: `/read <text>` interrupts the turn in flight and feeds
+    // the text — plus what Aurora had written so far — back into the SAME turn, so
+    // the answer changes in place instead of waiting for the next one. Interactive
+    // only; piped `/read` falls through to the normal queue (handled as a command).
+    const steer = text.match(/^\/read\b\s*([\s\S]*)$/i);
+    if (steer && printer) {
+      const body = steer[1].trim();
+      if (!working) {
+        printer.line(
+          dim('  /read steers Aurora while she is answering — nothing in progress to steer.'),
+        );
+        return;
+      }
+      if (!body) {
+        printer.line(dim('  /read needs a message — e.g. /read answer in Go, not Rust'));
+        return;
+      }
+      ctx.think?.stop(); // erase the animated indicator before printing below it
+      ctx.steerText = body; // streamResponse picks this up when the turn ends
+      ctx.interrupted = true; // make runTurn treat the abort as a clean stop
+      ctx.provider.abort?.(); // kill the running turn so the steer turn can resume
+      const shown = body.length > 60 ? body.slice(0, 57) + '…' : body;
+      printer.line(info(`  ⤤ steering now — "${shown}"`));
+      return;
+    }
+
     queue.push(text);
     // Typed while Aurora is mid-answer: it's queued for the next turn. Confirm so
     // the user knows it landed (the answer keeps streaming above the prompt).
@@ -341,6 +368,7 @@ export async function main(argv = process.argv.slice(2)) {
   rl.on('SIGINT', () => {
     if (working) {
       ctx.interrupted = true;
+      ctx.think?.stop(); // erase the animated indicator before printing below it
       ctx.provider.abort?.();
       // Stop means stop: drop any type-ahead queued behind the cancelled turn so
       // Ctrl-C doesn't silently roll on into the next queued message.
@@ -364,6 +392,7 @@ export async function main(argv = process.argv.slice(2)) {
 async function streamResponse(ctx, text) {
   const { config } = ctx;
   let message = text; // the current turn's user text (answers on follow-ups)
+  let saveAs = null; // when set, persist this instead of the model-facing message
 
   while (true) {
     // Persist the user turn up front (before the model is called) so an interrupt
@@ -371,10 +400,24 @@ async function streamResponse(ctx, text) {
     // and the assistant turn land under the same conversation.
     const sessionId = ctx.sessionId || ctx.provider.sessionId || null;
     ctx.sessionId = sessionId;
-    await saveUserTurn(ctx.store, sessionId, message);
+    await saveUserTurn(ctx.store, sessionId, saveAs ?? message);
+    saveAs = null;
 
     const turn = await runTurn(ctx, message);
-    if (turn.interrupted || turn.errored) return;
+    if (turn.errored) return;
+    if (turn.interrupted) {
+      // `/read` mid-answer steer: re-run the SAME turn with the user's nudge and
+      // whatever Aurora had written so far, so the answer adjusts in place. A plain
+      // Ctrl-C interrupt (no steer pending) just stops at the prompt.
+      if (ctx.steerText) {
+        const steer = ctx.steerText;
+        ctx.steerText = null;
+        saveAs = steer; // store the user's `/read` text, not the scaffolding we send
+        message = composeSteer(steer, turn.cleanAnswer);
+        continue;
+      }
+      return;
+    }
 
     // A pending question takes priority: ask the user, then loop with the answers.
     const ask = parseAskBlock(turn.fullAnswer);
@@ -400,6 +443,26 @@ async function streamResponse(ctx, text) {
 }
 
 /**
+ * Build the model-facing text for a mid-turn steer (`/read`). The user cut off an
+ * in-flight answer, so we hand the model what it had written so far plus the new
+ * instruction and ask it to adjust in place rather than restart blind. We feed the
+ * partial back explicitly because the resumed CLI session may not retain the text
+ * from a turn that was killed mid-stream.
+ */
+function composeSteer(steerText, partial) {
+  const trimmed = (partial || '').trim();
+  const seen = trimmed
+    ? `You were partway through answering and had written so far:\n\n"""\n${trimmed}\n"""\n\n`
+    : '';
+  return (
+    '[The user interrupted your in-progress answer to steer it.]\n\n' +
+    seen +
+    `They add: ${steerText}\n\n` +
+    "[Take this into account and continue — adjust or extend what you had; don't start over unless the steer requires it.]"
+  );
+}
+
+/**
  * Stream a single model turn to the terminal and persist it. Returns
  * `{ fullAnswer, cleanAnswer, meta, interrupted, errored }`, where `fullAnswer`
  * keeps any protocol blocks (for the caller to parse) and `cleanAnswer` is what
@@ -415,21 +478,31 @@ async function runTurn(ctx, text) {
   let meta = null;
 
   // Two output paths: with a pinned prompt (interactive) everything goes through
-  // the printer, line-buffered above the prompt; otherwise it streams straight
-  // to stdout token-by-token as before. The animated spinner only fits the
-  // latter — a pinned prompt uses a single "thinking" status line plus the
-  // model's own tool-status lines for liveness.
+  // the printer, line-buffered above the prompt; otherwise it streams straight to
+  // stdout token-by-token as before. Both get a "thinking" indicator. In pinned
+  // mode it's a spinner on its own row (`printer.thinking`) pinned directly above
+  // the prompt that runs for the WHOLE turn — so the silent gaps between line-
+  // buffered output and during tool calls still read as "alive". Off a pinned
+  // prompt it's the classic in-place spinner on its own line, which must stop the
+  // moment real output starts.
   const writeLine = (s = '') => (printer ? printer.line(s) : process.stdout.write(s + '\n'));
   const spinner = printer ? null : startSpinner();
-  if (printer) {
-    printer.line(''); // a blank separator above the prompt
-    printer.line(statusLine('Aurora is thinking'));
-  } else {
-    process.stdout.write('\n');
-  }
+  const think = printer ? printer.thinking() : null;
+  ctx.think = think; // let the line/SIGINT handlers stop it before they print
+  // In pinned mode the spinner row already separates the answer from the prompt, so
+  // no blank line is needed; off a pinned prompt, keep the leading newline.
+  if (!printer) process.stdout.write('\n');
+
+  const stopThinking = () => {
+    spinner?.stop();
+    think?.stop();
+    ctx.think = null;
+  };
 
   const ensureHeader = () => {
     if (!headerPrinted) {
+      // Non-printer spinner shares the output line, so it must go before any text;
+      // the pinned-prompt spinner lives on the prompt and keeps running till the end.
       spinner?.stop();
       writeLine(auroraLabel());
       headerPrinted = true;
@@ -447,7 +520,8 @@ async function runTurn(ctx, text) {
     for await (const ev of provider.send(text)) {
       if (ev.type === 'status') {
         spinner?.stop();
-        // Status lines appear before the answer body starts.
+        // Log the tool that's running above the prompt (before the answer body);
+        // the pinned-prompt spinner keeps animating to show the wait is alive.
         if (!gotText) writeLine(statusLine(ev.text));
       } else if (ev.type === 'delta') {
         show(filter.push(ev.text));
@@ -456,7 +530,7 @@ async function runTurn(ctx, text) {
       }
     }
   } catch (e) {
-    spinner?.stop();
+    stopThinking();
     // Save whatever streamed before the failure, marked incomplete, so /resume
     // shows it and the model can continue from where it was cut off.
     const partial = stripProtocolBlocks(filter.full);
@@ -466,7 +540,7 @@ async function runTurn(ctx, text) {
 
   show(filter.end()); // flush any held-back (non-marker) tail
   if (printer) printer.flush(); // emit the last partial line of the stream
-  spinner?.stop();
+  stopThinking();
 
   // Full text keeps the protocol blocks; fall back to the final result when no
   // deltas streamed (so a block-only turn is still parseable downstream).
@@ -479,13 +553,17 @@ async function runTurn(ctx, text) {
     if (cleanAnswer) {
       await saveAssistantTurn(store, ctx.sessionId, cleanAnswer, meta, { complete: false });
     }
-    const note = warn('  ⏸ stopped (Ctrl-C again to quit)');
-    if (printer) {
-      printer.line('');
-      printer.line(note);
-      printer.line('');
-    } else {
-      process.stdout.write('\n' + note + '\n\n');
+    // A pending `/read` steer re-runs this turn immediately, so skip the "stopped"
+    // note — only a real Ctrl-C (nothing queued to steer with) ends at the prompt.
+    if (!ctx.steerText) {
+      const note = warn('  ⏸ stopped (Ctrl-C again to quit)');
+      if (printer) {
+        printer.line('');
+        printer.line(note);
+        printer.line('');
+      } else {
+        process.stdout.write('\n' + note + '\n\n');
+      }
     }
     return { interrupted: true, fullAnswer, cleanAnswer, meta };
   }

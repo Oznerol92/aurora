@@ -1,4 +1,5 @@
 import readline from 'node:readline';
+import chalk from 'chalk';
 
 /**
  * Keeps the `you ❯` prompt pinned at the bottom of the terminal and typeable
@@ -24,16 +25,33 @@ export class PromptPrinter {
     this.out = out;
     this.partial = ''; // streamed text not yet terminated by a newline
     this.tty = Boolean(out.isTTY);
+    this.statusText = null; // the live "thinking" row pinned above the prompt, or null
   }
 
   /** Print one complete line above the pinned prompt, then redraw the prompt. */
   line(text = '') {
-    if (this.tty) {
-      readline.cursorTo(this.out, 0);
-      readline.clearLine(this.out, 0);
+    if (!this.tty || !this.rl) {
+      this.out.write(text + '\n');
+      return;
     }
+    if (this.statusText != null) {
+      // The "thinking" row is pinned directly above the prompt. To insert a content
+      // line and keep that ordering, clear both the status and prompt rows, print the
+      // content (which scrolls up into history), then re-lay the status row and the
+      // prompt beneath it.
+      readline.cursorTo(this.out, 0);
+      readline.clearLine(this.out, 0); // prompt row
+      readline.moveCursor(this.out, 0, -1);
+      readline.clearLine(this.out, 0); // status row
+      this.out.write(text + '\n'); // content takes the old status row, then scrolls up
+      this.out.write(this.statusText + '\n'); // re-draw the status row beneath the content
+      this.rl.prompt(true);
+      return;
+    }
+    readline.cursorTo(this.out, 0);
+    readline.clearLine(this.out, 0);
     this.out.write(text + '\n');
-    if (this.tty && this.rl) this.rl.prompt(true);
+    this.rl.prompt(true);
   }
 
   /** Buffer streamed text; flush each complete line above the prompt as it lands. */
@@ -54,5 +72,71 @@ export class PromptPrinter {
       this.partial = '';
       this.line(tail);
     }
+  }
+
+  /**
+   * Animated "busy" indicator for the whole turn: a braille spinner on its OWN row,
+   * pinned directly above the `you ❯` prompt. It stays visible the entire time Aurora
+   * works — including the silent gaps between line-buffered output and during tool
+   * calls — because `line()` re-lays this status row beneath each content line it
+   * prints (see `this.statusText`), so streaming answer text never pushes it away.
+   *
+   * The first frame opens a fresh row above the prompt; subsequent frames repaint it
+   * in place. `stop()` clears the row (leaving a single blank separator above the
+   * prompt) and is idempotent. Off a TTY it is a no-op. Returns `{ stop }`.
+   *
+   * Tradeoff vs. the old prompt-prefix approach: the in-place repaint assumes the
+   * prompt occupies one row, so type-ahead long enough to wrap while Aurora is
+   * thinking can momentarily disturb the status row until the next content line.
+   */
+  thinking(label = 'Aurora is thinking') {
+    const { rl, out, tty } = this;
+    if (!tty || !rl) return { stop() {} };
+
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+    let i = 0;
+    let stopped = false;
+    let opened = false;
+
+    const render = () => {
+      if (stopped) return;
+      this.statusText = chalk.magenta(frames[i++ % frames.length]) + ' ' + chalk.dim(label + '…');
+      if (!opened) {
+        // Open a fresh row directly above the prompt for the status line.
+        readline.cursorTo(out, 0);
+        readline.clearLine(out, 0);
+        out.write(this.statusText + '\n'); // scrolls up, leaving the prompt row below
+        rl.prompt(true);
+        opened = true;
+      } else {
+        // Repaint the status row in place, one line above the prompt.
+        readline.cursorTo(out, 0);
+        readline.moveCursor(out, 0, -1);
+        readline.clearLine(out, 0);
+        out.write(this.statusText);
+        readline.cursorTo(out, 0);
+        readline.moveCursor(out, 0, 1);
+        rl.prompt(true);
+      }
+    };
+
+    render();
+    const id = setInterval(render, 100);
+
+    return {
+      stop: () => {
+        if (stopped) return;
+        stopped = true;
+        clearInterval(id);
+        this.statusText = null;
+        // Clear the status row, leaving a single blank separator above the prompt.
+        readline.cursorTo(out, 0);
+        readline.moveCursor(out, 0, -1);
+        readline.clearLine(out, 0);
+        readline.cursorTo(out, 0);
+        readline.moveCursor(out, 0, 1);
+        rl.prompt(true);
+      },
+    };
   }
 }

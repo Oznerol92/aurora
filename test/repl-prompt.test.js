@@ -72,3 +72,66 @@ test('on a TTY: redraws the pinned prompt (preserving input) once per line', () 
   assert.equal(rl.prompts, 2, 'the prompt is redrawn once per emitted line');
   assert.deepEqual(rl.preserved, [true, true], 'redraws preserve the in-progress input');
 });
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+test('thinking() off a TTY is an inert no-op', () => {
+  const out = fakeOut(false);
+  const rl = fakeRl();
+  const p = new PromptPrinter(rl, out);
+
+  const t = p.thinking();
+  t.stop();
+  t.stop(); // idempotent — must not throw
+
+  assert.equal(out.data, '', 'nothing is drawn off a TTY');
+  assert.equal(rl.prompts, 0, 'the prompt is not touched off a TTY');
+  assert.equal(p.statusText, null, 'no status row is tracked off a TTY');
+});
+
+test('thinking() on a TTY draws a spinner row above the prompt and clears it on stop', () => {
+  const out = fakeOut(true);
+  const rl = fakeRl('typing');
+  const p = new PromptPrinter(rl, out);
+
+  const t = p.thinking('Aurora is thinking');
+  assert.ok(p.statusText, 'a status row is tracked while thinking');
+  assert.ok(
+    SPINNER_FRAMES.some((f) => p.statusText.includes(f)),
+    'the status row carries a spinner frame',
+  );
+  assert.ok(p.statusText.includes('Aurora is thinking'), 'the status row carries the label');
+  assert.ok(out.data.includes(p.statusText), 'the spinner row is written above the prompt');
+  assert.ok(rl.prompts >= 1, 'the prompt is redrawn beneath the spinner row');
+  assert.ok(rl.preserved.every(Boolean), 'redraws preserve the in-progress input');
+
+  const promptsBeforeStop = rl.prompts;
+  t.stop();
+  assert.equal(p.statusText, null, 'stop clears the tracked status row');
+  assert.ok(rl.prompts > promptsBeforeStop, 'the prompt is redrawn after the row is cleared');
+
+  t.stop(); // idempotent — must not throw or redraw again
+});
+
+test('line() keeps the thinking row pinned directly above the prompt', () => {
+  const out = fakeOut(true);
+  const rl = fakeRl('');
+  const p = new PromptPrinter(rl, out);
+
+  const t = p.thinking('Aurora is thinking');
+  const status = p.statusText;
+  out.data = ''; // focus on what line() emits
+  rl.prompts = 0;
+
+  p.line('answer line');
+
+  assert.ok(out.data.includes('answer line'), 'the content line is emitted');
+  assert.ok(out.data.includes(status), 're-lays the spinner row beneath the content');
+  assert.ok(
+    out.data.indexOf('answer line') < out.data.indexOf(status),
+    'content is printed above the spinner row',
+  );
+  assert.ok(rl.prompts >= 1, 'the prompt is redrawn beneath both');
+
+  t.stop();
+});
