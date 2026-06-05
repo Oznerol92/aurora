@@ -31,6 +31,7 @@ import {
   mapChoice,
   formatAnswers,
   buildRecap,
+  recapSource,
 } from './protocol.js';
 import { createPasteInput } from './paste.js';
 import { runServer, startListeners } from './serve.js';
@@ -356,8 +357,11 @@ async function streamResponse(ctx, text) {
       continue;
     }
 
-    // No question → this turn finished the job. Recap to Telegram.
-    await maybeNotify(config, turn.cleanAnswer, parseDoneBlock(turn.fullAnswer));
+    // No question → this turn finished the job. Recap to Telegram, previewing
+    // the turn's conclusion (the final result message) rather than the full
+    // narration, whose opening is preamble and reads as stale "old output".
+    const recapText = recapSource(turn.meta?.text, turn.cleanAnswer);
+    await maybeNotify(config, recapText, parseDoneBlock(turn.fullAnswer));
     return;
   }
 }

@@ -73,6 +73,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   AI prose. Stored in the active store (never in `config.json`). Manage with
   `/persona [show | set <field> <value> | ingest <file> | clear | on | off]`.
 
+### Fixed
+
+- **Finish recap previewed the wrong end of the turn.** The Telegram "Aurora
+  finished a turn" note (sent when a turn has no `aurora:done` block) sliced the
+  start of the full streamed narration, so for a tool-using turn it surfaced the
+  opening preamble ("On it, let me…") — which read as stale, in-progress "old
+  output" — and dropped the conclusion. It now previews the turn's final result
+  message, and a clipped preview ends in an ellipsis.
+
 ### Changed
 
 - **Release process.** Adopted a two-branch promotion model — work branches →

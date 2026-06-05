@@ -9,6 +9,7 @@ import {
   interpretReply,
   formatQuestionsForTelegram,
   buildRecap,
+  recapSource,
   ProtocolStreamFilter,
 } from '../src/protocol.js';
 
@@ -121,6 +122,38 @@ test('buildRecap prefers the done block, falls back to a preview', () => {
 
   const empty = buildRecap('', { summary: 'Done.', actions: [] });
   assert.match(empty, /Nothing needed from you\./);
+});
+
+test('buildRecap truncates a long preview with an ellipsis', () => {
+  const long = buildRecap('x'.repeat(400), null);
+  assert.match(long, /…$/);
+  assert.ok(!long.includes('x'.repeat(281)), 'preview is clipped to 280 chars');
+
+  const short = buildRecap('Short and sweet.', null);
+  assert.match(short, /Short and sweet\.$/);
+  assert.ok(!short.includes('…'), 'a short answer is not given a trailing ellipsis');
+});
+
+test('recapSource prefers the final result message over the full narration', () => {
+  // A tool-using turn: the narration opens with preamble; the result is the end.
+  const narration = 'On it, let me run the gate.\n[work]\n✅ Pushed + promoted v0.3.5.';
+  const finalMessage = '✅ Pushed + promoted v0.3.5.';
+  assert.equal(recapSource(finalMessage, narration), '✅ Pushed + promoted v0.3.5.');
+
+  // The conclusion drives the recap preview, not the stale opening line.
+  const recap = buildRecap(recapSource(finalMessage, narration), null);
+  assert.match(recap, /Pushed \+ promoted/);
+  assert.ok(!recap.includes('On it, let me run the gate'), 'preamble is not previewed');
+});
+
+test('recapSource strips protocol blocks and falls back to the narration', () => {
+  const withBlock = 'Here is the answer.\n```aurora:done\n{"summary":"x","actions":[]}\n```';
+  assert.equal(recapSource(withBlock, 'narration'), 'Here is the answer.');
+
+  // No final message (a block-only turn that streamed nothing): use the narration.
+  assert.equal(recapSource('', 'the streamed narration'), 'the streamed narration');
+  assert.equal(recapSource(null, 'the streamed narration'), 'the streamed narration');
+  assert.equal(recapSource('   ', 'the streamed narration'), 'the streamed narration');
 });
 
 test('ProtocolStreamFilter suppresses a block even when split across chunks', () => {

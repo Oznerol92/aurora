@@ -170,9 +170,26 @@ export function formatQuestionsForTelegram(questions) {
 }
 
 /**
+ * Pick which text a finish recap should preview. A streamed turn is captured as
+ * the full narration — every delta, in order — so its opening is the model's
+ * preamble ("On it, let me run the gate…", "Let me check whether…"). Slicing the
+ * front of that for a one-line recap surfaces the *start* of the work, which on
+ * Telegram reads as stale, in-progress "old output" rather than the result.
+ *
+ * The CLI's final `result` message is the turn's conclusion, so prefer it. Fall
+ * back to the full narration only when no final message is available (e.g. a
+ * block-only turn that streamed no result text).
+ */
+export function recapSource(finalMessage, fullNarration) {
+  const final = stripProtocolBlocks(finalMessage || '').trim();
+  return final || fullNarration || '';
+}
+
+/**
  * Build the Telegram recap for a finished turn. Prefers a model-authored `done`
  * block (summary + action items); otherwise falls back to a short preview of the
- * answer body.
+ * answer body. Pass the turn's conclusion as `answer` (see `recapSource`), not
+ * the full streamed narration, or the preview shows the turn's preamble.
  */
 export function buildRecap(answer, done) {
   if (done) {
@@ -185,7 +202,8 @@ export function buildRecap(answer, done) {
     }
     return lines.join('\n');
   }
-  const preview = stripProtocolBlocks(answer).replace(/\s+/g, ' ').trim().slice(0, 280);
+  const body = stripProtocolBlocks(answer).replace(/\s+/g, ' ').trim();
+  const preview = body.length > 280 ? body.slice(0, 280).trimEnd() + '…' : body;
   return `✅ Aurora finished a turn:\n\n${preview || '(no response)'}`;
 }
 
