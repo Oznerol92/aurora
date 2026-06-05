@@ -34,6 +34,7 @@ import {
   recapSource,
 } from './protocol.js';
 import { createPasteInput } from './paste.js';
+import { PromptPrinter } from './repl-prompt.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
 import { primaryLockHolder, acquirePrimaryLock, releasePrimaryLock } from './instance.js';
@@ -56,6 +57,7 @@ import {
   info,
   warn,
   error,
+  dim,
 } from './ui.js';
 
 export async function main(argv = process.argv.slice(2)) {
@@ -238,7 +240,15 @@ export async function main(argv = process.argv.slice(2)) {
     prompt: promptLabel(),
   });
 
-  const ctx = { rl, provider, config, store, hasStore, sessionId };
+  // On a real terminal, keep the `you ❯` prompt pinned and typeable while Aurora
+  // answers: input is never blocked, and anything typed mid-answer is queued and
+  // read at the next turn boundary. Piped/non-TTY input keeps the old, simpler
+  // line-by-line flow (no pinned prompt, no type-ahead) so scripts/tests are
+  // unchanged. The printer routes all turn output above the pinned prompt.
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const printer = interactive ? new PromptPrinter(rl, process.stdout) : null;
+
+  const ctx = { rl, provider, config, store, hasStore, sessionId, printer };
 
   // Process input strictly one line at a time. Readline can deliver several
   // 'line' events back-to-back (paste, or piped stdin); without a queue their
@@ -271,13 +281,18 @@ export async function main(argv = process.argv.slice(2)) {
         const keepGoing = await handleCommand(text, ctx);
         if (!keepGoing) exitRequested = true;
       } else {
-        rl.pause();
+        // Interactive: leave readline live so the user can type-ahead while the
+        // turn streams (the printer keeps the prompt pinned). Piped: pause as
+        // before so a finite stream isn't read ahead into the queue mid-answer.
+        if (!printer) rl.pause();
         try {
           await streamResponse(ctx, text);
         } catch (e) {
-          console.log(error('  ✖ ' + e.message) + '\n');
+          const note = error('  ✖ ' + e.message);
+          if (printer) printer.line(note);
+          else console.log(note + '\n');
         }
-        rl.resume();
+        if (!printer) rl.resume();
       }
     }
     working = false;
@@ -299,6 +314,11 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
     queue.push(text);
+    // Typed while Aurora is mid-answer: it's queued for the next turn. Confirm so
+    // the user knows it landed (the answer keeps streaming above the prompt).
+    if (working && printer) {
+      printer.line(dim(`  ↩ queued (${queue.length}) — Aurora reads it next`));
+    }
     drain();
   });
 
@@ -316,6 +336,11 @@ export async function main(argv = process.argv.slice(2)) {
     if (working) {
       ctx.interrupted = true;
       ctx.provider.abort?.();
+      // Stop means stop: drop any type-ahead queued behind the cancelled turn so
+      // Ctrl-C doesn't silently roll on into the next queued message.
+      const dropped = queue.length;
+      queue.length = 0;
+      if (dropped && printer) printer.line(dim(`  (dropped ${dropped} queued)`));
       return;
     }
     exitRequested = true;
@@ -348,9 +373,11 @@ async function streamResponse(ctx, text) {
     // A pending question takes priority: ask the user, then loop with the answers.
     const ask = parseAskBlock(turn.fullAnswer);
     if (ask) {
-      const answers = await askInTerminal(ctx.rl, ask.questions);
+      const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer);
       if (answers == null) {
-        console.log('\n' + warn('  ⏸ left the question unanswered') + '\n');
+        const note = warn('  ⏸ left the question unanswered');
+        if (ctx.printer) ctx.printer.line(note);
+        else console.log('\n' + note + '\n');
         return;
       }
       message = formatAnswers(ask.questions, answers);
@@ -374,19 +401,31 @@ async function streamResponse(ctx, text) {
  * stream filter.
  */
 async function runTurn(ctx, text) {
-  const { provider, store } = ctx;
+  const { provider, store, printer } = ctx;
   ctx.interrupted = false; // set by the SIGINT handler if Ctrl-C lands mid-turn
-  process.stdout.write('\n');
-  const spinner = startSpinner();
   const filter = new ProtocolStreamFilter();
   let headerPrinted = false;
   let gotText = false;
   let meta = null;
 
+  // Two output paths: with a pinned prompt (interactive) everything goes through
+  // the printer, line-buffered above the prompt; otherwise it streams straight
+  // to stdout token-by-token as before. The animated spinner only fits the
+  // latter — a pinned prompt uses a single "thinking" status line plus the
+  // model's own tool-status lines for liveness.
+  const writeLine = (s = '') => (printer ? printer.line(s) : process.stdout.write(s + '\n'));
+  const spinner = printer ? null : startSpinner();
+  if (printer) {
+    printer.line(''); // a blank separator above the prompt
+    printer.line(statusLine('Aurora is thinking'));
+  } else {
+    process.stdout.write('\n');
+  }
+
   const ensureHeader = () => {
     if (!headerPrinted) {
-      spinner.stop();
-      process.stdout.write(auroraLabel() + '\n');
+      spinner?.stop();
+      writeLine(auroraLabel());
       headerPrinted = true;
     }
   };
@@ -394,15 +433,16 @@ async function runTurn(ctx, text) {
     if (!chunk) return;
     ensureHeader();
     gotText = true;
-    process.stdout.write(chunk);
+    if (printer) printer.write(chunk);
+    else process.stdout.write(chunk);
   };
 
   try {
     for await (const ev of provider.send(text)) {
       if (ev.type === 'status') {
-        spinner.stop();
+        spinner?.stop();
         // Status lines appear before the answer body starts.
-        if (!gotText) console.log(statusLine(ev.text));
+        if (!gotText) writeLine(statusLine(ev.text));
       } else if (ev.type === 'delta') {
         show(filter.push(ev.text));
       } else if (ev.type === 'done') {
@@ -410,7 +450,7 @@ async function runTurn(ctx, text) {
       }
     }
   } catch (e) {
-    spinner.stop();
+    spinner?.stop();
     // Save whatever streamed before the failure, marked incomplete, so /resume
     // shows it and the model can continue from where it was cut off.
     const partial = stripProtocolBlocks(filter.full);
@@ -419,7 +459,8 @@ async function runTurn(ctx, text) {
   }
 
   show(filter.end()); // flush any held-back (non-marker) tail
-  spinner.stop();
+  if (printer) printer.flush(); // emit the last partial line of the stream
+  spinner?.stop();
 
   // Full text keeps the protocol blocks; fall back to the final result when no
   // deltas streamed (so a block-only turn is still parseable downstream).
@@ -432,27 +473,47 @@ async function runTurn(ctx, text) {
     if (cleanAnswer) {
       await saveAssistantTurn(store, ctx.sessionId, cleanAnswer, meta, { complete: false });
     }
-    process.stdout.write('\n' + warn('  ⏸ stopped (Ctrl-C again to quit)') + '\n\n');
+    const note = warn('  ⏸ stopped (Ctrl-C again to quit)');
+    if (printer) {
+      printer.line('');
+      printer.line(note);
+      printer.line('');
+    } else {
+      process.stdout.write('\n' + note + '\n\n');
+    }
     return { interrupted: true, fullAnswer, cleanAnswer, meta };
   }
 
   if (meta?.isError && !gotText) {
-    console.log(error('  ✖ ' + (meta.text || 'the model returned an error')) + '\n');
+    writeLine(error('  ✖ ' + (meta.text || 'the model returned an error')));
+    if (!printer) process.stdout.write('\n');
     return { errored: true, fullAnswer, cleanAnswer: '', meta };
   }
   if (!gotText && cleanAnswer) {
     // No streaming deltas arrived, but we have a final result — print it.
-    process.stdout.write(auroraLabel() + '\n' + cleanAnswer);
+    writeLine(auroraLabel());
+    if (printer) {
+      printer.write(cleanAnswer);
+      printer.flush();
+    } else {
+      process.stdout.write(cleanAnswer);
+    }
   }
 
-  process.stdout.write('\n');
   const ml = metaLine({
     costUsd: meta?.costUsd ?? undefined,
     session: provider.shortSession?.(),
     model: provider.config?.model || undefined,
   });
-  if (ml) console.log(ml);
-  process.stdout.write('\n');
+  if (printer) {
+    printer.line('');
+    if (ml) printer.line(ml);
+    printer.line('');
+  } else {
+    process.stdout.write('\n');
+    if (ml) console.log(ml);
+    process.stdout.write('\n');
+  }
 
   // Persist the completed assistant turn (blocks stripped) under the shared
   // session id, falling back to whatever the provider reported for the id.
@@ -469,10 +530,16 @@ async function runTurn(ctx, text) {
  * accepts comma-separated picks. Resolves to an array of answers (aligned to the
  * questions), or null if the input stream closed before answering.
  */
-function askInTerminal(rl, questions) {
+function askInTerminal(rl, questions, printer = null) {
+  // Interactive (pinned-prompt) mode keeps readline live throughout, so we must
+  // not pause/resume around the popup; the question text is printed above the
+  // prompt via the printer. Piped mode keeps the old resume-to-read / pause-after
+  // dance, since drain() paused readline before the turn streamed.
+  const interactive = Boolean(printer);
+  const emit = (s = '') => (printer ? printer.line(s) : console.log(s));
   return new Promise((resolve) => {
     const answers = [];
-    rl.resume(); // the REPL pauses readline during streaming; we need input now
+    if (!interactive) rl.resume(); // piped: drain paused us; we need input now
 
     // If stdin closes mid-question, don't hang the loop. One handler for the
     // whole prompt sequence, removed once we settle, so listeners don't pile up.
@@ -485,14 +552,15 @@ function askInTerminal(rl, questions) {
 
     const askOne = (i) => {
       if (i >= questions.length) {
-        rl.pause();
+        if (!interactive) rl.pause();
         settle(answers);
         return;
       }
       const q = questions[i];
       const head = q.header ? warn(`[${q.header}] `) : '';
-      console.log('\n' + info('❓ ' + head + q.question));
-      q.options.forEach((opt, n) => console.log(`   ${warn(String(n + 1))}. ${opt}`));
+      emit('');
+      emit(info('❓ ' + head + q.question));
+      q.options.forEach((opt, n) => emit(`   ${warn(String(n + 1))}. ${opt}`));
       const prompt = q.options.length
         ? q.multiSelect
           ? '   number(s) (comma-separated) or your own answer ❯ '

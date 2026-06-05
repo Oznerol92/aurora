@@ -8,6 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Always-listening prompt (type-ahead).** On a real terminal the `you ❯`
+  prompt now stays pinned at the bottom and typeable _while Aurora is answering_
+  — input is never blocked. Anything you type mid-answer is queued and read at
+  the next turn boundary (a confirmation shows it landed); Ctrl-C still
+  interrupts the current answer and drops the queued type-ahead. The streamed
+  answer renders line-by-line above the pinned prompt (`src/repl-prompt.js`).
+  Piped/non-TTY input keeps the old line-by-line flow, so scripts and tests are
+  unchanged.
 - **Multi-line paste in the REPL.** Pasting a block now collapses to a
   `[Pasted text #N +M lines]` placeholder and is sent as a **single** message,
   instead of arriving as N separate turns that flood the screen. Built on the

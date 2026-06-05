@@ -106,3 +106,7 @@ export function warn(text) {
 export function error(text) {
   return chalk.red(text);
 }
+
+export function dim(text) {
+  return chalk.dim(text);
+}
