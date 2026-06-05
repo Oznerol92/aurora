@@ -11,6 +11,16 @@
 //   node bench/run.js --concurrency 2 # parallel runs (default 2)
 //   node bench/run.js --models gpt-mini,gemini-flash --only B1-react19 --concurrency 1
 //                                     # cheap multi-vendor smoke (see --max-cost / --max-tokens)
+//   node bench/run.js --questions brain-eval.json --conditions baseline,arm,brain
+//                                     # the brain harness: measure what Aurora's brain
+//                                     # adds over a plain baseline (and vs the full ARM prompt)
+//
+// Conditions resolve a per-question system prompt. `arm` and `baseline` are the
+// static prompts in bench/conditions/*.md. `brain` is dynamic: it scores the
+// method cards in brain/ against each question (selectRelevantCards) and injects
+// the top matches over the baseline — exactly how Aurora's runtime brain works —
+// so the eval isolates what RETRIEVAL adds. Each brain output records which cards
+// it retrieved; an off-domain control question retrieves none, proving the gating.
 //
 // The 'claude-cli' adapter shells out to the local `claude` CLI with --model,
 // mirroring how Aurora itself invokes Claude. The 'openai-api' and 'gemini-api'
@@ -23,6 +33,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDotenv } from '../src/env.js';
+import { loadBrainCards, selectRelevantCards, formatTurnBrain } from '../src/brain/corpus.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(join(HERE, p), 'utf8');
@@ -41,7 +52,19 @@ function parseArgs(argv) {
   //   of N in-flight jobs; --max-tokens bounds how big each overshoot can be.
   // --max-tokens: cap output tokens per vendor call (default 1500), so a single
   //   call's cost is bounded no matter how chatty the model gets.
-  const out = { models: null, only: null, concurrency: 2, maxCost: 0.5, maxTokens: 1500 };
+  // --questions: which question file to load (default questions.json — the ARM
+  //   set). Pass brain-eval.json to run the brain harness.
+  // --conditions: comma list of conditions to run (default arm,baseline). The
+  //   brain harness uses baseline,arm,brain to measure what the brain adds.
+  const out = {
+    models: null,
+    only: null,
+    concurrency: 2,
+    maxCost: 0.5,
+    maxTokens: 1500,
+    questions: 'questions.json',
+    conditions: null,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--models') out.models = argv[++i].split(',');
@@ -49,6 +72,8 @@ function parseArgs(argv) {
     else if (a === '--concurrency') out.concurrency = Number(argv[++i]);
     else if (a === '--max-cost') out.maxCost = Number(argv[++i]);
     else if (a === '--max-tokens') out.maxTokens = Number(argv[++i]);
+    else if (a === '--questions') out.questions = argv[++i];
+    else if (a === '--conditions') out.conditions = argv[++i].split(',');
   }
   return out;
 }
@@ -214,11 +239,34 @@ async function pool(items, limit, worker) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const registry = JSON.parse(read('models.json'));
-  const { questions } = JSON.parse(read('questions.json'));
+  const { questions } = JSON.parse(read(opts.questions));
+
+  // Conditions resolve a per-question system prompt. `arm`/`baseline` are static
+  // .md files; `brain` is DYNAMIC — it mirrors Aurora's runtime brain by scoring
+  // the method cards against THIS question and injecting only the top matches on
+  // top of the plain baseline, so the eval measures what retrieval adds. The
+  // resolver also returns the retrieved card ids, recorded for the audit (and to
+  // prove gating: an off-domain control question retrieves none).
+  const armSys = read('conditions/arm.md');
+  const baselineSys = read('conditions/baseline.md');
+  const brainCards = loadBrainCards();
   const conditions = {
-    arm: read('conditions/arm.md'),
-    baseline: read('conditions/baseline.md'),
+    arm: () => ({ system: armSys }),
+    baseline: () => ({ system: baselineSys }),
+    brain: (q) => {
+      const sel = selectRelevantCards(brainCards, q.prompt, { max: 3 });
+      const guidance = formatTurnBrain(sel);
+      return {
+        system: guidance ? baselineSys + '\n\n' + guidance : baselineSys,
+        brainCardIds: sel.map((c) => c.id),
+      };
+    },
   };
+  const condIds = (opts.conditions ?? ['arm', 'baseline']).filter((c) => {
+    if (conditions[c]) return true;
+    console.error(`! unknown condition: ${c} (have ${Object.keys(conditions).join(', ')})`);
+    return false;
+  });
 
   const modelIds = opts.models ?? registry.active;
   const qs = opts.only ? questions.filter((q) => opts.only.includes(q.id)) : questions;
@@ -235,7 +283,7 @@ async function main() {
       console.error(`! unknown model id: ${modelId} (skipping)`);
       continue;
     }
-    for (const condition of Object.keys(conditions)) {
+    for (const condition of condIds) {
       for (const q of qs) {
         jobs.push({ modelId, modelCfg, condition, q });
       }
@@ -255,6 +303,7 @@ async function main() {
   let vendorSpent = 0; // real out-of-pocket vendor spend — what --max-cost gates
   await pool(jobs, opts.concurrency, async (job) => {
     const adapter = ADAPTERS[job.modelCfg.adapter];
+    const resolved = conditions[job.condition](job.q); // { system, brainCardIds? }
     let res;
     if (!adapter) {
       res = { ok: false, error: `no adapter: ${job.modelCfg.adapter}` };
@@ -264,7 +313,7 @@ async function main() {
         error: `skipped: vendor cost cap $${opts.maxCost} reached ($${vendorSpent.toFixed(4)} vendor spend)`,
       };
     } else {
-      res = await adapter(job.modelCfg, conditions[job.condition], job.q.prompt, {
+      res = await adapter(job.modelCfg, resolved.system, job.q.prompt, {
         maxTokens: opts.maxTokens,
       });
       if (typeof res.cost_usd === 'number') {
@@ -281,6 +330,9 @@ async function main() {
       regime: job.q.regime,
       domain: job.q.domain,
       prompt: job.q.prompt,
+      // Which brain cards retrieved for this question (brain condition only) — the
+      // gating audit: a control question should show [].
+      ...(resolved.brainCardIds ? { brainCardIds: resolved.brainCardIds } : {}),
       ...res,
     };
     const fname = `${job.modelId}__${job.condition}__${job.q.id}.json`;

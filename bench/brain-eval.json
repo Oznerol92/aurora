@@ -1,0 +1,94 @@
+{
+  "version": "0.1.0",
+  "notes": "Brain-eval question set for Aurora. UNLIKE the ARM benchmark (questions.json), this set is built to isolate what Aurora's BRAIN adds: every question is a writing-, publishing-, or research-METHOD task, so the method cards in brain/ are relevant and retrieval fires. Run it with three conditions — baseline (plain assistant), arm (full static method prompt), brain (baseline + the top cards retrieved per question, exactly how Aurora's runtime brain works): `node bench/run.js --questions brain-eval.json --conditions baseline,arm,brain`. The interesting numbers are the LIFT (brain - baseline) and the GAP (arm - brain, i.e. what the cheaper retrieval gives up vs the full prompt). The `control` items are off-domain on purpose: the brain should retrieve ZERO cards for them, so brain == baseline — a built-in check that the brain only activates when relevant, not a generic 'be better' prompt. `bucket` and `expect_cards` are documentation for the audit; the runner only reads id/regime/domain/prompt.",
+  "questions": [
+    {
+      "id": "bw1-method-article",
+      "bucket": "writing",
+      "regime": "A",
+      "domain": "long-form writing",
+      "expect_cards": ["article-skeleton", "voice-core", "anti-hype", "worked-example"],
+      "prompt": "Write a complete long-form article explaining a repeatable workflow I used to run faster, source-backed research with an AI assistant. It should read as a credible practitioner piece, not a hype post."
+    },
+    {
+      "id": "bw2-linkedin-post",
+      "bucket": "writing",
+      "regime": "A",
+      "domain": "social distribution",
+      "expect_cards": ["linkedin-distribution", "anti-hype", "forbidden-words"],
+      "prompt": "Write a LinkedIn post for my own professional network announcing a method guide I just published about faster AI-assisted research. Link the article in the body. Keep it professional, not promotional."
+    },
+    {
+      "id": "bw3-publishing-plan",
+      "bucket": "writing",
+      "regime": "A",
+      "domain": "publishing",
+      "expect_cards": ["publishing-workflow", "anonymity", "quality-gate"],
+      "prompt": "Plan how to publish and monetize a method asset made of three pieces: a free long-form article, a free companion template, and a paid extended edition. Give the concrete steps and the order to ship them in."
+    },
+    {
+      "id": "bw4-dehype-rewrite",
+      "bucket": "writing",
+      "regime": "A",
+      "domain": "editing",
+      "expect_cards": ["anti-hype", "forbidden-words"],
+      "prompt": "Rewrite this product announcement to be credible and non-hype for a technical audience, and explain what you changed: 'Our game-changing AI platform unlocks unprecedented productivity and revolutionizes how teams work — the secret sauce your competitors wish they had.'"
+    },
+    {
+      "id": "br1-agents-landscape",
+      "bucket": "research",
+      "regime": "A",
+      "domain": "AI in production",
+      "expect_cards": ["research-method", "research-advanced"],
+      "prompt": "Design a research plan to map the 2024-2026 production landscape of LLM coding agents in enterprises, separating what is actually shipped to users from demos and vendor claims. Lay out how you'd cover the territory and what would count as a source."
+    },
+    {
+      "id": "br2-vectordb-incidents",
+      "bucket": "research",
+      "regime": "A",
+      "domain": "data infrastructure",
+      "expect_cards": ["research-method", "research-advanced"],
+      "prompt": "How should I research the documented real-world failure modes and incidents of vector database systems run at scale? Outline the approach, the macro-areas to cover, and what sources you would and would not accept."
+    },
+    {
+      "id": "br3-framework-changes",
+      "bucket": "research",
+      "regime": "B",
+      "domain": "web frameworks",
+      "expect_cards": ["research-method"],
+      "prompt": "Help me plan rigorous research into the documented breaking changes of a well-known web framework's latest major version, relying on canonical primary sources. How should I structure it and cite it?"
+    },
+    {
+      "id": "br4-protocol-comparison",
+      "bucket": "research",
+      "regime": "B",
+      "domain": "networking",
+      "expect_cards": ["research-method"],
+      "prompt": "Plan a careful, well-cited comparison of two widely documented network protocols' technical differences, drawing on primary specifications. Describe the method and the sourcing rules you'd follow."
+    },
+    {
+      "id": "bc1-capital",
+      "bucket": "control",
+      "regime": "control",
+      "domain": "geography",
+      "expect_cards": [],
+      "prompt": "What is the capital of Australia?"
+    },
+    {
+      "id": "bc2-gold-symbol",
+      "bucket": "control",
+      "regime": "control",
+      "domain": "chemistry",
+      "expect_cards": [],
+      "prompt": "What is the chemical symbol for gold?"
+    },
+    {
+      "id": "bc3-tallest-mountain",
+      "bucket": "control",
+      "regime": "control",
+      "domain": "geography",
+      "expect_cards": [],
+      "prompt": "What is the tallest mountain on Earth?"
+    }
+  ]
+}
