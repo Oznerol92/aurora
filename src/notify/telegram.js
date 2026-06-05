@@ -73,6 +73,38 @@ export function telegramEnabled(config = {}) {
 }
 
 /**
+ * Split `text` into chunks no longer than Telegram's per-message limit so a long
+ * turn arrives whole instead of being truncated. Pure (no I/O) so the splitting is
+ * unit-testable; naive fixed-width slicing, matching the bridge's `replyChunked`.
+ * Empty/blank input yields a single empty chunk so callers preserve their existing
+ * empty-message handling.
+ */
+export function chunkTelegram(text) {
+  const full = String(text ?? '');
+  if (!full) return [''];
+  const chunks = [];
+  for (let i = 0; i < full.length; i += TELEGRAM_MAX_LEN) {
+    chunks.push(full.slice(i, i + TELEGRAM_MAX_LEN));
+  }
+  return chunks;
+}
+
+/**
+ * Send `text` to Telegram across as many messages as it takes to fit the 4096-char
+ * limit (see `chunkTelegram`), so a long answer is mirrored in full rather than cut
+ * off. Sequential and best-effort: stops at the first failed chunk and returns its
+ * result. Returns { ok, error? } and never throws.
+ */
+export async function sendTelegramChunked(text, config = {}) {
+  let res = { ok: false, error: 'empty message' };
+  for (const chunk of chunkTelegram(text)) {
+    res = await sendTelegram(chunk, config);
+    if (!res.ok) return res;
+  }
+  return res;
+}
+
+/**
  * Send a Telegram message. Best-effort: returns { ok, error? } and never throws,
  * so notification problems can't break the chat loop.
  */
