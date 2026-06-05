@@ -86,50 +86,107 @@ function loadRun(runId) {
   return { runId, outputs };
 }
 
-// A reasoning run is any results dir carrying a summary.json (written by
-// bench/reasoning.js). Its records are accuracy-graded, not ARM-discipline
-// metrics, so it loads into a separate `reasoning` blob the report renders as
-// its own tab — the ARM SPA is untouched.
+// A reasoning run is any results dir carrying a summary file (written by
+// bench/reasoning.js): the multi-model runner writes one `<model>.summary.json`
+// per model; the legacy single-model runner wrote a lone `summary.json`. Its
+// records are accuracy-graded, not ARM-discipline metrics, so it loads into a
+// separate `reasoning` blob the report renders as its own tab — the ARM SPA is
+// untouched.
 function isReasoningRun(runId) {
-  return existsSync(join(RESULTS, runId, 'summary.json'));
+  let files;
+  try {
+    files = readdirSync(join(RESULTS, runId));
+  } catch {
+    return false;
+  }
+  return files.includes('summary.json') || files.some((f) => f.endsWith('.summary.json'));
 }
 
+/**
+ * Load a reasoning run into a multi-model shape: { runId, models[], questions[] }.
+ * Handles both layouts — per-model `<id>.summary.json` (current) and a single
+ * `summary.json` (legacy) — so old runs still render in the same comparison tab.
+ */
 function loadReasoning(runId) {
   const dir = join(RESULTS, runId);
-  const summary = JSON.parse(readFileSync(join(dir, 'summary.json'), 'utf8'));
-  const files = readdirSync(dir).filter((f) => f.endsWith('.json') && f !== 'summary.json');
-  const records = [];
-  for (const f of files) {
-    let rec;
-    try {
-      rec = JSON.parse(readFileSync(join(dir, f), 'utf8'));
-    } catch {
-      continue;
+  const all = readdirSync(dir).filter((f) => f.endsWith('.json'));
+  const perModel = all.filter((f) => f.endsWith('.summary.json'));
+
+  // [{ id, s }] — one entry per model summary present in the run dir.
+  const summaries = [];
+  if (perModel.length) {
+    for (const f of perModel) {
+      try {
+        summaries.push({ id: f.replace(/\.summary\.json$/, ''), s: JSON.parse(readFileSync(join(dir, f), 'utf8')) });
+      } catch {
+        /* skip an unreadable summary */
+      }
     }
-    records.push({
-      questionId: rec.questionId,
-      category: rec.category ?? '',
-      prompt: rec.prompt ?? '',
-      type: rec.type ?? '',
-      expected: rec.expected ?? '',
-      extracted: rec.ok ? (rec.extracted ?? '') : '',
-      ok: rec.ok !== false,
-      correct: Boolean(rec.correct),
-      error: rec.error ?? null,
-      tokens_in: rec.tokens_in ?? null,
-      tokens_out: rec.tokens_out ?? null,
-      latency_ms: rec.latency_ms ?? null,
-      cost_usd: rec.cost_usd ?? null,
-    });
+  } else if (all.includes('summary.json')) {
+    try {
+      const s = JSON.parse(readFileSync(join(dir, 'summary.json'), 'utf8'));
+      summaries.push({ id: s.model, s });
+    } catch {
+      /* nothing to load */
+    }
   }
-  records.sort((a, b) => String(a.questionId).localeCompare(String(b.questionId)));
-  return {
-    runId,
-    model: summary.model,
-    modelLabel: summary.modelLabel || summary.model,
-    summary,
-    records,
+
+  const recFiles = all.filter((f) => f !== 'summary.json' && !f.endsWith('.summary.json'));
+  const recordsFor = (modelId) => {
+    const out = [];
+    for (const f of recFiles) {
+      if (!f.startsWith(modelId + '__')) continue;
+      let rec;
+      try {
+        rec = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+      } catch {
+        continue;
+      }
+      out.push({
+        questionId: rec.questionId,
+        category: rec.category ?? '',
+        prompt: rec.prompt ?? '',
+        type: rec.type ?? '',
+        expected: rec.expected ?? '',
+        extracted: rec.ok ? (rec.extracted ?? '') : '',
+        ok: rec.ok !== false,
+        correct: Boolean(rec.correct),
+        error: rec.error ?? null,
+        tokens_in: rec.tokens_in ?? null,
+        tokens_out: rec.tokens_out ?? null,
+        latency_ms: rec.latency_ms ?? null,
+        cost_usd: rec.cost_usd ?? null,
+      });
+    }
+    out.sort((a, b) => String(a.questionId).localeCompare(String(b.questionId)));
+    return out;
   };
+
+  const models = summaries
+    .map(({ id, s }) => ({
+      id,
+      label: s.modelLabel || s.model || id,
+      adapter: s.adapter || '',
+      summary: s,
+      records: recordsFor(id),
+    }))
+    .sort((a, b) => (b.summary.accuracy ?? 0) - (a.summary.accuracy ?? 0));
+
+  // Question list: the union across models, keyed by id (fields from the first seen).
+  const qmap = new Map();
+  for (const m of models)
+    for (const r of m.records)
+      if (!qmap.has(r.questionId))
+        qmap.set(r.questionId, {
+          id: r.questionId,
+          category: r.category,
+          prompt: r.prompt,
+          expected: r.expected,
+          type: r.type,
+        });
+  const questions = [...qmap.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+  return { runId, models, questions };
 }
 
 function main() {

@@ -7,10 +7,11 @@
 // reasoning.json). It reports accuracy, tokens, latency, and cost — with no LLM
 // judge, so the only spend is the answers themselves.
 //
-// It runs SEVERAL models head to head and writes a single comparison report
-// (bench/results/reasoning.html) with an accuracy chart, a per-category model
-// matrix, and an expandable per-question breakdown showing every model's answer
-// side by side.
+// It runs SEVERAL models head to head, writes each model's results into the run
+// dir, then rebuilds the unified report (bench/results/index.html via report.js)
+// where the comparison appears in the "Reasoning accuracy" tab: an accuracy
+// chart, a per-category model matrix, and an expandable per-question breakdown
+// showing every model's answer side by side, alongside the ARM benchmark.
 //
 //   node bench/reasoning.js                          # default working set, all questions
 //   node bench/reasoning.js --models opus,sonnet     # pick model ids from models.json
@@ -29,7 +30,7 @@
 // Calling OpenAI directly here does NOT make it a first-class Aurora provider.
 // Aurora stays Claude-only by design.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -221,7 +222,11 @@ async function runModel(modelId, modelCfg, qs, outDir, opts) {
   const summary = summarize(records);
   writeFileSync(
     join(outDir, `${modelId}.summary.json`),
-    JSON.stringify({ model: modelId, modelLabel: modelCfg.label, ...summary }, null, 2),
+    JSON.stringify(
+      { model: modelId, modelLabel: modelCfg.label, adapter: modelCfg.adapter, ...summary },
+      null,
+      2,
+    ),
   );
   console.log(
     `  = ${modelCfg.label}: ${summary.correct}/${summary.n} = ${pct(summary.accuracy)}  ` +
@@ -287,193 +292,17 @@ async function main() {
     );
   }
 
-  const reportPath = join(HERE, 'results', 'reasoning.html');
-  writeFileSync(reportPath, renderReport({ runId, models: board, questions: qs }));
-  console.log(`\nWrote ${reportPath}`);
-  console.log(`  open: file://${reportPath}`);
+  // Rebuild the unified report so the reasoning comparison shows up in the
+  // "Reasoning accuracy" tab of bench/results/index.html, next to the ARM runs.
+  // The page builder (report.js) reads the per-model summaries this run wrote.
+  const res = spawnSync(process.execPath, [join(HERE, 'report.js')], { stdio: 'inherit' });
+  if (res.status !== 0) {
+    console.log('\n(could not rebuild index.html automatically — run: node bench/report.js)');
+  }
 }
 
 function pct(x) {
   return x == null ? 'n/a' : (x * 100).toFixed(1) + '%';
-}
-
-function esc(s) {
-  return String(s ?? '').replace(
-    /[&<>"]/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
-  );
-}
-
-/** Green-tinted background for an accuracy in [0,1]; grey for null. */
-function accCell(a) {
-  if (a == null) return 'background:transparent';
-  const light = 92 - Math.round(a * 42); // 92% (pale) -> 50% (saturated) lightness
-  return `background:hsl(140 55% ${light}% / .85);color:${a > 0.5 ? '#0b3d1c' : '#444'}`;
-}
-
-/**
- * Self-contained HTML comparison report: no server, no network, no external
- * assets. CSS-only accuracy bars, a category×model matrix, and one expandable
- * <details> per question showing every model's answer side by side.
- */
-function renderReport({ runId, models, questions }) {
-  const generatedAt = new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
-  const maxAcc = Math.max(0.0001, ...models.map((m) => m.summary.accuracy ?? 0));
-
-  // 1. Accuracy bar chart (CSS bars), best first.
-  const bars = models
-    .map((m) => {
-      const a = m.summary.accuracy ?? 0;
-      const w = ((a / maxAcc) * 100).toFixed(1);
-      return `<div class="bar-row">
-        <div class="bar-label">${esc(m.label)}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${w}%"></div></div>
-        <div class="bar-val">${pct(m.summary.accuracy)} <span class="dim">(${m.summary.correct}/${m.summary.n})</span></div>
-      </div>`;
-    })
-    .join('');
-
-  // 2. Headline comparison table.
-  const noteCost = models.some((m) => m.adapter === 'claude-cli');
-  const tableRows = models
-    .map((m) => {
-      const s = m.summary;
-      const tot = (s.tokens_in || 0) + (s.tokens_out || 0);
-      const cost =
-        s.total_cost_usd != null && s.total_cost_usd > 0
-          ? '$' + s.total_cost_usd.toFixed(5) + (m.adapter === 'claude-cli' ? '*' : '')
-          : '—';
-      return `<tr>
-        <td>${esc(m.label)}</td>
-        <td class="mono dim">${esc(m.adapter)}</td>
-        <td class="num"><strong>${pct(s.accuracy)}</strong></td>
-        <td class="num">${s.correct}/${s.n}</td>
-        <td class="num">${Math.round(s.avg_latency_ms ?? 0)} ms</td>
-        <td class="num">${tot ? tot.toLocaleString('en-US') : '—'}</td>
-        <td class="num">${cost}</td>
-      </tr>`;
-    })
-    .join('');
-
-  // 3. Category × model matrix.
-  const cats = [...new Set(questions.map((q) => q.category))].sort();
-  const matrixHead = models.map((m) => `<th class="num">${esc(m.label)}</th>`).join('');
-  const matrixRows = cats
-    .map((c) => {
-      const cells = models
-        .map((m) => {
-          const v = m.summary.perCategory[c];
-          if (!v) return `<td class="num" style="${accCell(null)}">—</td>`;
-          return `<td class="num" style="${accCell(v.accuracy)}" title="${v.correct}/${v.n}">${Math.round(v.accuracy * 100)}%</td>`;
-        })
-        .join('');
-      return `<tr><td>${esc(c)}</td>${cells}</tr>`;
-    })
-    .join('');
-
-  // 4. Expandable per-question detail: each model's extracted answer side by side.
-  const byQ = (qid) =>
-    Object.fromEntries(
-      models.map((m) => [m.id, m.records.find((r) => r.questionId === qid)]),
-    );
-  const questionBlocks = questions
-    .map((q) => {
-      const recs = byQ(q.id);
-      const right = models.filter((m) => recs[m.id]?.ok && recs[m.id]?.correct).length;
-      const cls = right === models.length ? 'all' : right === 0 ? 'none' : 'some';
-      const rows = models
-        .map((m) => {
-          const r = recs[m.id];
-          const mark = !r || !r.ok ? 'err' : r.correct ? 'ok' : 'no';
-          const sym = mark === 'err' ? 'error' : mark === 'ok' ? '✓' : '✗';
-          const got = !r ? '—' : r.ok ? r.extracted : r.error;
-          return `<tr><td>${esc(m.label)}</td><td class="mono">${esc(got)}</td><td class="ctr ${mark}">${sym}</td></tr>`;
-        })
-        .join('');
-      return `<details class="q ${cls}">
-        <summary><span class="mono">${esc(q.id)}</span> · ${esc(q.category)}
-          <span class="pill">${right}/${models.length} correct</span></summary>
-        <div class="q-body">
-          <p class="prompt">${esc(q.prompt)}</p>
-          <p class="dim">expected: <span class="mono">${esc(String(q.answer))}</span></p>
-          <table class="ans"><thead><tr><th>model</th><th>answer</th><th>✓/✗</th></tr></thead>
-            <tbody>${rows}</tbody></table>
-        </div>
-      </details>`;
-    })
-    .join('');
-
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aurora reasoning benchmark — model comparison</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 15px/1.5 system-ui, -apple-system, sans-serif; margin: 0; padding: 2rem; max-width: 1100px; margin-inline: auto; color: #1a1a1a; background: #fafafa; }
-  @media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #121212; } }
-  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
-  h2 { font-size: 1.05rem; margin: 2.2rem 0 .75rem; }
-  .meta { color: #888; font-size: .85rem; margin-bottom: 1.5rem; }
-  .alpha { display: inline-block; background: #b8860b; color: #fff; font-size: .7rem; font-weight: 700; padding: .1rem .45rem; border-radius: .25rem; vertical-align: middle; letter-spacing: .05em; }
-  .dim { color: #888; }
-  .mono { font-family: ui-monospace, monospace; }
-  /* bar chart */
-  .bar-row { display: grid; grid-template-columns: 170px 1fr 150px; align-items: center; gap: .75rem; margin: .35rem 0; }
-  .bar-label { font-size: .9rem; }
-  .bar-track { background: #e6e6e6; border-radius: .3rem; height: 1.4rem; overflow: hidden; }
-  @media (prefers-color-scheme: dark) { .bar-track { background: #2a2a2a; } }
-  .bar-fill { height: 100%; background: linear-gradient(90deg,#2e9e5b,#46c878); border-radius: .3rem; }
-  .bar-val { font-size: .85rem; text-align: right; white-space: nowrap; }
-  /* tables */
-  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
-  th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #e2e2e2; vertical-align: top; }
-  @media (prefers-color-scheme: dark) { th, td { border-color: #2a2a2a; } }
-  th { color: #888; font-weight: 600; text-transform: uppercase; font-size: .72rem; letter-spacing: .04em; }
-  .num { text-align: right; white-space: nowrap; }
-  .ctr { text-align: center; font-weight: 700; }
-  .ok { color: #1a9c4a; } .no { color: #d12c2c; } .err { color: #b8860b; }
-  .matrix td:first-child { font-weight: 500; }
-  /* expandable questions */
-  details.q { border: 1px solid #e2e2e2; border-radius: .4rem; margin: .4rem 0; padding: .1rem .2rem; }
-  @media (prefers-color-scheme: dark) { details.q { border-color: #333; } }
-  details.q summary { cursor: pointer; padding: .5rem .6rem; font-size: .9rem; }
-  details.q[open] summary { border-bottom: 1px solid #eee; }
-  details.q.all { border-left: 3px solid #1a9c4a; }
-  details.q.none { border-left: 3px solid #d12c2c; }
-  details.q.some { border-left: 3px solid #b8860b; }
-  .pill { background: #00000010; border-radius: 1rem; padding: .05rem .5rem; font-size: .75rem; margin-left: .4rem; }
-  @media (prefers-color-scheme: dark) { .pill { background: #ffffff14; } }
-  .q-body { padding: .6rem; }
-  .prompt { margin: .2rem 0 .4rem; color: #444; }
-  @media (prefers-color-scheme: dark) { .prompt { color: #bbb; } }
-  table.ans { max-width: 640px; }
-  .note { color: #888; font-size: .82rem; border-left: 3px solid #ccc; padding-left: .8rem; margin: 1.5rem 0; }
-</style></head>
-<body>
-  <h1>Aurora reasoning benchmark — model comparison <span class="alpha">ALPHA</span></h1>
-  <div class="meta">${models.length} models · ${questions.length} questions · run <span class="mono">${esc(runId)}</span> · generated ${esc(generatedAt)}</div>
-
-  <h2>Accuracy</h2>
-  ${bars}
-
-  <h2>Scoreboard</h2>
-  <table><thead><tr>
-    <th>model</th><th>adapter</th><th class="num">accuracy</th><th class="num">correct</th>
-    <th class="num">avg latency</th><th class="num">tokens</th><th class="num">cost</th>
-  </tr></thead><tbody>${tableRows}</tbody></table>
-
-  <h2>Accuracy by category</h2>
-  <table class="matrix"><thead><tr><th>category</th>${matrixHead}</tr></thead><tbody>${matrixRows}</tbody></table>
-
-  <h2>Per question <span class="dim" style="font-size:.8rem">(click to expand each model's answer)</span></h2>
-  ${questionBlocks}
-
-  <div class="note">Accuracy is graded <strong>deterministically</strong> against one ground-truth answer per question (no LLM judge), so the only cost is the models' own answers. This is an <strong>alpha</strong>: a small fixed question set, one attempt per question, no retries — treat the figures as directional, not a leaderboard.${
-    noteCost
-      ? ' &nbsp;<strong>*</strong> Claude (claude-cli) runs on subscription auth; its cost is the API-<em>equivalent</em> figure the CLI reports, not out-of-pocket spend.'
-      : ''
-  }</div>
-</body></html>`;
 }
 
 main().catch((e) => {

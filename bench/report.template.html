@@ -182,6 +182,21 @@
     padding: 5px 9px; border-radius: 7px; font-size: 12px; opacity: 0; transition: opacity .1s;
     z-index: 50; white-space: nowrap; font-family: var(--mono); box-shadow: var(--shadow-lg);
   }
+  /* reasoning comparison tab */
+  .rbars { margin: 6px 0 4px; }
+  .rbar { display: grid; grid-template-columns: 190px 1fr 150px; align-items: center; gap: 10px; margin: 5px 0; }
+  .rbar-l { font-size: 13px; }
+  .rbar-track { background: color-mix(in srgb, var(--muted) 14%, transparent); border-radius: 5px; height: 20px; overflow: hidden; }
+  .rbar-fill { height: 100%; background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 70%, var(--accent)), var(--ok)); border-radius: 5px; }
+  .rbar-v { font-size: 13px; text-align: right; white-space: nowrap; }
+  table.matrix td:not(.l) { text-align: center; font-variant-numeric: tabular-nums; }
+  details.rq { border: 1px solid var(--line); border-radius: 8px; margin: 5px 0; background: var(--panel); }
+  details.rq summary { cursor: pointer; padding: 8px 11px; font-size: 13px; list-style: none; }
+  details.rq summary code { font-family: var(--mono); }
+  details.rq[open] summary { border-bottom: 1px solid var(--line); }
+  .rpill { background: var(--chip); border-radius: 12px; padding: 1px 8px; font-size: 11px; margin-left: 6px; color: var(--muted); }
+  .rq-body { padding: 9px 11px; }
+  .rq-body p { margin: 2px 0 6px; }
 </style>
 </head>
 <body>
@@ -535,49 +550,83 @@ function renderNav(r){
 }
 
 // ---------- reasoning (accuracy) views ----------
+function rAccCell(a){
+  if(a==null) return 'background:transparent';
+  const l = 92 - Math.round(a*42); // pale -> saturated green by accuracy
+  return `background:hsl(140 55% ${l}% / .85);color:${a>0.5?'#0b3d1c':'#555'}`;
+}
 function renderReasoning(r){
-  if(!r) return '<p class="empty">No reasoning runs found under bench/results/.</p>';
-  const s=r.summary, tot=(s.tokens_in||0)+(s.tokens_out||0);
-  const catRows=Object.entries(s.perCategory||{}).sort((a,b)=>a[0].localeCompare(b[0]))
-    .map(([k,v])=>`<tr><td class="l">${esc(k)}</td><td>${v.correct}/${v.n}</td><td>${pct(v.accuracy)}</td></tr>`).join('');
-  const qRows=r.records.map(o=>{
-    const cls = !o.ok ? '' : (o.correct?'best':'fail');
-    const status = !o.ok ? '<span style="color:var(--accent2)">err</span>' : (o.correct?'✓':'✗');
-    return `<tr>
-      <td class="l">${esc(o.questionId)}</td>
-      <td class="l">${esc(o.category)}</td>
-      <td class="l" style="max-width:360px;color:var(--muted)">${esc(o.prompt)}</td>
-      <td>${esc(o.expected)}</td>
-      <td>${esc(o.ok?o.extracted:(o.error||''))}</td>
-      <td class="${cls}">${status}</td>
-      <td>${o.tokens_in==null?'–':o.tokens_in}/${o.tokens_out==null?'–':o.tokens_out}</td>
-      <td>${secs(o.latency_ms)}</td>
-      <td>${usd(o.cost_usd)}</td>
-    </tr>`;
+  if(!r || !r.models || !r.models.length) return '<p class="empty">No reasoning runs found under bench/results/.</p>';
+  const models=r.models, qs=r.questions;
+  const maxAcc=Math.max(0.0001, ...models.map(m=>m.summary.accuracy||0));
+
+  const bars=models.map(m=>{
+    const a=m.summary.accuracy||0, w=((a/maxAcc)*100).toFixed(1);
+    return `<div class="rbar"><div class="rbar-l">${esc(m.label)}</div>`
+      + `<div class="rbar-track"><div class="rbar-fill" style="width:${w}%"></div></div>`
+      + `<div class="rbar-v">${pct(m.summary.accuracy)} <span style="color:var(--muted)">(${m.summary.correct}/${m.summary.n})</span></div></div>`;
   }).join('');
+
+  const hasCli=models.some(m=>m.adapter==='claude-cli');
+  const sbRows=models.map(m=>{
+    const s=m.summary, tot=(s.tokens_in||0)+(s.tokens_out||0);
+    const cost = s.total_cost_usd ? usd(s.total_cost_usd)+(m.adapter==='claude-cli'?'*':'') : '–';
+    return `<tr><td class="l">${esc(m.label)}</td><td class="l" style="color:var(--muted)">${esc(m.adapter)}</td>`
+      + `<td><b>${pct(s.accuracy)}</b></td><td>${s.correct}/${s.n}</td><td>${secs(s.avg_latency_ms)}</td>`
+      + `<td>${tot?num(tot,0):'–'}</td><td>${cost}</td></tr>`;
+  }).join('');
+
+  const cats=[...new Set(qs.map(q=>q.category))].sort();
+  const mHead=models.map(m=>`<th>${esc(m.label)}</th>`).join('');
+  const mRows=cats.map(c=>{
+    const cells=models.map(m=>{
+      const v=m.summary.perCategory && m.summary.perCategory[c];
+      if(!v) return `<td style="${rAccCell(null)}">–</td>`;
+      return `<td style="${rAccCell(v.accuracy)}" title="${v.correct}/${v.n}">${Math.round(v.accuracy*100)}%</td>`;
+    }).join('');
+    return `<tr><td class="l">${esc(c)}</td>${cells}</tr>`;
+  }).join('');
+
+  const recBy=(m,qid)=>m.records.find(x=>x.questionId===qid);
+  const qBlocks=qs.map(q=>{
+    const right=models.filter(m=>{const x=recBy(m,q.id);return x&&x.ok&&x.correct;}).length;
+    const edge = right===models.length?'var(--ok)':right===0?'var(--bad)':'var(--accent2)';
+    const rows=models.map(m=>{
+      const x=recBy(m,q.id);
+      const cls=!x||!x.ok?'':(x.correct?'best':'fail');
+      const sym=!x||!x.ok?'<span style="color:var(--accent2)">err</span>':(x.correct?'✓':'✗');
+      const got=!x?'–':(x.ok?x.extracted:(x.error||''));
+      return `<tr><td class="l">${esc(m.label)}</td><td class="l">${esc(got)}</td><td class="${cls}">${sym}</td></tr>`;
+    }).join('');
+    return `<details class="rq" style="border-left:3px solid ${edge}"><summary><code>${esc(q.id)}</code> · ${esc(q.category)}`
+      + ` <span class="rpill">${right}/${models.length} correct</span></summary>`
+      + `<div class="rq-body"><p style="color:var(--muted)">${esc(q.prompt)}</p>`
+      + `<p style="color:var(--muted)">expected: <code>${esc(String(q.expected))}</code></p>`
+      + `<table class="board" style="max-width:640px"><thead><tr><th class="l">model</th><th class="l">answer</th><th>✓/✗</th></tr></thead>`
+      + `<tbody>${rows}</tbody></table></div></details>`;
+  }).join('');
+
   return `<h1 class="page">Reasoning accuracy — <span style="color:var(--muted)">${esc(r.runId)}</span></h1>
-    <p class="sub">${esc(r.modelLabel)} · ${s.n} questions · deterministic ground-truth grading</p>
-    <div class="cards">
-      <div class="card green"><div class="k">accuracy</div><div class="v">${pct(s.accuracy)}</div></div>
-      <div class="card"><div class="k">correct</div><div class="v">${s.correct}/${s.n}</div></div>
-      <div class="card amber"><div class="k">total cost</div><div class="v">${usd(s.total_cost_usd)}</div></div>
-      <div class="card"><div class="k">avg latency</div><div class="v">${secs(s.avg_latency_ms)}</div></div>
-      <div class="card"><div class="k">tokens (in/out)</div><div class="v">${num(tot,0)}</div></div>
-    </div>
-    <div class="note">Accuracy is graded <b>deterministically</b> against one ground-truth answer per question — no LLM judge, so the only spend is the model's own answers. Cost is the API's real token counts × the model's price table. <b>Alpha:</b> a small fixed question set, single model, no per-question retries — read the figures as directional, not a leaderboard.</div>
-    <div class="section-title">By category</div>
-    <table class="board"><thead><tr><th class="l">category</th><th>correct</th><th>accuracy</th></tr></thead><tbody>${catRows}</tbody></table>
-    <div class="section-title" style="margin-top:24px">Per question</div>
-    <table class="board"><thead><tr><th class="l">id</th><th class="l">category</th><th class="l">prompt</th><th>expected</th><th>model answer</th><th>✓/✗</th><th>tok in/out</th><th>latency</th><th>cost</th></tr></thead><tbody>${qRows}</tbody></table>`;
+    <p class="sub">${models.length} model${models.length>1?'s':''} · ${qs.length} questions · deterministic ground-truth grading</p>
+    <div class="section-title">Accuracy</div>
+    <div class="rbars">${bars}</div>
+    <div class="section-title" style="margin-top:24px">Scoreboard</div>
+    <table class="board"><thead><tr><th class="l">model</th><th class="l">adapter</th><th>accuracy</th><th>correct</th><th>avg latency</th><th>tokens</th><th>cost</th></tr></thead><tbody>${sbRows}</tbody></table>
+    <div class="section-title" style="margin-top:24px">Accuracy by category</div>
+    <table class="board matrix"><thead><tr><th class="l">category</th>${mHead}</tr></thead><tbody>${mRows}</tbody></table>
+    <div class="section-title" style="margin-top:24px">Per question <span style="color:var(--muted);font-weight:400;font-size:12px">(click to expand each model's answer)</span></div>
+    <div class="rqs">${qBlocks}</div>
+    <div class="note">Accuracy is graded <b>deterministically</b> against one ground-truth answer per question — no LLM judge, so the only spend is the models' own answers. <b>Alpha:</b> a small fixed question set, one attempt per question, no retries — read the figures as directional, not a leaderboard.${hasCli?' <b>*</b> Claude (claude-cli) runs on subscription auth; its cost is the API-<em>equivalent</em> figure the CLI reports, not out-of-pocket spend.':''}</div>`;
 }
 function renderReasoningNav(){
   const rs=DATA.reasoning||[]; const cur=reasonRun();
   let html='<div class="nav-group-title">Reasoning runs</div>';
   for(const r of rs){
     const active = cur && cur.runId===r.runId;
+    const best = Math.max(0, ...(r.models||[]).map(m=>m.summary.accuracy||0));
     html += `<button class="nav-item ${active?'active':''}" data-rsel="${esc(r.runId)}">`
-          + `<span class="dot ${r.summary.accuracy===1?'ok':'bad'}"></span>`
-          + `<span class="label">${esc(r.runId)} · ${pct(r.summary.accuracy)}</span></button>`;
+          + `<span class="dot ${best===1?'ok':'bad'}"></span>`
+          + `<span class="label">${esc(r.runId)} · ${(r.models||[]).length} models</span></button>`;
   }
   return html;
 }
@@ -616,7 +665,7 @@ function init(){
   sel.onchange = ()=>{ state.runId=sel.value; state.sel='overview'; render(); };
 
   const rsel=$('reasonSelect');
-  rsel.innerHTML = (DATA.reasoning||[]).map(r=>`<option value="${esc(r.runId)}">${esc(r.runId)} (${r.summary.n})</option>`).join('');
+  rsel.innerHTML = (DATA.reasoning||[]).map(r=>`<option value="${esc(r.runId)}">${esc(r.runId)} (${(r.models||[]).length}m)</option>`).join('');
   state.reasonRunId = (DATA.reasoning||[])[0]?.runId || null;
   if(state.reasonRunId) rsel.value = state.reasonRunId;
   rsel.onchange = ()=>{ state.reasonRunId=rsel.value; render(); };
