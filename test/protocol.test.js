@@ -10,6 +10,7 @@ import {
   formatQuestionsForTelegram,
   buildRecap,
   recapSource,
+  previewText,
   escapeHtml,
   ProtocolStreamFilter,
 } from '../src/protocol.js';
@@ -167,6 +168,35 @@ test('recapSource prefers the final result message over the full narration', () 
   const recap = buildRecap(recapSource(finalMessage, narration), null);
   assert.match(recap, /Pushed \+ promoted/);
   assert.ok(!recap.includes('On it, let me run the gate'), 'preamble is not previewed');
+});
+
+test('previewText returns the whole body when it fits the limit', () => {
+  const body = 'Short and complete.';
+  assert.equal(previewText(body, 500), body);
+});
+
+test('previewText keeps whole sentences and never cuts a word in half', () => {
+  // three sentences; budget admits the first two but not the third
+  const body =
+    'First sentence is here. Second sentence is here too. ' + 'word '.repeat(40).trim() + '.';
+  const out = previewText(body, 60);
+  assert.ok(out.endsWith(' …'), 'ends with an ellipsis marker');
+  assert.ok(out.startsWith('First sentence is here.'), 'starts at the beginning');
+  // the preview must be made of WHOLE words — no token is a fragment of a longer one
+  const lastWord = out.replace(/ …$/, '').split(' ').pop();
+  assert.ok(/[.!?]$/.test(lastWord), 'preview ends on a sentence boundary');
+});
+
+test('previewText falls back to a word boundary when the first sentence is too long', () => {
+  const body =
+    'thisisoneverylongrunon ' + 'alpha beta gamma delta epsilon zeta eta theta '.repeat(20);
+  const out = previewText(body, 50);
+  assert.ok(out.endsWith('…'), 'marked as truncated');
+  assert.ok(out.length <= 51, 'within the budget');
+  assert.ok(!/\S…$/.test(out) || out.lastIndexOf(' ') > 0, 'broke on a space, not mid-word');
+  // never splits a word: the char before the trailing content is a full token
+  const beforeEllipsis = out.slice(0, -1).trimEnd();
+  assert.ok(!beforeEllipsis.endsWith('alph') && !beforeEllipsis.endsWith('bet'));
 });
 
 test('recapSource strips protocol blocks and falls back to the narration', () => {

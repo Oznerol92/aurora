@@ -209,7 +209,11 @@ export function escapeHtml(text) {
  */
 export function buildRecap(answer, done) {
   if (done) {
-    const lines = ['✅ <b>Aurora finished</b>', '', escapeHtml(done.summary || '(no summary provided)')];
+    const lines = [
+      '✅ <b>Aurora finished</b>',
+      '',
+      escapeHtml(done.summary || '(no summary provided)'),
+    ];
     if (done.actions.length) {
       lines.push('', '<b>Next steps</b>');
       for (const a of done.actions) lines.push(`• ${escapeHtml(a)}`);
@@ -219,8 +223,31 @@ export function buildRecap(answer, done) {
     return lines.join('\n');
   }
   const body = stripProtocolBlocks(answer).replace(/\s+/g, ' ').trim();
-  const preview = body.length > 500 ? body.slice(0, 500).trimEnd() + '…' : body;
+  const preview = previewText(body, 500);
   return `✅ <b>Aurora finished a turn</b>\n\n${escapeHtml(preview) || '<i>(no response)</i>'}`;
+}
+
+/**
+ * A recap preview that never clips a word. Returns the whole body when it already
+ * fits within `limit`; otherwise keeps as many leading WHOLE sentences as fit and
+ * marks the remainder with an ellipsis. If even the first sentence is over budget
+ * (rare for a recap), it breaks at the last word boundary rather than mid-word — so
+ * the preview always reads as a complete thought, never a message cut in half.
+ */
+export function previewText(body, limit = 500) {
+  const text = String(body ?? '').trim();
+  if (text.length <= limit) return text;
+  let out = '';
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    const next = out ? `${out} ${sentence}` : sentence;
+    if (next.length > limit) break;
+    out = next;
+  }
+  if (out) return `${out} …`;
+  // First sentence alone exceeds the budget: break on the last word boundary.
+  const slice = text.slice(0, limit);
+  const cut = slice.lastIndexOf(' ');
+  return `${(cut > 0 ? slice.slice(0, cut) : slice).trimEnd()}…`;
 }
 
 /**
