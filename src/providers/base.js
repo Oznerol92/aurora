@@ -96,4 +96,13 @@ export class Provider {
   describe() {
     return this.constructor.label;
   }
+
+  /**
+   * The config field this provider reads its model from, so `/model` can target
+   * the active backend (model names aren't portable across providers). Defaults
+   * to "model"; providers with their own key (e.g. Codex) override this.
+   */
+  modelKey() {
+    return 'model';
+  }
 }

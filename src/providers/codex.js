@@ -134,6 +134,11 @@ export class CodexProvider extends Provider {
     return `${CodexProvider.label}${this.model ? ` · ${this.model}` : ''}`;
   }
 
+  /** Codex reads its model from `codexModel` (the shared `model` targets Claude). */
+  modelKey() {
+    return 'codexModel';
+  }
+
   /**
    * Args for `codex exec`. The prompt is read from stdin (we pass `-`), so a
    * large system+brain prompt can't hit argv limits or shell-quoting issues. On
@@ -148,6 +153,10 @@ export class CodexProvider extends Provider {
       SANDBOX_MODE,
       '--color',
       'never',
+      // Web search on, for research parity with the Claude backend (which has
+      // WebSearch/WebFetch). The sandbox still blocks file mutations.
+      '-c',
+      'tools.web_search=true',
     ];
     if (this.model) args.push('-m', this.model);
     if (this.started && this.threadId) args.push('resume', this.threadId);

@@ -730,7 +730,7 @@ async function handleCommand(text, ctx) {
       return true;
 
     case 'model':
-      handleModel(arg, ctx);
+      await handleModel(arg, ctx);
       return true;
 
     case 'config':
@@ -1007,13 +1007,9 @@ async function handleProvider(arg, ctx) {
   }
 
   try {
-    const next = getProvider(arg, ctx.config);
-    // Carry the same Aurora across the swap: re-apply the method brain + voice,
-    // and seed the new backend with the current transcript so the conversation
-    // continues (a native session can't transfer between CLIs). Only then make
-    // it current — if construction threw above, the old provider stays.
-    await applyBrainAndPersona(next, ctx.store, ctx.config);
-    if (ctx.hasStore && ctx.sessionId) await seedFromStore(next, ctx.store, ctx.sessionId);
+    // Build the new backend, then carry the same Aurora onto it. Only make it
+    // current on success — if construction threw, the old provider stays.
+    const next = await adoptProvider(getProvider(arg, ctx.config), ctx);
     ctx.provider = next;
     ctx.config.provider = arg;
     saveConfig(ctx.config);
@@ -1023,17 +1019,31 @@ async function handleProvider(arg, ctx) {
   }
 }
 
-function handleModel(arg, ctx) {
+/**
+ * Hand the running conversation to a freshly built provider: re-apply the method
+ * brain + voice and seed the transcript, so swapping the backend or the model
+ * keeps the same Aurora instead of starting blank. Returns the provider.
+ */
+async function adoptProvider(next, ctx) {
+  await applyBrainAndPersona(next, ctx.store, ctx.config);
+  if (ctx.hasStore && ctx.sessionId) await seedFromStore(next, ctx.store, ctx.sessionId);
+  return next;
+}
+
+async function handleModel(arg, ctx) {
+  // `/model` targets the ACTIVE provider's model field — names aren't portable
+  // across backends (a Claude model id means nothing to Codex, and vice versa).
+  const key = ctx.provider.modelKey?.() ?? 'model';
   if (!arg) {
-    console.log('\n' + info('Current model: ') + (ctx.config.model || '(provider default)'));
+    console.log('\n' + info('Current model: ') + (ctx.config[key] || '(provider default)'));
     console.log(info('Set with: ') + '/model <name>   ·   reset with /model default\n');
     return;
   }
-  ctx.config.model = arg === 'default' ? null : arg;
-  // Rebuild the provider so the new model takes effect on the next turn.
-  ctx.provider = getProvider(ctx.config.provider, ctx.config);
+  ctx.config[key] = arg === 'default' ? null : arg;
+  // Rebuild the provider so the new model takes effect, carrying brain + history.
+  ctx.provider = await adoptProvider(getProvider(ctx.config.provider, ctx.config), ctx);
   saveConfig(ctx.config);
-  console.log('\n' + info('Model set to: ') + (ctx.config.model || '(provider default)') + '\n');
+  console.log('\n' + info('Model set to: ') + (ctx.config[key] || '(provider default)') + '\n');
 }
 
 async function handleStore(arg, ctx) {

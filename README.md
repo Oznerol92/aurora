@@ -226,9 +226,10 @@ This is an open-source repo, so it's built to be safe to publish and share:
 needs the `codex` CLI on your `PATH` and signed in (`codex login`, or an
 `OPENAI_API_KEY` in the environment). Switching mid-conversation re-applies the
 brain and voice and seeds the new engine with the transcript, so it stays one
-Aurora. Codex runs read-only (it won't edit your files from a chat). The shared
-`/model` setting targets Claude; to pin a Codex model set `codexModel` in your
-config (otherwise the `codex` CLI's own default is used).
+Aurora. Both backends run read-only (they won't edit your files from a chat) with
+web search on. `/model` targets the **active** provider — model names aren't
+portable, so it writes to `model` for Claude and `codexModel` for Codex; `/model`
+with no argument shows the current one, `/model default` clears it.
 
 ## Adding another AI later
 

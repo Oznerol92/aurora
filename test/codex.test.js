@@ -20,8 +20,13 @@ test('a fresh provider has no thread and builds args without resume', () => {
   const args = p.buildArgs();
   assert.ok(args.includes('exec') && args.includes('--json'));
   assert.ok(args.includes('-s') && args.includes('read-only'), 'read-only sandbox');
+  assert.ok(args.includes('tools.web_search=true'), 'web search on for research parity');
   assert.ok(!args.includes('resume'), 'no resume on a fresh thread');
   assert.equal(args[args.length - 1], '-', 'prompt is read from stdin');
+});
+
+test('the model command targets codexModel, not the shared Claude model field', () => {
+  assert.equal(new CodexProvider().modelKey(), 'codexModel');
 });
 
 test('resume() reattaches so the next turn uses `resume <id>`', () => {
