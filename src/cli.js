@@ -21,6 +21,7 @@ import {
   runPersonaSetup,
 } from './setup.js';
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
+import { loadSkills, selectSkill, compileSkill } from './skills/corpus.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { loadChats, registerChat, removeChat } from './notify/chats.js';
@@ -406,6 +407,17 @@ async function streamResponse(ctx, text) {
   let message = text; // the current turn's user text (answers on follow-ups)
   let saveAs = null; // when set, persist this instead of the model-facing message
 
+  // Skill selection: a clear trigger match (or an armed `/skill use <id>`)
+  // compiles the skill's plan — procedure + named brain rules + template — and
+  // prepends it for this turn. The store keeps the user's original text, not the
+  // scaffolding (same trick `/read` uses). Applies to the opening message only.
+  const applied = applySkillToMessage(ctx, text);
+  if (applied) {
+    message = `${applied.block}\n\n${text}`;
+    saveAs = text;
+    console.log(dim(`  · skill: ${applied.skill.id}`));
+  }
+
   while (true) {
     // Persist the user turn up front (before the model is called) so an interrupt
     // or crash mid-answer can't lose it. Pin the session id now so the user turn
@@ -764,6 +776,11 @@ async function handleCommand(text, ctx) {
       await handleBrain(arg, ctx);
       return true;
 
+    case 'skill':
+    case 'skills':
+      handleSkill(arg, ctx);
+      return true;
+
     case 'persona':
       await handlePersona(arg, ctx);
       return true;
@@ -802,6 +819,84 @@ async function applyBrainAndPersona(provider, store, config) {
   } catch {
     provider.setPersona?.(null);
   }
+}
+
+/**
+ * Choose and compile a skill for a user message, or null. Honours an armed
+ * `/skill use <id>` (ctx.pendingSkill, one-shot) first, then auto-selects by
+ * trigger when skills are enabled. Best-effort: any failure just means no skill.
+ */
+function applySkillToMessage(ctx, text) {
+  const forcedId = ctx.pendingSkill || null;
+  ctx.pendingSkill = null;
+  if (!forcedId && ctx.config.skills?.enabled === false) return null;
+  let skills;
+  try {
+    skills = loadSkills();
+  } catch {
+    return null;
+  }
+  if (!skills.length) return null;
+  const skill = forcedId ? skills.find((s) => s.id === forcedId) : selectSkill(skills, text);
+  if (!skill) {
+    if (forcedId) console.log('\n' + warn(`  No skill "${forcedId}". Try /skill list.`) + '\n');
+    return null;
+  }
+  let brainCards = [];
+  try {
+    if (ctx.config.brain?.enabled !== false) brainCards = loadBrainCards();
+  } catch {
+    brainCards = [];
+  }
+  const block = compileSkill(skill, brainCards);
+  return block ? { block, skill } : null;
+}
+
+/** /skill — list, inspect, arm, or toggle executable skills. */
+function handleSkill(arg, ctx) {
+  const [sub, ...rest] = String(arg || '').split(/\s+/);
+  const subArg = rest.join(' ').trim();
+  const skills = loadSkills();
+
+  if (!sub || sub === 'list') {
+    const state = ctx.config.skills?.enabled === false ? warn(' (auto-skill off)') : '';
+    console.log('\n' + info('Skills:') + state);
+    if (!skills.length) {
+      console.log(
+        '  ' + dim('none found — add a .md to ./.aurora/skills or ~/.config/aurora/skills') + '\n',
+      );
+      return;
+    }
+    for (const s of skills) console.log(`  ${s.id} — ${s.title}\n      ${dim(s.when_to_use)}`);
+    console.log(info('\n  Use: ') + '/skill show <id> · /skill use <id> · /skill on|off\n');
+    return;
+  }
+  if (sub === 'show') {
+    const s = skills.find((x) => x.id === subArg);
+    if (!s) return void console.log('\n' + warn(`  No skill "${subArg}".`) + '\n');
+    console.log('\n' + info(`Skill: ${s.id}`) + ` — ${s.title}`);
+    console.log(`  when: ${dim(s.when_to_use)}`);
+    if (s.brain?.length) console.log(`  brain: ${s.brain.join(', ')}`);
+    if (s.template) console.log(`  template: ${s.template}`);
+    if (s.asks?.length) console.log(`  asks: ${s.asks.length} question(s)`);
+    console.log('\n' + renderMarkdown(s.body) + '\n');
+    return;
+  }
+  if (sub === 'use') {
+    if (!skills.find((x) => x.id === subArg)) {
+      return void console.log('\n' + warn(`  No skill "${subArg}". Try /skill list.`) + '\n');
+    }
+    ctx.pendingSkill = subArg;
+    console.log('\n' + info(`  Next message will use skill "${subArg}".`) + '\n');
+    return;
+  }
+  if (sub === 'on' || sub === 'off') {
+    (ctx.config.skills ||= {}).enabled = sub === 'on';
+    saveConfig(ctx.config);
+    console.log('\n' + info(`  Auto-skill ${sub === 'on' ? 'enabled' : 'disabled'}.`) + '\n');
+    return;
+  }
+  console.log('\n' + warn('  Usage: /skill [list|show <id>|use <id>|on|off]') + '\n');
 }
 
 /** /brain — show, toggle, or inspect the curated method brain. */
@@ -1566,6 +1661,7 @@ function printHelp() {
         ['/export [id]', 'save a conversation to a Markdown file (no id = current)'],
         ['/notify [on|off|test|whoami|list|forget]', 'Telegram alerts; whoami registers your chat'],
         ['/brain [list|show|why|on|off]', 'the curated method brain Aurora writes/researches by'],
+        ['/skill [list|show|use|on|off]', 'executable skills Aurora plans and runs a task by'],
         ['/persona [show|set|ingest]', 'shape Aurora to write in your voice'],
         ['/config', 'show config file path and contents'],
         ['/clear', 'clear the screen'],

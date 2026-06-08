@@ -98,6 +98,33 @@ filtered out of the stream, so you only ever see the question or the recap, neve
 the markup. Recaps follow the `/notify` toggle (see
 [Notifications](#notifications-optional)).
 
+## Skills
+
+A **skill** turns a request into a plan. Where the **brain** is passive method
+knowledge Aurora reads, a skill is a procedure Aurora _runs_: it names the brain
+rules to load, an optional template to fill, the questions to ask up front, and a
+**plan → execute → verify** sequence. When a message clearly matches a skill's
+trigger, Aurora compiles it and follows it for that turn (you'll see a small
+`· skill: <id>` note); the conversation still stores your original message, not
+the scaffolding. Skills work the same on either provider.
+
+Aurora ships with `write-article` (a credible, anti-hype article writer that
+fills the article skeleton and verifies against the quality gate). Manage skills
+with **`/skill`**:
+
+| Command            | What it does                                      |
+| ------------------ | ------------------------------------------------- |
+| `/skill` / `list`  | list available skills                             |
+| `/skill show <id>` | show a skill's plan, rules, and template          |
+| `/skill use <id>`  | force a skill on your next message                |
+| `/skill on \| off` | toggle automatic trigger-matching (on by default) |
+
+**Write your own.** A skill is a Markdown file with flat frontmatter
+(`when_to_use`, `brain`, `template`, `asks`) and a procedure body. Drop it in
+`./.aurora/skills/` (project) or `~/.config/aurora/skills/` (global) — later dirs
+override a built-in with the same `id`. See `skills/write-article.md` for the
+shape.
+
 ## Persistence (optional)
 
 **On first launch**, Aurora runs a one-time setup that asks whether to save your

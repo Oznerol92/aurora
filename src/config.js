@@ -30,6 +30,11 @@ const DEFAULTS = {
   // session's system prompt. Non-secret toggle only.
   brain: { enabled: true },
 
+  // Executable "skills" (see src/skills/ and the skills/ corpus). When enabled,
+  // a message that clearly matches a skill's trigger gets that skill's plan
+  // (procedure + named brain rules + template) injected for the turn. Non-secret.
+  skills: { enabled: true },
+
   // The user's voice/characteristics profile. The profile text itself lives in
   // the store (never here — it's personal); config holds only the toggles.
   // `enabled` gates injection; `prompted` records that the one-time setup ran.
