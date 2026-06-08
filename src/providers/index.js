@@ -1,4 +1,5 @@
 import { ClaudeProvider } from './claude.js';
+import { CodexProvider } from './codex.js';
 import { Provider } from './base.js';
 
 /**
@@ -8,8 +9,10 @@ import { Provider } from './base.js';
  */
 const REGISTRY = {
   [ClaudeProvider.id]: ClaudeProvider,
+  [CodexProvider.id]: CodexProvider,
   // Placeholders for the future — listed so the UI can show what's planned.
-  openai: makePlaceholder('openai', 'OpenAI (GPT)'),
+  // `openai` is reserved for a direct-API provider, distinct from the Codex CLI.
+  openai: makePlaceholder('openai', 'OpenAI API (GPT)'),
   gemini: makePlaceholder('gemini', 'Google Gemini'),
 };
 

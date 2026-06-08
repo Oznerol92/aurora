@@ -2,7 +2,7 @@
 
 A research-grade AI chat in your terminal. Aurora opens with the **Aurora Research Method** — a 6-module workflow for running serious, well-cited research — then drops you into a chat.
 
-It's **provider-agnostic** by design: the UI talks to a small provider interface, so new AIs slot in without touching anything else. Today it ships with one backend — **Claude**, driven through your local `claude` (Claude Code) CLI, so it uses your existing subscription auth with no API key.
+It's **provider-agnostic** by design: the UI talks to a small provider interface, so new AIs slot in without touching anything else. It ships with two backends — **Claude** (via your local `claude` / Claude Code CLI) and **Codex** (via the OpenAI `codex` CLI) — and switching between them with `/provider` keeps the _same Aurora_: identity, voice, and method brain are shared across engines, only the model underneath changes. Both reuse the CLI's own auth, so there's no API key for Aurora to hold.
 
 Plain `aurora` also brings up a two-way **Telegram bridge** in the background (when configured), so the same conversation follows you to your phone — one command, terminal and Telegram on one shared session.
 
@@ -220,16 +220,28 @@ This is an open-source repo, so it's built to be safe to publish and share:
 - **Least privilege at runtime.** The Claude backend runs read-only + web tools
   only (see _How it works_), so a chat can't modify your files.
 
+### Providers
+
+`/provider` lists the backends and `/provider <id>` switches; `/provider codex`
+needs the `codex` CLI on your `PATH` and signed in (`codex login`, or an
+`OPENAI_API_KEY` in the environment). Switching mid-conversation re-applies the
+brain and voice and seeds the new engine with the transcript, so it stays one
+Aurora. Codex runs read-only (it won't edit your files from a chat). The shared
+`/model` setting targets Claude; to pin a Codex model set `codexModel` in your
+config (otherwise the `codex` CLI's own default is used).
+
 ## Adding another AI later
 
-The provider layer is already scalable. To add, say, OpenAI:
+The provider layer is scalable — `src/providers/codex.js` is a worked example.
+To add, say, Gemini:
 
-1. Create `src/providers/openai.js` with a class extending `Provider`
+1. Create `src/providers/gemini.js` with a class extending `Provider`
    (`src/providers/base.js` documents the contract: an async `send()` that
-   yields `status` / `delta` / `done` events, plus `reset()`).
+   yields `status` / `delta` / `done` events, plus `reset()` / `resume()` /
+   `seed()` / `abort()` / `setBrainCards()` / `setPersona()`).
 2. Register it in `src/providers/index.js`.
 
-Nothing in the CLI or UI needs to change — `/provider openai` will just work.
+Nothing in the CLI or UI needs to change — `/provider gemini` will just work.
 
 ## Benchmark (dev tool)
 
@@ -248,9 +260,9 @@ bash bench/publish.sh                                  # deploy it to Netlify
 ```
 
 It can compare Claude (via the `claude` CLI) against other vendors (OpenAI,
-Gemini) for a few cents, with a cost cap — but those vendor calls live **only in
-the benchmark**; they don't add a provider to Aurora, which stays Claude-only by
-design. The latest report is published at <https://aurora-bm.netlify.app>. See
+Gemini) for a few cents, with a cost cap — those benchmark vendor calls are
+separate from Aurora's own backends (currently Claude and Codex). The latest
+report is published at <https://aurora-bm.netlify.app>. See
 [`bench/README.md`](bench/README.md) for the full workflow (run → grade → report
 → publish), the cheap multi-vendor smoke, and the scoring rubric.
 
@@ -358,6 +370,8 @@ src/config.js            load/save ~/.config/aurora/config.json
 src/providers/
   base.js                Provider interface (the contract)
   claude.js              Claude backend via the claude CLI
+  codex.js               Codex backend via the codex CLI
+  prompt.js              shared identity (persona, protocol, seed) + system-prompt build
   index.js               provider registry
 src/store/               optional persistence (pluggable, opt-in)
   base.js                Store interface (the contract)

@@ -726,7 +726,7 @@ async function handleCommand(text, ctx) {
       return true;
 
     case 'provider':
-      handleProvider(arg, ctx);
+      await handleProvider(arg, ctx);
       return true;
 
     case 'model':
@@ -992,7 +992,7 @@ async function handlePersona(arg, ctx) {
   );
 }
 
-function handleProvider(arg, ctx) {
+async function handleProvider(arg, ctx) {
   if (!arg || arg === 'list') {
     console.log('\n' + info('Providers:'));
     for (const p of listProviders()) {
@@ -1008,6 +1008,12 @@ function handleProvider(arg, ctx) {
 
   try {
     const next = getProvider(arg, ctx.config);
+    // Carry the same Aurora across the swap: re-apply the method brain + voice,
+    // and seed the new backend with the current transcript so the conversation
+    // continues (a native session can't transfer between CLIs). Only then make
+    // it current — if construction threw above, the old provider stays.
+    await applyBrainAndPersona(next, ctx.store, ctx.config);
+    if (ctx.hasStore && ctx.sessionId) await seedFromStore(next, ctx.store, ctx.sessionId);
     ctx.provider = next;
     ctx.config.provider = arg;
     saveConfig(ctx.config);

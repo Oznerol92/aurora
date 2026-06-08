@@ -2,63 +2,18 @@ import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 import { randomUUID } from 'node:crypto';
 import { Provider } from './base.js';
-import { composeSystemPrompt } from './prompt.js';
+import {
+  composeSystemPrompt,
+  AURORA_PERSONA,
+  INTERACTION_PROTOCOL,
+  SEED_MAX_TURNS,
+  seedPreamble,
+} from './prompt.js';
 import { buildBrainIndex, selectRelevantCards, formatTurnBrain } from '../brain/corpus.js';
 
-/**
- * Aurora's persona, appended to Claude's system prompt on the first turn of a
- * session. Kept short on purpose — the research workflow itself lives in the
- * startup template, not buried in the system prompt.
- */
-const AURORA_PERSONA = [
-  'You are Aurora, a research-oriented AI assistant running inside a terminal chat.',
-  'You help the user run serious, well-cited research and think clearly.',
-  'Favour primary sources with links and dates; when evidence is thin, say so',
-  'explicitly rather than filling the gap with confident speculation.',
-  'Surface contested or unsettled areas instead of papering over them.',
-  'Keep prose tight. Use Markdown (headings, tables, lists, code blocks) since',
-  'the terminal renders it. When a web lookup would materially improve an answer,',
-  'use your web search / fetch tools.',
-].join(' ');
-
-/**
- * Interaction protocol, appended to the system prompt on a fresh session. It
- * teaches the model to talk back at turn boundaries: ask the user (via an
- * `aurora:ask` block) instead of guessing when a decision matters, and sign off
- * a finished job with an `aurora:done` recap block. Aurora parses these blocks
- * (src/protocol.js), renders the questions as a popup / numbered options, feeds
- * the answers back, and pushes the recap to Telegram. Injected once per session;
- * the resumed CLI keeps it in context for later turns.
- */
-const INTERACTION_PROTOCOL = [
-  'INTERACTION PROTOCOL — you can talk back to the user, not just answer.',
-  '',
-  'When a decision, preference, or missing fact would change what you produce, do',
-  'NOT guess or silently pick for the user. Stop and ask. End that message with',
-  'exactly one fenced block as the very last thing (nothing after it):',
-  '',
-  '```aurora:ask',
-  '{"questions":[{"header":"Short label","question":"Full question?","options":["Option A","Option B"],"multiSelect":false}]}',
-  '```',
-  '',
-  'Asking rules:',
-  '- Ask 1–4 questions at once. "options" is optional — omit it (or use []) for a',
-  '  free-form answer. Set "multiSelect": true when several options can combine.',
-  '- Put any human-readable framing in prose ABOVE the block; the block stays last.',
-  '- Aurora shows these as a popup / numbered options and feeds the answers back to',
-  '  you on the next turn, so just ask and wait — do not also guess the answer.',
-  '- Never skip a question that genuinely needs the user’s input or judgement.',
-  '',
-  'When a task or job is finished and there is nothing left to ask, end the',
-  'message with a recap block as the very last thing:',
-  '',
-  '```aurora:done',
-  '{"summary":"One or two sentences on what you did.","actions":["Anything the user must do next"]}',
-  '```',
-  '',
-  'Use "actions": [] when nothing is required from the user. Emit at most one',
-  'aurora:ask OR one aurora:done block per message, always as the final content.',
-].join('\n');
+// Aurora's identity (persona + interaction protocol) and the seed-preamble
+// helper are shared across providers via ./prompt.js, so switching the backend
+// keeps the same Aurora. Only Claude-specific config lives here.
 
 /**
  * Tools Aurora is allowed to use. Deliberately read-only + web: enough to do
@@ -66,11 +21,6 @@ const INTERACTION_PROTOCOL = [
  * Anything not listed is auto-denied in headless mode (no hanging prompts).
  */
 const ALLOWED_TOOLS = ['WebSearch', 'WebFetch', 'Read', 'Glob', 'Grep'];
-
-/** How many recent turns to carry as context when seeding a fresh session. */
-const SEED_MAX_TURNS = 12;
-/** Cap each seeded turn so a long answer can't blow up the system prompt. */
-const SEED_MAX_CHARS = 4000;
 
 /**
  * Claude provider, driven through the local `claude` CLI in headless mode.
@@ -452,25 +402,6 @@ function classifyExit(stderr) {
     return `Network error reaching Claude${code ? ` (${code.toUpperCase()})` : ''}. Check your connection and retry.`;
   }
   return null;
-}
-
-/** Render seeded turns as a bounded transcript for the fresh-session preamble. */
-function seedPreamble(turns) {
-  const body = turns
-    .map((t) => {
-      const who = t.role === 'user' ? 'User' : 'Aurora';
-      const text = String(t.text).slice(0, SEED_MAX_CHARS);
-      return `${who}: ${text}`;
-    })
-    .join('\n\n');
-  return [
-    'The following is the conversation so far, resumed from a saved session.',
-    'Treat it as prior context and continue naturally — do not repeat it back.',
-    '',
-    '--- TRANSCRIPT START ---',
-    body,
-    '--- TRANSCRIPT END ---',
-  ].join('\n');
 }
 
 /**
