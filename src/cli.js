@@ -1088,30 +1088,69 @@ async function handlePersona(arg, ctx) {
 }
 
 async function handleProvider(arg, ctx) {
-  if (!arg || arg === 'list') {
-    console.log('\n' + info('Providers:'));
-    for (const p of listProviders()) {
-      const current = p.id === ctx.config.provider ? warn('  ◀ current') : '';
-      const status = p.implemented ? '' : warn(' (planned)');
-      console.log(
-        `  ${p.id === ctx.config.provider ? '●' : '○'} ${p.id} — ${p.label}${status}${current}`,
-      );
+  const providers = listProviders();
+  const impl = providers.filter((p) => p.implemented); // switchable, numbered 1..N
+
+  if (arg === 'list') {
+    printProviderList(providers, ctx.config.provider);
+    return;
+  }
+
+  // Resolve the target backend: a number picks the Nth switchable provider, a
+  // name picks by id, and no argument opens a numbered chooser (TTY only).
+  let targetId = null;
+  if (/^\d+$/.test(arg)) {
+    targetId = impl[Number(arg) - 1]?.id;
+    if (!targetId) {
+      console.log('\n' + error(`No provider #${arg}. Run /provider to see the list.`) + '\n');
+      return;
     }
-    console.log(info('\n  Switch with: ') + '/provider <id>\n');
+  } else if (arg) {
+    targetId = arg;
+  } else {
+    printProviderList(providers, ctx.config.provider);
+    if (!ctx.printer && !process.stdin.isTTY) return; // non-interactive: just listed
+    const options = impl.map((p) => `${p.id} — ${p.label}`);
+    const [answer] = await askInTerminal(
+      ctx.rl,
+      [{ header: 'Provider', question: 'Switch Aurora’s backend to:', options, multiSelect: false }],
+      ctx.printer,
+    );
+    if (answer == null) return; // stdin closed
+    const picked = impl.find((p) => `${p.id} — ${p.label}` === answer);
+    targetId = picked ? picked.id : String(answer).trim().toLowerCase();
+  }
+
+  if (targetId === ctx.config.provider) {
+    console.log('\n' + info('Already on: ') + ctx.provider.describe() + '\n');
     return;
   }
 
   try {
     // Build the new backend, then carry the same Aurora onto it. Only make it
     // current on success — if construction threw, the old provider stays.
-    const next = await adoptProvider(getProvider(arg, ctx.config), ctx);
+    const next = await adoptProvider(getProvider(targetId, ctx.config), ctx);
     ctx.provider = next;
-    ctx.config.provider = arg;
+    ctx.config.provider = targetId;
     saveConfig(ctx.config);
     console.log('\n' + info('Switched to: ') + next.describe() + '\n');
   } catch (e) {
     console.log('\n' + error(e.message) + '\n');
   }
+}
+
+/** Print the providers as a numbered list (only switchable ones get a number). */
+function printProviderList(providers, currentId) {
+  console.log('\n' + info('Providers:'));
+  let n = 0;
+  for (const p of providers) {
+    const mark = p.id === currentId ? '●' : '○';
+    const num = p.implemented ? warn(`${++n}. `) : '   ';
+    const status = p.implemented ? '' : warn(' (planned)');
+    const current = p.id === currentId ? warn('  ◀ current') : '';
+    console.log(`  ${mark} ${num}${p.id} — ${p.label}${status}${current}`);
+  }
+  console.log(info('\n  Switch: ') + '/provider <number|id> — or just /provider to choose\n');
 }
 
 /**
@@ -1650,7 +1689,7 @@ function printHelp() {
         ['/help', 'show this help'],
         ['/template', 'show the Aurora Research Method again'],
         ['/new', 'start a fresh conversation (clears context)'],
-        ['/provider [id]', 'list providers, or switch backend'],
+        ['/provider [n|id]', 'switch backend — pick a number, name, or just /provider'],
         ['/model [name]', 'show or set the model (/model default to reset)'],
         [
           '/store [id]',
