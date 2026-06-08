@@ -2,9 +2,12 @@
  * Telegram notifier — optionally ping the user when a turn finishes.
  *
  * SECURITY NOTES (this repo is open source):
- *   - Secrets come from the environment first (TELEGRAM_BOT_TOKEN,
- *     TELEGRAM_CHAT_ID); config values are only a local fallback. Never commit
- *     a token — .gitignore covers .env, and /config masks secrets.
+ *   - The bot token is the only secret; it comes from the environment ONLY
+ *     (TELEGRAM_BOT_TOKEN), never disk. Never commit a token — .gitignore covers
+ *     .env, and /config masks secrets.
+ *   - Chat ids are NOT secrets (just routing numbers, useless without the token)
+ *     and are learned from `/start` and kept in a local registry (notify/chats.js).
+ *     TELEGRAM_CHAT_ID is an optional env override, no longer required.
  *   - The token is never logged; failures report a generic message.
  *   - Messages are plain text by default (no parse_mode), so user/research content
  *     can't be interpreted as Telegram markup. The finish recap opts into HTML
@@ -13,10 +16,12 @@
  *   - The request uses HTTPS and a hard timeout so a hung network call can't
  *     wedge the CLI.
  *
- * Setup: message @BotFather → /newbot for a token; send your bot a message,
- * then read the chat id from
- *   https://api.telegram.org/bot<TOKEN>/getUpdates
+ * Setup: message @BotFather → /newbot for a token; then send your bot `/start`
+ * (or run `/notify whoami` from the REPL) to register your chat — no chat id to
+ * copy by hand.
  */
+
+import { listChatIds } from './chats.js';
 
 const TELEGRAM_MAX_LEN = 4096;
 const TIMEOUT_MS = 10_000;
@@ -38,15 +43,26 @@ export function failureReason(e) {
   return code ? `network error (${code})` : 'network error';
 }
 
+/** The bot token from the ENVIRONMENT ONLY (never disk). Null if unset. */
+export function resolveBotToken() {
+  return process.env.TELEGRAM_BOT_TOKEN || null;
+}
+
 /**
- * Resolve credentials from the ENVIRONMENT ONLY (never from config on disk).
- * Returns null if either value is missing.
+ * Every chat we should reach, deduped: the optional TELEGRAM_CHAT_ID override
+ * plus everything in the local registry (notify/chats.js). Strings, since that's
+ * the form Telegram comparisons use.
  */
-export function resolveTelegramCreds() {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN || null;
-  const chatId = process.env.TELEGRAM_CHAT_ID || null;
-  if (!botToken || !chatId) return null;
-  return { botToken, chatId: String(chatId) };
+export function telegramTargets() {
+  const ids = new Set();
+  if (process.env.TELEGRAM_CHAT_ID) ids.add(String(process.env.TELEGRAM_CHAT_ID));
+  for (const id of listChatIds()) ids.add(String(id));
+  return [...ids];
+}
+
+/** Telegram can be reached: a token is set AND at least one chat is known. */
+export function telegramConfigured() {
+  return Boolean(resolveBotToken()) && telegramTargets().length > 0;
 }
 
 /**
@@ -88,32 +104,54 @@ export async function fetchTelegramChats() {
 }
 
 export function telegramEnabled(config = {}) {
-  return Boolean(config.notify?.telegram?.enabled) && resolveTelegramCreds() !== null;
+  return Boolean(config.notify?.telegram?.enabled) && telegramConfigured();
 }
 
 /**
  * Send a Telegram message. Best-effort: returns { ok, error? } and never throws,
  * so notification problems can't break the chat loop.
  *
+ * Targeting: pass `{ chatId }` to reach exactly one chat (the bridge uses this to
+ * reply to whoever wrote). With no `chatId` the message is BROADCAST to every
+ * registered chat (`telegramTargets`) — that's the notify-on-done path. The
+ * result is { ok:true, sent } if at least one delivery succeeded.
+ *
  * By default the message is sent as plain text (no parse_mode), so arbitrary
  * user/research content can't be interpreted as Telegram markup. Pass
  * `{ parseMode: 'HTML' }` ONLY for text whose dynamic parts are already escaped
  * (see `escapeHtml` / `buildRecap`); otherwise stray `<`/`>`/`&` break rendering.
  */
-export async function sendTelegram(text, _config = {}, { parseMode } = {}) {
-  const creds = resolveTelegramCreds();
-  if (!creds) return { ok: false, error: 'telegram credentials not configured' };
+export async function sendTelegram(text, _config = {}, { parseMode, chatId } = {}) {
+  const botToken = resolveBotToken();
+  if (!botToken) return { ok: false, error: 'TELEGRAM_BOT_TOKEN is not set' };
+
+  const targets = chatId ? [String(chatId)] : telegramTargets();
+  if (!targets.length) {
+    return { ok: false, error: 'no Telegram chats registered (send the bot /start)' };
+  }
 
   const body = String(text ?? '').slice(0, TELEGRAM_MAX_LEN);
   if (!body) return { ok: false, error: 'empty message' };
 
-  const payload = { chat_id: creds.chatId, text: body, disable_web_page_preview: true };
+  let sent = 0;
+  let lastError = null;
+  for (const target of targets) {
+    const res = await postMessage(botToken, target, body, parseMode);
+    if (res.ok) sent += 1;
+    else lastError = res.error;
+  }
+  return sent ? { ok: true, sent } : { ok: false, error: lastError || 'no chats reachable' };
+}
+
+/** POST one sendMessage with the shared timeout. Never throws. */
+async function postMessage(botToken, chatId, body, parseMode) {
+  const payload = { chat_id: chatId, text: body, disable_web_page_preview: true };
   if (parseMode) payload.parse_mode = parseMode;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`https://api.telegram.org/bot${creds.botToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),

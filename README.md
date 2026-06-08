@@ -45,21 +45,21 @@ chat` opens the REPL.
 
 ### In-chat commands
 
-| Command                           | What it does                                            |
-| --------------------------------- | ------------------------------------------------------- |
-| `/help`                           | show commands                                           |
-| `/template`                       | show the Aurora Research Method again                   |
-| `/new`                            | start a fresh conversation (clears context)             |
-| `/provider [id]`                  | list providers, or switch backend                       |
-| `/model [name]`                   | show or set the model (`/model default` to reset)       |
-| `/store [id]`                     | switch persistence; `/store scope global\|project`      |
-| `/history`                        | list saved conversations, with previews (needs a store) |
-| `/resume [id]`                    | reattach to a conversation (no id = most recent)        |
-| `/export [id]`                    | save a conversation to Markdown (no id = current)       |
-| `/notify [on\|off\|test\|whoami]` | Telegram alerts; `whoami` finds your chat id            |
-| `/config`                         | show config path + contents (secrets masked)            |
-| `/clear`                          | clear the screen                                        |
-| `/exit`                           | quit (or Ctrl-D)                                        |
+| Command                                         | What it does                                            |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `/help`                                         | show commands                                           |
+| `/template`                                     | show the Aurora Research Method again                   |
+| `/new`                                          | start a fresh conversation (clears context)             |
+| `/provider [id]`                                | list providers, or switch backend                       |
+| `/model [name]`                                 | show or set the model (`/model default` to reset)       |
+| `/store [id]`                                   | switch persistence; `/store scope global\|project`      |
+| `/history`                                      | list saved conversations, with previews (needs a store) |
+| `/resume [id]`                                  | reattach to a conversation (no id = most recent)        |
+| `/export [id]`                                  | save a conversation to Markdown (no id = current)       |
+| `/notify [on\|off\|test\|whoami\|list\|forget]` | Telegram alerts; `whoami` registers your chat           |
+| `/config`                                       | show config path + contents (secrets masked)            |
+| `/clear`                                        | clear the screen                                        |
+| `/exit`                                         | quit (or Ctrl-D)                                        |
 
 ## How it works
 
@@ -152,14 +152,18 @@ it did plus any action items (see
 Handy for long research runs. Enable with `/notify on`, test with `/notify test`.
 
 ```bash
-export TELEGRAM_BOT_TOKEN=...   # from @BotFather
-export TELEGRAM_CHAT_ID=...     # your chat id
+export TELEGRAM_BOT_TOKEN=...   # from @BotFather — that's all you need
 ```
 
-Don't know your chat id? Set just the bot token, send your bot any message,
-then run **`/notify whoami`** — Aurora calls `getUpdates` and prints the chats
-that have messaged your bot, ready to paste into your `.env`. (Aurora never
-writes secrets — token or chat id — to disk; they live only in the environment.)
+No chat id to copy. Set just the bot token, then **send your bot `/start`** —
+Aurora registers that chat locally (`~/.config/aurora/telegram-chats.json`) and
+notifications go to every registered chat. From the REPL you can also run
+**`/notify whoami`** to discover and register any chat that has messaged the bot,
+**`/notify list`** to see them, and **`/notify forget <id>`** to drop one. The
+bot **token** is the only secret and is read only from the environment, never
+disk; a chat id is just a routing number, so it's kept in the local registry.
+`TELEGRAM_CHAT_ID` still works as an optional override if you'd rather pin a
+single chat.
 
 ### Server mode (listeners)
 
@@ -179,17 +183,18 @@ array with a `name`, an `available()` check, and a `start()` function, and
 (logged), not crashed; if nothing is configured, the server exits with an error.
 
 The **Telegram bridge** long-polls for messages, runs each through the AI, and
-replies on Telegram. Send `/new` to start a fresh conversation. **Security:**
-only messages from your `TELEGRAM_CHAT_ID` are processed — a public bot can be
-messaged by anyone, so every other sender is ignored, and the bridge refuses to
-start without that id. (`aurora --telegram` still works as an alias for
-`--serve`.)
+replies on Telegram. Send `/new` to start a fresh conversation. **Authorization:**
+a chat must register itself by sending **`/start`** before it can drive the model
+— a public bot can be messaged by anyone, so unregistered chats are ignored until
+they opt in. Registrations persist locally; `TELEGRAM_CHAT_ID`, if set, is always
+authorized too. The bridge needs only the bot token to start. (`aurora --telegram`
+still works as an alias for `--serve`.)
 
 **You usually don't need `--serve` for Telegram.** Plain `aurora` already starts
-every available listener (the bridge boots whenever `TELEGRAM_BOT_TOKEN` and
-`TELEGRAM_CHAT_ID` are set) alongside the REPL, so one terminal drives both the
-command line and your phone. Reach for `--serve` when you want a **headless**
-server with no REPL — e.g. running it under systemd/pm2.
+every available listener (the bridge boots whenever `TELEGRAM_BOT_TOKEN` is set)
+alongside the REPL, so one terminal drives both the command line and your phone.
+Reach for `--serve` when you want a **headless** server with no REPL — e.g.
+running it under systemd/pm2.
 
 Run only **one** poller at a time, though: Telegram lets a single client
 long-poll `getUpdates`, so two live bridges fight over it. If you open a second
@@ -201,10 +206,12 @@ the way to launch a quick local chat without pinging Telegram at all.)
 
 This is an open-source repo, so it's built to be safe to publish and share:
 
-- **Secrets never touch disk.** The bot token and chat id are read _only_ from
-  the environment (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optionally via a
-  gitignored `.env`). Aurora never writes them to `config.json`. `.gitignore`
-  covers `.env`, `*.sqlite`, `*.db`, `data/`, and `.aurora/`.
+- **The bot token never touches disk.** It's read _only_ from the environment
+  (`TELEGRAM_BOT_TOKEN`, optionally via a gitignored `.env`) and never written to
+  `config.json`. Chat ids are not secrets (useless without the token), so the
+  registry of chats that have `/start`ed lives at
+  `~/.config/aurora/telegram-chats.json` (`chmod 600`). `.gitignore` covers
+  `.env`, `*.sqlite`, `*.db`, `data/`, and `.aurora/`.
 - **Secrets are never logged** — not in `/config`, not on API errors.
 - **Config file is `chmod 600`** (owner-only) since it may hold a token.
 - **No injection surface.** SQLite uses parameterized queries; Telegram messages

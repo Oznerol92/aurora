@@ -23,6 +23,7 @@ import {
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
+import { loadChats, registerChat, removeChat } from './notify/chats.js';
 import { aiPreview } from './notify/preview.js';
 import {
   ProtocolStreamFilter,
@@ -1432,12 +1433,16 @@ function renderBridgeMirror(event, printer) {
 
 async function handleNotify(arg, ctx) {
   const tg = ((ctx.config.notify ||= {}).telegram ||= {});
+  // Split the argument into a subcommand and its remainder (e.g. "forget 123").
+  const [sub, ...subRest] = String(arg || '').split(/\s+/);
+  const subArg = subRest.join(' ').trim();
   if (arg === 'test') {
     if (!telegramEnabled(ctx.config)) {
       console.log(
         '\n' +
           warn(
-            'Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID, then enable it.',
+            'Telegram not configured. Set TELEGRAM_BOT_TOKEN, register a chat with ' +
+              '/notify whoami (or send the bot /start), then enable it with /notify on.',
           ) +
           '\n',
       );
@@ -1448,7 +1453,9 @@ async function handleNotify(arg, ctx) {
     return;
   }
   if (arg === 'whoami') {
-    console.log('\n' + info('Looking up your chat id via getUpdates…'));
+    // Discover chats that have messaged the bot and register them, so terminal
+    // notifications reach them without anyone exporting a chat id by hand.
+    console.log('\n' + info('Looking up chats via getUpdates…'));
     const res = await fetchTelegramChats();
     if (!res.ok) {
       console.log(error('  ✖ ' + res.error) + '\n');
@@ -1456,19 +1463,49 @@ async function handleNotify(arg, ctx) {
     }
     if (!res.chats.length) {
       console.log(
-        warn('  No chats found. Send your bot a message first, then run /notify whoami again.') +
-          '\n',
+        warn('  No chats found. Send your bot /start first, then run /notify whoami again.') + '\n',
       );
       return;
     }
+    let added = 0;
     console.log(info('  Chats that have messaged your bot:'));
     for (const c of res.chats) {
-      console.log(`    ${c.id}  —  ${c.name || '(no name)'} ${warn('[' + c.type + ']')}`);
+      const result = registerChat({ id: c.id, name: c.name, type: c.type });
+      if (result.added) added += 1;
+      const tag = result.added ? info(' [registered]') : warn(' [already known]');
+      console.log(`    ${c.id}  —  ${c.name || '(no name)'} ${warn('[' + c.type + ']')}${tag}`);
     }
-    // Print-only: Aurora never writes the chat id to disk. Export it yourself.
-    const one = res.chats.length === 1 ? res.chats[0].id : '<chat-id>';
-    console.log(info('\n  Add it to your environment (e.g. .env):'));
-    console.log('    export TELEGRAM_CHAT_ID=' + one + '\n');
+    console.log(
+      info(`\n  ${added} newly registered. `) +
+        'Notifications now reach all registered chats. Manage with /notify list | forget <id>.\n',
+    );
+    return;
+  }
+  if (arg === 'list') {
+    const chats = loadChats();
+    if (!chats.length) {
+      console.log(
+        '\n' + warn('  No chats registered. Send the bot /start, or run /notify whoami.') + '\n',
+      );
+      return;
+    }
+    console.log('\n' + info('  Registered chats:'));
+    for (const c of chats) {
+      console.log(`    ${c.id}  —  ${c.name || '(no name)'} ${warn('[' + (c.type || '?') + ']')}`);
+    }
+    console.log('');
+    return;
+  }
+  if (sub === 'forget') {
+    const id = subArg;
+    if (!id) {
+      console.log('\n' + warn('  Usage: /notify forget <chat-id>  (see /notify list)') + '\n');
+      return;
+    }
+    const removed = removeChat(id);
+    console.log(
+      '\n' + (removed ? info('  Forgot chat ' + id) : warn('  No registered chat ' + id)) + '\n',
+    );
     return;
   }
   if (arg === 'on' || arg === 'off') {
@@ -1479,13 +1516,17 @@ async function handleNotify(arg, ctx) {
     return;
   }
   // Status (default)
+  const registered = loadChats().length;
   console.log(
     '\n' +
       info('Telegram notify: ') +
       (tg.enabled ? 'enabled' : 'disabled') +
-      (telegramEnabled(ctx.config) ? '' : warn('  (credentials missing)')) +
-      '\n  Commands: /notify on | off | test | whoami' +
-      '\n  Credentials come from $TELEGRAM_BOT_TOKEN / $TELEGRAM_CHAT_ID (preferred) or config.\n',
+      (telegramEnabled(ctx.config) ? '' : warn('  (token or registered chat missing)')) +
+      `\n  Registered chats: ${registered}` +
+      (process.env.TELEGRAM_CHAT_ID ? warn('  (+ TELEGRAM_CHAT_ID override)') : '') +
+      '\n  Commands: /notify on | off | test | whoami | list | forget <id>' +
+      '\n  Token comes from $TELEGRAM_BOT_TOKEN. Chats register via the bot’s /start' +
+      ' (or /notify whoami); $TELEGRAM_CHAT_ID is an optional override.\n',
   );
 }
 
@@ -1507,7 +1548,7 @@ function printHelp() {
         ['/history', 'list saved conversations (needs persistence on)'],
         ['/resume [id]', 'reattach to a saved conversation (no id = most recent)'],
         ['/export [id]', 'save a conversation to a Markdown file (no id = current)'],
-        ['/notify [on|off|test|whoami]', 'Telegram alerts; whoami finds your chat id'],
+        ['/notify [on|off|test|whoami|list|forget]', 'Telegram alerts; whoami registers your chat'],
         ['/brain [list|show|why|on|off]', 'the curated method brain Aurora writes/researches by'],
         ['/persona [show|set|ingest]', 'shape Aurora to write in your voice'],
         ['/config', 'show config file path and contents'],

@@ -36,9 +36,11 @@ const DEFAULTS = {
   persona: { enabled: false, prompted: false },
 
   // Optional Telegram notifications when a turn finishes.
-  // SECURITY: secrets are NEVER stored here. The bot token and chat id are read
-  // only from the environment (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID, which can
-  // come from a gitignored .env). Config only holds non-secret toggles.
+  // SECURITY: the bot token is NEVER stored here — it's read only from the
+  // environment (TELEGRAM_BOT_TOKEN, which can come from a gitignored .env).
+  // Config holds only non-secret toggles. Chat ids are not secrets and live in
+  // a local registry (~/.config/aurora/telegram-chats.json, see notify/chats.js),
+  // learned when a user sends the bot /start.
   notify: {
     telegram: {
       enabled: false,

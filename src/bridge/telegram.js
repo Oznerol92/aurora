@@ -1,4 +1,5 @@
 import { sendTelegram } from '../notify/telegram.js';
+import { listChatIds, isRegistered, registerChat } from '../notify/chats.js';
 import { attachSession, rotateSession } from '../store/session.js';
 import { saveUserTurn, saveAssistantTurn } from '../store/persist.js';
 import {
@@ -13,15 +14,18 @@ import {
 } from '../protocol.js';
 
 /**
- * Two-way Telegram bridge: long-poll getUpdates, feed each authorized message
- * through the provider, and reply on Telegram. Run via `aurora --telegram`.
+ * Two-way Telegram bridge: long-poll getUpdates, feed each registered chat's
+ * messages through the provider, and reply on Telegram. Run via `aurora --serve`.
  *
- * SECURITY: only messages from TELEGRAM_CHAT_ID are processed — a public bot
- * can be messaged by anyone, so everything else is ignored. The bridge refuses
- * to start without that chat id, since it has no one to trust.
+ * AUTHORIZATION: a chat must register itself by sending `/start` before it can
+ * drive the model — a public bot can be messaged by anyone, so unregistered
+ * chats are ignored until they opt in. Registrations persist locally
+ * (notify/chats.js); TELEGRAM_CHAT_ID, if set, is always authorized too (an
+ * override / back-compat). The bridge needs only the bot token to start; it has
+ * no one to talk to until a chat registers, which is fine.
  *
- * Credentials are read from the environment only (never disk), consistent with
- * the rest of the notifier.
+ * The bot TOKEN is read from the environment only (never disk); chat ids are not
+ * secrets and live in the local registry.
  */
 
 const POLL_TIMEOUT_S = 30; // Telegram long-poll hold time
@@ -29,45 +33,31 @@ const FETCH_TIMEOUT_MS = (POLL_TIMEOUT_S + 5) * 1000;
 const TELEGRAM_MAX_LEN = 4096;
 const ERROR_BACKOFF_MS = 3000;
 
-export async function runTelegramBridge({ provider, config, store, logLine }) {
+export async function runTelegramBridge({ provider, config, store, logLine, mirror }) {
   const token = process.env.TELEGRAM_BOT_TOKEN || null;
-  const authorizedChatId = process.env.TELEGRAM_CHAT_ID || null;
   if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not set.');
-  if (!authorizedChatId) {
-    throw new Error(
-      'TELEGRAM_CHAT_ID is not set — refusing to listen without an authorized chat. Run with the REPL and /notify whoami to find it.',
-    );
-  }
   const log = logLine || ((m) => console.log(m));
 
   // Share the same conversation as the CLI: attach to the active session so a
   // chat continues across Telegram and the terminal (only when a store is on).
   const hasStore = Boolean(store) && store.constructor.id !== 'none';
-  const state = { sessionId: attachSession(provider, config, hasStore) };
+  const state = { sessionId: attachSession(provider, config, hasStore), pendingAsk: null };
   if (hasStore) log(`Persisting to store; session ${shortId(state.sessionId)}`);
 
   // Skip any backlog so a restart doesn't replay old messages.
   let offset = await drainBacklog(token);
+  const known = listChatIds().length + (process.env.TELEGRAM_CHAT_ID ? 1 : 0);
   log(
-    `Telegram bridge live. Listening for messages from chat ${authorizedChatId}. Ctrl-C to stop.`,
+    `Telegram bridge live. ${known} chat(s) registered. New chats register with /start. Ctrl-C to stop.`,
   );
+  // Greet every already-registered chat (broadcast); a no-op if none yet.
   await sendTelegram(
     '🟢 Aurora is listening. Send me anything; /new starts a fresh conversation.',
     config,
   );
 
   // Outbound effects are injected so handleUpdate can be tested without network.
-  const ctx = {
-    provider,
-    config,
-    store,
-    hasStore,
-    state,
-    authorizedChatId,
-    log,
-    notify: (text) => sendTelegram(text, config),
-    typing: () => sendChatAction(token, authorizedChatId, 'typing'),
-  };
+  const ctx = { provider, config, store, hasStore, state, token, log, mirror };
 
   // Main loop: never let a single failure kill the bridge.
   while (true) {
@@ -90,34 +80,50 @@ export async function runTelegramBridge({ provider, config, store, logLine }) {
 }
 
 export async function handleUpdate(update, ctx) {
-  const { provider, config, store, hasStore, state, authorizedChatId } = ctx;
+  const { provider, config, store, hasStore, state } = ctx;
   const log = ctx.log || (() => {});
-  // Outbound effects default to the real Telegram calls; tests inject stubs.
-  const notify = ctx.notify || ((text) => sendTelegram(text, config));
-  const typing = ctx.typing || (() => sendChatAction(ctx.token, authorizedChatId, 'typing'));
+
+  const msg = update.message;
+  if (!msg || typeof msg.text !== 'string') return; // ignore non-text updates
+  const chatId = String(msg.chat?.id ?? '');
+  if (!chatId) return;
+
+  // Outbound effects default to the real Telegram calls (targeting the chat that
+  // wrote, so multi-user replies reach the right person); tests inject stubs.
+  const notify = ctx.notify || ((text, opts) => sendTelegram(text, config, { ...opts, chatId }));
+  const typing = ctx.typing || (() => sendChatAction(ctx.token, chatId, 'typing'));
   // Optional: mirror the exchange into the terminal REPL so a chat that arrived
   // over Telegram is visible there too (shared session = one conversation). No-op
   // in headless --serve mode, where there is no terminal.
   const mirror = ctx.mirror || (() => {});
 
-  const msg = update.message;
-  if (!msg || typeof msg.text !== 'string') return; // ignore non-text updates
-
-  // The security gate: only the owner's chat is allowed through.
-  if (String(msg.chat?.id) !== String(authorizedChatId)) {
-    log(`  ignored message from unauthorized chat ${msg.chat?.id}`);
-    return;
-  }
-
   const text = msg.text.trim();
   if (!text) return;
 
+  // `/start` is the registration handshake: any chat may send it, and doing so
+  // opts that chat in. Everything else requires an already-authorized chat.
   if (text === '/start') {
+    const { added } = registerChat({
+      id: msg.chat.id,
+      name: chatName(msg.chat),
+      type: msg.chat.type,
+    });
+    log(`  ${added ? 'registered' : 'known'} chat ${chatId}`);
     await notify(
-      '👋 Aurora here. Send a question and I will research it. /new clears the conversation.',
+      (added ? "👋 Aurora here — you're registered. " : '👋 Aurora here. ') +
+        'Send a question and I will research it. /new clears the conversation.',
     );
     return;
   }
+
+  // The authorization gate: only registered chats (or the env override, via
+  // ctx.authorizedChatId in tests) get through. Strangers are ignored silently —
+  // no reply, so a public bot doesn't chatter at whoever probes it.
+  if (!isAuthorized(chatId, ctx)) {
+    log(`  ignored message from unregistered chat ${chatId} (send /start to register)`);
+    return;
+  }
+
   if (text === '/new' || text === '/reset') {
     // Rotate the shared session so the terminal starts fresh too. Drop any
     // question we were waiting on — it belongs to the old conversation.
@@ -219,9 +225,29 @@ export async function handleUpdate(update, ctx) {
   // it carries action items the user shouldn't miss.
   if (done && done.actions.length) {
     // The recap is HTML (escaped in buildRecap); send it directly so parse_mode is
-    // set, rather than through `notify`, which sends plain text.
-    await sendTelegram(buildRecap(cleanAnswer, done), config, { parseMode: 'HTML' });
+    // set, rather than through `notify`, which sends plain text. Target the same
+    // chat that drove this turn.
+    await sendTelegram(buildRecap(cleanAnswer, done), config, { parseMode: 'HTML', chatId });
   }
+}
+
+/**
+ * Is this chat allowed to drive the model? Tests/back-compat pass an explicit
+ * `ctx.authorizedChatId` (exact match, registry not consulted). Otherwise a chat
+ * is authorized if it's in the local registry or matches the TELEGRAM_CHAT_ID
+ * env override.
+ */
+function isAuthorized(chatId, ctx) {
+  if (ctx.authorizedChatId != null) return chatId === String(ctx.authorizedChatId);
+  if (process.env.TELEGRAM_CHAT_ID && chatId === String(process.env.TELEGRAM_CHAT_ID)) return true;
+  return isRegistered(chatId);
+}
+
+/** Best display name for a chat from a Telegram message. */
+function chatName(chat = {}) {
+  return (
+    chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || chat.username || ''
+  );
 }
 
 /** Short, display-friendly form of a session id. */

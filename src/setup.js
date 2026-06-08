@@ -136,11 +136,11 @@ export async function runFirstRunSetup(config) {
     }
 
     // Environment-aware hints.
-    const tg = Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
+    const tg = Boolean(process.env.TELEGRAM_BOT_TOKEN);
     if (tg) {
       console.log(
         warn('\n  Telegram detected: ') +
-          'run `aurora --serve` to bridge it' +
+          'run `aurora --serve`, then send the bot /start to register' +
           (choice !== 'none'
             ? ' — it shares this same conversation.'
             : ' (enable a store to share the chat).'),

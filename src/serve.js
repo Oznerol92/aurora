@@ -21,8 +21,8 @@ import { runTelegramBridge } from './bridge/telegram.js';
 const LISTENERS = [
   {
     name: 'telegram',
-    available: () => Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-    missing: 'set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to enable',
+    available: () => Boolean(process.env.TELEGRAM_BOT_TOKEN),
+    missing: 'set TELEGRAM_BOT_TOKEN to enable (chats register with /start)',
     start: (ctx) => runTelegramBridge(ctx),
   },
   // Future webhooks register here, e.g.:

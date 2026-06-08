@@ -276,6 +276,37 @@ test('/new clears a pending question', async () => {
   });
 });
 
+test('/start registers an unknown chat, which then becomes authorized', async () => {
+  await withProjectDir(async () => {
+    // Isolate the chat registry to this temp dir (registration writes to disk).
+    const prev = process.env.AURORA_CONFIG_DIR;
+    process.env.AURORA_CONFIG_DIR = process.cwd();
+    try {
+      const store = new JsonStore({ scope: 'project' });
+      await store.open();
+      const { ctx, captured } = makeCtx(store, fakeProvider());
+      // Registry-driven authorization (no env override in tests).
+      delete ctx.authorizedChatId;
+
+      // Before /start a stranger is ignored — no reply, no work.
+      await handleUpdate({ message: { chat: { id: 7 }, text: 'let me in' } }, ctx);
+      assert.equal(captured.replies.length, 0, 'unregistered chat is ignored');
+
+      // /start opts the chat in and confirms.
+      await handleUpdate({ message: { chat: { id: 7, type: 'private' }, text: '/start' } }, ctx);
+      assert.equal(captured.replies.length, 1);
+      assert.match(captured.replies[0], /registered/i);
+
+      // Now the same chat is allowed through and gets an answer.
+      await handleUpdate({ message: { chat: { id: 7 }, text: 'hello' } }, ctx);
+      assert.match(captured.replies[1], /Ans: HELLO/);
+    } finally {
+      if (prev === undefined) delete process.env.AURORA_CONFIG_DIR;
+      else process.env.AURORA_CONFIG_DIR = prev;
+    }
+  });
+});
+
 test('a failed turn warns, and keeps the user message but no assistant reply', async () => {
   await withProjectDir(async () => {
     const store = new JsonStore({ scope: 'project' });
