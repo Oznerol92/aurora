@@ -13,6 +13,8 @@
 
 export const BRAIN_MAX_CHARS = 6000;
 export const PERSONA_MAX_CHARS = 2000;
+/** Handoff briefing budget — a synthesis of work-so-far, not the raw transcript. */
+export const BRIEFING_MAX_CHARS = 2000;
 
 /** How many recent turns to carry as context when seeding a fresh session. */
 export const SEED_MAX_TURNS = 12;
@@ -80,10 +82,18 @@ export const INTERACTION_PROTOCOL = [
  * @param {string} [parts.protocol]        interaction protocol (always kept)
  * @param {string} [parts.personaProfile]  user voice/characteristics instruction
  * @param {string} [parts.brain]           curated method digest
+ * @param {string} [parts.briefing]        cross-engine handoff briefing (work so far)
  * @param {string} [parts.seed]            resumed-transcript preamble
  * @returns {string}
  */
-export function composeSystemPrompt({ persona, protocol, personaProfile, brain, seed } = {}) {
+export function composeSystemPrompt({
+  persona,
+  protocol,
+  personaProfile,
+  brain,
+  briefing,
+  seed,
+} = {}) {
   const sections = [];
   if (persona) sections.push(String(persona).trim());
   // The protocol sits right after the persona and is never clipped — it's a
@@ -91,6 +101,10 @@ export function composeSystemPrompt({ persona, protocol, personaProfile, brain, 
   if (protocol) sections.push(String(protocol).trim());
   if (personaProfile) sections.push(clip(String(personaProfile).trim(), PERSONA_MAX_CHARS));
   if (brain) sections.push(clip(String(brain).trim(), BRAIN_MAX_CHARS));
+  // The briefing (a synthesis) sits above the raw seed transcript: it's the
+  // high-value continuity an engine taking over should read first; the seed is
+  // the verbatim fallback tail beneath it.
+  if (briefing) sections.push(clip(String(briefing).trim(), BRIEFING_MAX_CHARS));
   if (seed) sections.push(String(seed).trim());
   return sections.filter(Boolean).join('\n\n');
 }

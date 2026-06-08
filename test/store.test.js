@@ -65,3 +65,56 @@ test('getConversation returns [] for an unknown session', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+const SAMPLE_LEDGER = {
+  engines: {
+    claude: {
+      firstSeen: '2026-06-08T10:00:00Z',
+      dirs: { '/p': { lastSessionId: 's1', lastActiveAt: '2026-06-08T10:00:00Z', lastTitle: 'T' } },
+    },
+  },
+};
+
+test('JsonStore persists the engine ledger across reopen', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aurora-store-'));
+  try {
+    const store = new JsonStore({ dataDir: dir });
+    await store.open();
+    assert.deepEqual(await store.getEngineLedger(), {}, 'empty ledger before any save');
+    await store.saveEngineLedger(SAMPLE_LEDGER);
+    assert.deepEqual(await store.getEngineLedger(), SAMPLE_LEDGER);
+
+    const reopened = new JsonStore({ dataDir: dir });
+    await reopened.open();
+    assert.deepEqual(await reopened.getEngineLedger(), SAMPLE_LEDGER);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('SqliteStore persists the engine ledger across reopen (when better-sqlite3 is available)', async (t) => {
+  let SqliteStore;
+  try {
+    await import('better-sqlite3');
+    ({ SqliteStore } = await import('../src/store/sqlite.js'));
+  } catch {
+    t.skip('better-sqlite3 not installed');
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'aurora-store-'));
+  try {
+    const store = new SqliteStore({ dataDir: dir });
+    await store.open();
+    assert.equal(await store.getEngineLedger(), null, 'empty before any save');
+    await store.saveEngineLedger(SAMPLE_LEDGER);
+    assert.deepEqual(await store.getEngineLedger(), SAMPLE_LEDGER);
+    await store.close();
+
+    const reopened = new SqliteStore({ dataDir: dir });
+    await reopened.open();
+    assert.deepEqual(await reopened.getEngineLedger(), SAMPLE_LEDGER);
+    await reopened.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -22,9 +22,10 @@ const TIMEOUT_MS = 20_000;
 
 /**
  * One tool-free `claude -p` call. Resolves to the result text, or null on any
- * failure. Never throws.
+ * failure. Never throws. Exported so other best-effort summarizers (the handoff
+ * briefing, src/engines/briefing.js) shell out to Claude exactly the same way.
  */
-function runClaudeOnce(prompt, model, bin = 'claude') {
+export function runClaudeOnce(prompt, model, bin = 'claude') {
   return new Promise((resolve) => {
     let child;
     const timer = setTimeout(() => {

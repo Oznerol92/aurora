@@ -55,15 +55,22 @@ export class SqliteStore extends Store {
         data       TEXT NOT NULL,
         updated_at TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS engine_ledger (
+        scope      TEXT PRIMARY KEY,
+        data       TEXT NOT NULL,
+        updated_at TEXT
+      );
     `);
     this.#migrate();
   }
 
   // Additive, idempotent migrations for databases created by older versions.
   // `complete` (v0.3.3) marks interrupted/partial turns; rows that predate it
-  // default to complete. The `persona` table (v0.3.4) is created by open()'s
-  // CREATE TABLE IF NOT EXISTS, so older DBs gain it on open with no data loss.
-  // PRAGMA user_version tracks the schema: 1 = turns.complete, 2 = persona.
+  // default to complete. The `persona` (v0.3.4) and `engine_ledger` (v0.3.9)
+  // tables are created by open()'s CREATE TABLE IF NOT EXISTS, so older DBs gain
+  // them on open with no data loss. PRAGMA user_version tracks the schema:
+  // 1 = turns.complete, 2 = persona, 3 = engine_ledger.
   #migrate() {
     const cols = this.db
       .prepare('PRAGMA table_info(turns)')
@@ -72,7 +79,7 @@ export class SqliteStore extends Store {
     if (!cols.includes('complete')) {
       this.db.exec('ALTER TABLE turns ADD COLUMN complete INTEGER NOT NULL DEFAULT 1');
     }
-    this.db.pragma('user_version = 2');
+    this.db.pragma('user_version = 3');
   }
 
   async getPersona(scope = 'default') {
@@ -97,6 +104,29 @@ export class SqliteStore extends Store {
       )
       .run(scope, JSON.stringify(next), next.updatedAt);
     return next;
+  }
+
+  async getEngineLedger() {
+    if (!this.db) return null;
+    const row = this.db.prepare("SELECT data FROM engine_ledger WHERE scope = 'default'").get();
+    if (!row) return null;
+    try {
+      return JSON.parse(row.data);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveEngineLedger(ledger) {
+    if (!this.db) return null;
+    const at = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO engine_ledger (scope, data, updated_at) VALUES ('default', ?, ?)
+         ON CONFLICT(scope) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+      )
+      .run(JSON.stringify(ledger || {}), at);
+    return ledger || {};
   }
 
   async saveTurn(sessionId, turn) {

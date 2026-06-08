@@ -151,6 +151,29 @@ test('setBrainCards([]) clears the brain index', () => {
   assert.doesNotMatch(sys, /AURORA METHOD BRAIN/);
 });
 
+test('setBriefing is injected on a fresh session and cleared by reset()', () => {
+  const p = new ClaudeProvider();
+  p.setBriefing('HANDOFF BRIEFING — codex taking over. Work so far: built the ledger.');
+  let sys = systemPrompt(p.buildArgs('continue'));
+  assert.match(sys, /HANDOFF BRIEFING/, 'briefing rides the fresh session');
+  assert.match(sys, /built the ledger/);
+  // reset() drops it (the briefing describes the handed-over conversation).
+  p.reset();
+  sys = systemPrompt(p.buildArgs('x'));
+  assert.doesNotMatch(sys, /HANDOFF BRIEFING/, '/new clears the briefing');
+});
+
+test('a resumed turn does not re-inject the briefing', () => {
+  const p = new ClaudeProvider();
+  p.setBriefing('HANDOFF BRIEFING — work so far.');
+  p.resume('11111111-2222-3333-4444-555555555555');
+  assert.equal(
+    systemPrompt(p.buildArgs('next')),
+    null,
+    'resumed sessions restore their own context',
+  );
+});
+
 test('isSessionNotFound recognises a stale-resume error but not unrelated ones', () => {
   assert.ok(isSessionNotFound('No conversation found with session ID: abcd'));
   assert.ok(isSessionNotFound('Session not found'));

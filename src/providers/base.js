@@ -87,6 +87,15 @@ export class Provider {
    */
   setPersona(_text) {}
 
+  /**
+   * Supply a handoff briefing — a short synthesis of the work so far plus the
+   * continuity framing — injected once on the next fresh session when this engine
+   * takes over a conversation mid-stream (a `/engine` switch). Cleared by reset(),
+   * since it describes the conversation being handed over, not a fresh one. No-op
+   * by default. @param {string|null} _text
+   */
+  setBriefing(_text) {}
+
   /** Short, display-friendly session identifier (or null). */
   shortSession() {
     return null;

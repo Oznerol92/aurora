@@ -88,6 +88,17 @@ test('brain/persona survive reset() (config-level, not per-session)', () => {
   assert.match(prompt, /USER VOICE PROFILE BODY/);
 });
 
+test('setBriefing is prepended on a fresh thread and cleared by reset()', () => {
+  const p = new CodexProvider();
+  p.setBriefing('HANDOFF BRIEFING — claude handing over. Work so far: built the ledger.');
+  let prompt = p.buildPrompt('continue');
+  assert.match(prompt, /HANDOFF BRIEFING/, 'briefing prepended on a fresh thread');
+  assert.match(prompt, /built the ledger/);
+  p.reset();
+  prompt = p.buildPrompt('x');
+  assert.doesNotMatch(prompt, /HANDOFF BRIEFING/, '/new clears the briefing');
+});
+
 test('seed() primes a fresh thread but not a resumed one', () => {
   const p = new CodexProvider();
   const ok = p.seed([

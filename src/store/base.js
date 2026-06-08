@@ -51,4 +51,24 @@ export class Store {
   async savePersona(_scope = 'default', _fields = {}) {
     return null;
   }
+
+  /**
+   * Engine ledger: a single structured record of which engines have fronted
+   * Aurora's conversation, when each was first seen, and the last conversation
+   * per working directory. Powers the cross-engine handoff briefing (so a
+   * switched-in engine arrives up to speed). Returns the stored object (or null).
+   * The shape is opaque to the store; see src/engines/ledger.js.
+   */
+  async getEngineLedger() {
+    return null;
+  }
+
+  /**
+   * Persist the whole engine ledger object. No-op backends drop it (the briefing
+   * still works from the live transcript, it just doesn't carry across sessions).
+   * @param {object} _ledger
+   */
+  async saveEngineLedger(_ledger) {
+    return null;
+  }
 }

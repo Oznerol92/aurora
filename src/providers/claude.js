@@ -64,6 +64,11 @@ export class ClaudeProvider extends Provider {
     this.brainGraph = null;
     this.personaText = null;
 
+    // Handoff briefing: a synthesis of the work so far, injected once when this
+    // engine takes over a conversation mid-stream. One-shot, tied to the handed-
+    // over conversation, so reset() clears it (like the seed).
+    this.briefingText = null;
+
     // Cancellation: the in-flight child process and a flag set by abort().
     this._child = null;
     this._aborted = false;
@@ -74,6 +79,7 @@ export class ClaudeProvider extends Provider {
     this.started = false;
     this.seedTurns = null;
     this.useSeed = false;
+    this.briefingText = null;
   }
 
   /**
@@ -118,6 +124,11 @@ export class ClaudeProvider extends Provider {
   /** User voice/characteristics injected on the next fresh session (null to clear). */
   setPersona(text) {
     this.personaText = text || null;
+  }
+
+  /** Handoff briefing injected on the next fresh session (null to clear). */
+  setBriefing(text) {
+    this.briefingText = text || null;
   }
 
   /**
@@ -170,6 +181,7 @@ export class ClaudeProvider extends Provider {
         protocol: INTERACTION_PROTOCOL,
         personaProfile: this.personaText,
         brain: this.brainIndex,
+        briefing: this.briefingText,
         seed: this.useSeed && this.seedTurns?.length ? seedPreamble(this.seedTurns) : null,
       });
       args.push('--append-system-prompt', system);

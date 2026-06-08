@@ -28,6 +28,21 @@ import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/tele
 import { loadChats, registerChat, removeChat } from './notify/chats.js';
 import { aiPreview } from './notify/preview.js';
 import {
+  loadLedger,
+  saveLedger,
+  recordVisit,
+  isFirstVisit,
+  dirRecord,
+  normalizeLedger,
+} from './engines/ledger.js';
+import {
+  summarizeWork,
+  composeBriefing,
+  deterministicDigest,
+  briefingDigestForUser,
+  formatWhen,
+} from './engines/briefing.js';
+import {
   ProtocolStreamFilter,
   parseAskBlock,
   parseImplicitAsk,
@@ -161,6 +176,23 @@ export async function main(argv = process.argv.slice(2)) {
     argv,
   });
   let sessionId = resolvedSession;
+
+  // Record the launching engine in the ledger (best-effort): stamps its
+  // firstSeen once and refreshes "last active in this directory", so a later
+  // /engine switch back can brief accurately. No briefing on launch itself —
+  // there's no handoff, you're just starting.
+  if (hasStore) {
+    try {
+      const at = new Date().toISOString();
+      const ledger = await loadLedger(store);
+      await saveLedger(
+        store,
+        recordVisit(ledger, provider.constructor.id, process.cwd(), { sessionId, at }),
+      );
+    } catch {
+      // ledger is opt-in flourish; never block startup on it
+    }
+  }
 
   // --- Server / listener mode (headless, no REPL) -----------------------
   // `aurora --serve` (and what `npm start` runs) starts every configured
@@ -779,6 +811,10 @@ async function handleCommand(text, ctx) {
       await handleModel(arg, ctx);
       return true;
 
+    case 'context':
+      await handleContext(ctx);
+      return true;
+
     case 'config':
       console.log('\n' + info('Config file: ') + configPath);
       // Mask secrets (tokens) so /config is safe to screen-share.
@@ -1126,6 +1162,7 @@ async function handlePersona(arg, ctx) {
 // the config key is still `provider`.) Workers borrowed per-task via @worker /
 // skill `engine:` are routed separately, in streamResponse — see src/route.js.
 async function handleEngine(arg, ctx) {
+  const fromId = ctx.config.provider; // the outgoing engine, for the handoff digest
   const engines = listProviders();
   const impl = engines.filter((p) => p.implemented); // switchable, numbered 1..N
 
@@ -1178,10 +1215,132 @@ async function handleEngine(arg, ctx) {
     ctx.provider = next;
     ctx.config.provider = targetId;
     saveConfig(ctx.config);
-    console.log('\n' + info('Interface engine: ') + next.describe() + '\n');
+    console.log('\n' + info('Interface engine: ') + next.describe());
+    // Brief the new engine on the work so far + per-engine continuity, and show
+    // the user what carried over. Best-effort: a briefing hiccup never blocks the
+    // switch (the engine is already current and seeded above).
+    await applyHandoffBriefing(next, ctx, { fromId });
+    console.log('');
   } catch (e) {
     console.log('\n' + error(e.message) + '\n');
   }
+}
+
+/**
+ * Build and inject the cross-engine handoff briefing, record the visit in the
+ * engine ledger, and print a digest so the user can see what was handed over.
+ *
+ * The work summary is generated on demand (one cheap `claude -p` call) from the
+ * stored transcript, degrading to a deterministic digest. "First visit" is keyed
+ * per engine (provider id) per working directory; the fuller onboarding framing
+ * fires the first time an engine works in this directory. Needs a store for
+ * cross-session memory — with `store: none` the briefing is in-memory only.
+ */
+async function applyHandoffBriefing(next, ctx, { fromId } = {}) {
+  if (!next.setBriefing) return;
+  const toId = next.constructor.id;
+  const dir = process.cwd();
+
+  const ledger = ctx.hasStore ? await loadLedger(ctx.store) : normalizeLedger(null);
+  const first = isFirstVisit(ledger, toId, dir);
+  const lastRecord = dirRecord(ledger, toId, dir);
+
+  // Pull the current conversation's transcript (store-backed) for the summary.
+  let turns = [];
+  if (ctx.hasStore && ctx.sessionId) {
+    try {
+      turns = await ctx.store.getConversation(ctx.sessionId);
+    } catch {
+      turns = [];
+    }
+  }
+
+  if (turns.length) console.log(dim(`  · briefing ${toId} on the work so far…`));
+  const summary = turns.length
+    ? await summarizeWork(turns, { model: ctx.config?.briefing?.model || 'sonnet' })
+    : '';
+
+  next.setBriefing(composeBriefing({ engineId: toId, isFirst: first, lastRecord, summary }));
+
+  // Record the incoming engine's visit (stamps firstSeen once; updates last-here).
+  if (ctx.hasStore) {
+    const at = new Date().toISOString();
+    const title = turns.length ? previewTitle(firstUserText(turns)) : '';
+    await saveLedger(
+      ctx.store,
+      recordVisit(ledger, toId, dir, { sessionId: ctx.sessionId, title, at }),
+    );
+  }
+
+  for (const line of briefingDigestForUser({
+    fromId,
+    toId,
+    isFirst: first,
+    lastRecord,
+    summary,
+    hasStore: ctx.hasStore,
+  })) {
+    console.log(dim('  ' + line));
+  }
+}
+
+/**
+ * `/context` — show the current handoff context: which engines have fronted this
+ * directory (with when each was added and last active), and a deterministic
+ * digest of the live conversation. Deliberately LLM-free; the full work summary
+ * is only synthesized when you actually /engine switch.
+ */
+async function handleContext(ctx) {
+  const dir = process.cwd();
+  console.log('\n' + info('Handoff context') + dim(`  (${dir})`));
+  console.log(info('  Interface engine: ') + ctx.provider.describe());
+
+  if (!ctx.hasStore) {
+    console.log(
+      dim('  No store enabled — no cross-session engine memory. ') +
+        'Turn it on with /store sqlite (or json).',
+    );
+  }
+
+  const ledger = ctx.hasStore ? await loadLedger(ctx.store) : normalizeLedger(null);
+  const entries = Object.entries(ledger.engines || {});
+  if (entries.length) {
+    console.log(info('\n  Engines seen here:'));
+    for (const [id, rec] of entries) {
+      const added = rec.firstSeen ? formatWhen(rec.firstSeen) : '—';
+      const here = rec.dirs?.[dir];
+      if (here) {
+        const title = here.lastTitle ? ` · "${here.lastTitle}"` : '';
+        console.log(
+          `    ${id} — added ${added}, last active here ${formatWhen(here.lastActiveAt)}${title}`,
+        );
+      } else {
+        console.log(`    ${id} — added ${added}, not used in this directory`);
+      }
+    }
+  }
+
+  let turns = [];
+  if (ctx.hasStore && ctx.sessionId) {
+    try {
+      turns = await ctx.store.getConversation(ctx.sessionId);
+    } catch {
+      turns = [];
+    }
+  }
+  const digest = deterministicDigest(turns);
+  if (digest) {
+    console.log(info('\n  This conversation:'));
+    console.log(
+      digest
+        .split('\n')
+        .map((l) => '    ' + l)
+        .join('\n'),
+    );
+  }
+  console.log(
+    dim('\n  A full work summary is generated by an LLM when you /engine switch.') + '\n',
+  );
 }
 
 /** Print the engines as a numbered list (only switchable ones get a number). */
@@ -1736,6 +1895,7 @@ function printHelp() {
         ['/template', 'show the Aurora Research Method again'],
         ['/new', 'start a fresh conversation (clears context)'],
         ['/engine [n|id]', 'set the interface engine (pick a number/name); @worker per task'],
+        ['/context', 'show the cross-engine handoff context for this directory'],
         ['/model [name]', 'show or set the model (/model default to reset)'],
         [
           '/store [id]',

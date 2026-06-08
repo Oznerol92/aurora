@@ -4,6 +4,7 @@ import {
   composeSystemPrompt,
   BRAIN_MAX_CHARS,
   PERSONA_MAX_CHARS,
+  BRIEFING_MAX_CHARS,
 } from '../src/providers/prompt.js';
 
 test('omits sections that are null/empty', () => {
@@ -39,6 +40,24 @@ test('clips the voice profile to its own budget', () => {
   const sys = composeSystemPrompt({ persona: 'BASE', personaProfile: bigVoice });
   assert.match(sys, /…\[truncated\]/);
   assert.ok(sys.length <= 'BASE'.length + PERSONA_MAX_CHARS + 32);
+});
+
+test('the briefing sits after the brain and before the raw seed transcript', () => {
+  const sys = composeSystemPrompt({
+    persona: 'BASE',
+    brain: 'BRAIN',
+    briefing: 'BRIEFING',
+    seed: 'SEED',
+  });
+  assert.ok(sys.indexOf('BRAIN') < sys.indexOf('BRIEFING'));
+  assert.ok(sys.indexOf('BRIEFING') < sys.indexOf('SEED'));
+});
+
+test('clips the briefing to its own budget', () => {
+  const bigBriefing = 'R'.repeat(BRIEFING_MAX_CHARS * 2);
+  const sys = composeSystemPrompt({ persona: 'BASE', briefing: bigBriefing });
+  assert.match(sys, /…\[truncated\]/);
+  assert.ok(sys.length <= 'BASE'.length + BRIEFING_MAX_CHARS + 32);
 });
 
 test('returns empty string when given nothing', () => {

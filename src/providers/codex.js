@@ -75,6 +75,10 @@ export class CodexProvider extends Provider {
     this.brainGraph = null;
     this.personaText = null;
 
+    // Handoff briefing: synthesis of the work so far, injected once when this
+    // engine takes over mid-conversation. One-shot, cleared by reset() like seed.
+    this.briefingText = null;
+
     // Cancellation.
     this._child = null;
     this._aborted = false;
@@ -85,6 +89,7 @@ export class CodexProvider extends Provider {
     this.started = false;
     this.seedTurns = null;
     this.useSeed = false;
+    this.briefingText = null;
   }
 
   /**
@@ -116,6 +121,11 @@ export class CodexProvider extends Provider {
 
   setPersona(text) {
     this.personaText = text || null;
+  }
+
+  /** Handoff briefing injected on the next fresh thread (null to clear). */
+  setBriefing(text) {
+    this.briefingText = text || null;
   }
 
   abort() {
@@ -181,6 +191,7 @@ export class CodexProvider extends Provider {
       protocol: INTERACTION_PROTOCOL,
       personaProfile: this.personaText,
       brain: this.brainIndex,
+      briefing: this.briefingText,
       seed: this.useSeed && this.seedTurns?.length ? seedPreamble(this.seedTurns) : null,
     });
     return `${system}\n\n${SYSTEM_SEPARATOR}\n\n${augmented}`;
