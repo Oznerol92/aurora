@@ -3,6 +3,7 @@ import { attachSession, rotateSession } from '../store/session.js';
 import { saveUserTurn, saveAssistantTurn } from '../store/persist.js';
 import {
   parseAskBlock,
+  parseImplicitAsk,
   parseDoneBlock,
   stripProtocolBlocks,
   formatAnswers,
@@ -173,8 +174,12 @@ export async function handleUpdate(update, ctx) {
   }
 
   // Split the answer into what the user sees (prose, blocks stripped) and the
-  // machine signals (a pending question, or a finish recap).
-  const ask = parseAskBlock(fullAnswer);
+  // machine signals (a pending question, or a finish recap). The model is
+  // supposed to wrap a question in an `aurora:ask` block; when it forgets and
+  // just asks in prose, parseImplicitAsk recovers the trailing question so the
+  // reply is mapped back as an answer instead of starting a new turn.
+  const explicitAsk = parseAskBlock(fullAnswer);
+  const ask = explicitAsk || parseImplicitAsk(fullAnswer);
   const done = parseDoneBlock(fullAnswer);
   const cleanAnswer = stripProtocolBlocks(fullAnswer);
   const hasProse = Boolean(cleanAnswer);
@@ -196,11 +201,16 @@ export async function handleUpdate(update, ctx) {
   if (ask) {
     // Wait for the user's answer; the next message will be fed back to the model.
     state.pendingAsk = { questions: ask.questions };
-    const rendered = formatQuestionsForTelegram(ask.questions);
-    await notify(rendered);
-    // Mirror the numbered question too (the prose framing, if any, was already
-    // mirrored above) so the terminal shows the same options Telegram does.
-    mirror({ kind: 'out', text: rendered });
+    // An explicit block carries options worth rendering as a numbered list. An
+    // implicit (prose) question is already in the answer we just sent, so don't
+    // echo it back — only the pendingAsk wiring matters there.
+    if (explicitAsk) {
+      const rendered = formatQuestionsForTelegram(ask.questions);
+      await notify(rendered);
+      // Mirror the numbered question too (the prose framing, if any, was already
+      // mirrored above) so the terminal shows the same options Telegram does.
+      mirror({ kind: 'out', text: rendered });
+    }
     log(`  ? awaiting answer to ${ask.questions.length} question(s)`);
     return;
   }

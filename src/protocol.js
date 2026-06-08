@@ -72,6 +72,51 @@ export function parseAskBlock(text) {
 }
 
 /**
+ * The trailing question in a block of prose, or null when it doesn't end in one.
+ * Conservative on purpose: the text must END with a question mark (allowing a
+ * closing quote/bracket and trailing whitespace), so a rhetorical question in the
+ * middle of an answer — which the model then answers itself — won't match. Returns
+ * just the final question sentence, for display.
+ */
+export function trailingQuestion(text) {
+  const t = String(text || '').trim();
+  if (!t || !/\?['")\]]*$/.test(t)) return null;
+  // Anchor on the last non-empty line, then keep only its final sentence.
+  const lastLine =
+    t
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .pop() || t;
+  const m = lastLine.match(/[^.!?]*\?['")\]]*$/);
+  return (m ? m[0] : lastLine).trim() || null;
+}
+
+/**
+ * Fallback question detection. The model is *told* to wrap a question in an
+ * `aurora:ask` block (see the interaction protocol), but it doesn't always
+ * comply — it frequently just asks in prose and stops. Those questions were
+ * slipping through: the turn looked "finished", so on Telegram the user's reply
+ * was treated as a brand-new turn (never mapped back as an answer) and a finish
+ * recap could fire on what was really a question.
+ *
+ * This recovers that case. When a message carries NO explicit `aurora:ask` and
+ * NO `aurora:done` block but its visible prose ENDS in a question, it's treated
+ * as a single free-form ask, so the same ask → answer → resume flow kicks in.
+ * Explicit blocks always win (a `done` block means the model declared itself
+ * finished, so a trailing question there is rhetorical and is left alone).
+ *
+ * Returns the same shape as parseAskBlock (`{ questions: [...] }`) or null.
+ */
+export function parseImplicitAsk(text) {
+  const raw = String(text || '');
+  if (firstBlock(raw, 'ask') || firstBlock(raw, 'done')) return null;
+  const question = trailingQuestion(stripProtocolBlocks(raw));
+  if (!question) return null;
+  return { questions: [{ header: '', question, options: [], multiSelect: false }] };
+}
+
+/**
  * Parse an `aurora:done` block into `{ summary, actions }`, or null when absent.
  * A block with neither a summary nor actions is treated as empty (null).
  */

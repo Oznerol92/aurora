@@ -90,6 +90,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Prose questions weren't caught.** The model is told to wrap a question in an
+  `aurora:ask` block, but it often just asks in plain prose and stops. Those
+  questions slipped through: the turn looked "finished", so over Telegram the
+  user's reply was treated as a brand-new turn (never mapped back as an answer)
+  and a finish recap could fire on what was really a question. A conservative
+  fallback (`parseImplicitAsk` in `src/protocol.js`) now recovers a **trailing**
+  prose question — only when there's no explicit `aurora:ask`/`aurora:done` block
+  and the visible answer ends in a question mark — and routes it through the same
+  ask → answer → resume flow in both the REPL and the Telegram bridge. Explicit
+  blocks always win, and a mid-answer rhetorical question won't trip it.
 - **Finish recap previewed the wrong end of the turn.** The Telegram "Aurora
   finished a turn" note (sent when a turn has no `aurora:done` block) sliced the
   start of the full streamed narration, so for a tool-using turn it surfaced the

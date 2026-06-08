@@ -27,6 +27,7 @@ import { aiPreview } from './notify/preview.js';
 import {
   ProtocolStreamFilter,
   parseAskBlock,
+  parseImplicitAsk,
   parseDoneBlock,
   stripProtocolBlocks,
   mapChoice,
@@ -430,7 +431,10 @@ async function streamResponse(ctx, text) {
     }
 
     // A pending question takes priority: ask the user, then loop with the answers.
-    const ask = parseAskBlock(turn.fullAnswer);
+    // The model is supposed to wrap questions in an `aurora:ask` block; when it
+    // forgets and just asks in prose, parseImplicitAsk catches the trailing
+    // question so it isn't mistaken for a finished turn.
+    const ask = parseAskBlock(turn.fullAnswer) || parseImplicitAsk(turn.fullAnswer);
     if (ask) {
       const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer);
       if (answers == null) {

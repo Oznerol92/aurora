@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseAskBlock,
+  parseImplicitAsk,
+  trailingQuestion,
   parseDoneBlock,
   stripProtocolBlocks,
   mapChoice,
@@ -46,6 +48,42 @@ test('parseAskBlock returns null when absent or malformed', () => {
   assert.equal(parseAskBlock('```aurora:ask\nnot json\n```'), null);
   // A block with no valid question is treated as no question.
   assert.equal(parseAskBlock('```aurora:ask\n{"questions":[{"options":["a"]}]}\n```'), null);
+});
+
+test('trailingQuestion catches a question only at the very end', () => {
+  assert.equal(trailingQuestion('Which database should I use?'), 'Which database should I use?');
+  // Returns just the final sentence, not the whole paragraph.
+  assert.equal(
+    trailingQuestion('Here are the options. Which one do you prefer?'),
+    'Which one do you prefer?',
+  );
+  // Allows a trailing closing bracket after the question mark (still matches).
+  assert.ok(trailingQuestion('Should I ship it (yes/no)?)'));
+  // A rhetorical question the model then answers itself does NOT match.
+  assert.equal(trailingQuestion('Why does this matter? Because latency adds up.'), null);
+  assert.equal(trailingQuestion('A statement with no question.'), null);
+  assert.equal(trailingQuestion(''), null);
+});
+
+test('parseImplicitAsk recovers a prose question the model did not wrap', () => {
+  const ask = parseImplicitAsk('I can do that. Should I target Postgres or SQLite?');
+  assert.ok(ask);
+  assert.equal(ask.questions.length, 1);
+  assert.equal(ask.questions[0].question, 'Should I target Postgres or SQLite?');
+  assert.deepEqual(ask.questions[0].options, []);
+  assert.equal(ask.questions[0].multiSelect, false);
+});
+
+test('parseImplicitAsk yields to explicit blocks and ignores non-questions', () => {
+  // An explicit ask block wins — no implicit fallback.
+  assert.equal(parseImplicitAsk(ASK), null);
+  // A done block means the model declared itself finished; a trailing question
+  // there is rhetorical and must not re-open the turn.
+  const doneWithQ =
+    'All set — want me to keep going?\n```aurora:done\n{"summary":"x","actions":[]}\n```';
+  assert.equal(parseImplicitAsk(doneWithQ), null);
+  // A plain finished answer is not an ask.
+  assert.equal(parseImplicitAsk('Here is the final report. Done.'), null);
 });
 
 test('parseDoneBlock extracts summary and actions', () => {

@@ -97,6 +97,37 @@ function askingProvider() {
   };
 }
 
+// A provider that asks a question in PLAIN PROSE (no aurora:ask block) on its
+// first turn — the case the protocol fallback has to catch — then finishes.
+function proseAskingProvider() {
+  return {
+    sessionId: 'sess-prose',
+    started: false,
+    turn: 0,
+    lastReceived: null,
+    resume(s) {
+      this.sessionId = s;
+      this.started = true;
+      return true;
+    },
+    reset() {
+      this.sessionId = 'sess-prose2';
+      this.started = false;
+    },
+    async *send(text) {
+      this.turn += 1;
+      this.lastReceived = text;
+      if (this.turn === 1) {
+        yield { type: 'delta', text: 'Happy to help. Which database should I target?' };
+        yield { type: 'done', text: '', sessionId: this.sessionId };
+      } else {
+        yield { type: 'delta', text: 'Using ' + String(text) };
+        yield { type: 'done', text: '', sessionId: this.sessionId };
+      }
+    },
+  };
+}
+
 const fromOwner = (text) => ({ message: { chat: { id: 42 }, text } });
 
 test('an authorized message is answered, typed, and persisted to the shared session', async () => {
@@ -207,6 +238,28 @@ test('the reply to a pending question is mapped and fed back to the model', asyn
 
     assert.equal(ctx.state.pendingAsk, null, 'pending question cleared');
     assert.match(provider.lastReceived, /DB: Postgres/, 'answer fed back to the model');
+  });
+});
+
+test('a prose question (no ask block) is still caught and its reply fed back', async () => {
+  await withProjectDir(async () => {
+    const store = new JsonStore({ scope: 'project' });
+    await store.open();
+    const provider = proseAskingProvider();
+    const { ctx, captured } = makeCtx(store, provider);
+
+    await handleUpdate(fromOwner('build me an app'), ctx);
+
+    // The prose answer is sent once; the question is NOT re-rendered (it's already
+    // in the prose), but a pending question is armed so the reply maps back.
+    assert.equal(captured.replies.length, 1);
+    assert.match(captured.replies[0], /Which database should I target\?/);
+    assert.ok(ctx.state.pendingAsk, 'a prose question is now pending');
+
+    // The bug: before the fallback, this reply would start a brand-new turn.
+    await handleUpdate(fromOwner('Postgres'), ctx);
+    assert.equal(ctx.state.pendingAsk, null, 'pending question cleared');
+    assert.match(provider.lastReceived, /Postgres/, 'answer fed back to the model');
   });
 });
 
