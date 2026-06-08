@@ -162,9 +162,7 @@ const ADAPTERS = { 'claude-cli': runClaudeCli, 'openai-api': runOpenAI };
 function availability(modelCfg) {
   if (modelCfg.adapter === 'claude-cli') return { ok: true };
   if (modelCfg.adapter === 'openai-api')
-    return process.env.OPENAI_API_KEY
-      ? { ok: true }
-      : { ok: false, why: 'missing OPENAI_API_KEY' };
+    return process.env.OPENAI_API_KEY ? { ok: true } : { ok: false, why: 'missing OPENAI_API_KEY' };
   return { ok: false, why: `adapter '${modelCfg.adapter}' not wired in the reasoning runner` };
 }
 

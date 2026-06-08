@@ -34,7 +34,7 @@ MCP **server**, the bench is the **client**.
 
 Crucial caveat up front: **MCP is a protocol, not a sandbox.** It gives a process
 boundary and a typed tool contract. Every isolation guarantee below comes from
-how the harness *provisions* the contestant, not from MCP itself.
+how the harness _provisions_ the contestant, not from MCP itself.
 
 ## Threat model — what can and cannot be corrupted
 
@@ -57,13 +57,13 @@ not with prior runs.**
 
 ### Interference, decomposed
 
-| Shared layer | Corrupts answer *quality*? | Mitigation |
-|---|---|---|
-| Model weights | No — stateless per call | nothing needed |
-| Persistent state (brain/memory/DB dir) | **Yes** | per-contestant scratch dir, seeded fresh, snapshot → run → restore |
-| Credentials / account | No quality; rate-limit → latency & cost skew | each contestant brings **its own** key; if shared, serialize and flag latency unreliable |
-| Env / filesystem (adversarial server) | **Yes** | scrubbed env allowlist + OS sandbox; never expose Aurora's state dirs or keys |
-| Prompt cache | No quality; latency & cost skew | record cache hits, or compare cold |
+| Shared layer                           | Corrupts answer _quality_?                   | Mitigation                                                                               |
+| -------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Model weights                          | No — stateless per call                      | nothing needed                                                                           |
+| Persistent state (brain/memory/DB dir) | **Yes**                                      | per-contestant scratch dir, seeded fresh, snapshot → run → restore                       |
+| Credentials / account                  | No quality; rate-limit → latency & cost skew | each contestant brings **its own** key; if shared, serialize and flag latency unreliable |
+| Env / filesystem (adversarial server)  | **Yes**                                      | scrubbed env allowlist + OS sandbox; never expose Aurora's state dirs or keys            |
+| Prompt cache                           | No quality; latency & cost skew              | record cache hits, or compare cold                                                       |
 
 The two **Yes** rows are the whole job. The credential row is why a third-party
 wrapper must **not** be handed Aurora's `ANTHROPIC_API_KEY` — it brings its own
@@ -127,7 +127,7 @@ and mark latency as **not comparable** in that run.
 
 Comparing whole agents reopens the fairness problem the reasoning track dodges by
 giving Claude **no web tools** (so it's a clean comparison to a plain OpenAI
-completion — `reasoning.js:81` note). A wrapper *with* retrieval vs one *without*
+completion — `reasoning.js:81` note). A wrapper _with_ retrieval vs one _without_
 is not a like-for-like test. So: tag every contestant with its `capabilities`
 profile and either compare **within a class** or always render the profile next
 to the score in the report. Never publish a bare scoreboard that mixes classes.

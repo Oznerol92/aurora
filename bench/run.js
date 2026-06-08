@@ -125,20 +125,23 @@ function runClaudeCli(modelCfg, systemPrompt, userPrompt, opts = {}) {
     };
     // Safety net: kill a call that hangs (e.g. a stuck web search) so one bad job
     // never blocks the whole run, as happened before this guard existed.
-    const timer = setTimeout(
-      () => {
-        try {
-          child.kill('SIGKILL');
-        } catch {
-          /* already gone */
-        }
-        done({ ok: false, error: `timeout after ${opts.timeoutMs ?? 180000}ms`, latency_ms: Date.now() - started });
-      },
-      opts.timeoutMs ?? 180000,
-    );
+    const timer = setTimeout(() => {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* already gone */
+      }
+      done({
+        ok: false,
+        error: `timeout after ${opts.timeoutMs ?? 180000}ms`,
+        latency_ms: Date.now() - started,
+      });
+    }, opts.timeoutMs ?? 180000);
     child.stdout.on('data', (d) => (stdout += d));
     child.stderr.on('data', (d) => (stderr += d));
-    child.on('error', (err) => done({ ok: false, error: String(err), latency_ms: Date.now() - started }));
+    child.on('error', (err) =>
+      done({ ok: false, error: String(err), latency_ms: Date.now() - started }),
+    );
     child.on('close', (code) => {
       const latency_ms = Date.now() - started;
       if (settled) return;

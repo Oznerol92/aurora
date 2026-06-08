@@ -117,7 +117,10 @@ function loadReasoning(runId) {
   if (perModel.length) {
     for (const f of perModel) {
       try {
-        summaries.push({ id: f.replace(/\.summary\.json$/, ''), s: JSON.parse(readFileSync(join(dir, f), 'utf8')) });
+        summaries.push({
+          id: f.replace(/\.summary\.json$/, ''),
+          s: JSON.parse(readFileSync(join(dir, f), 'utf8')),
+        });
       } catch {
         /* skip an unreadable summary */
       }
