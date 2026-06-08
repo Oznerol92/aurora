@@ -4,6 +4,7 @@ type: structure
 lang: any
 title: The 6-module research method
 tags: [research, method, citations, audit]
+related: [research-advanced, anti-hype]
 source: aurora-method-corpus
 priority: 1
 ---

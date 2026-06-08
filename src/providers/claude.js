@@ -9,7 +9,8 @@ import {
   SEED_MAX_TURNS,
   seedPreamble,
 } from './prompt.js';
-import { buildBrainIndex, selectRelevantCards, formatTurnBrain } from '../brain/corpus.js';
+import { buildBrainIndex, formatTurnBrain } from '../brain/corpus.js';
+import { buildBrainGraph, selectRelevantCardsGraph } from '../brain/graph.js';
 
 // Aurora's identity (persona + interaction protocol) and the seed-preamble
 // helper are shared across providers via ./prompt.js, so switching the backend
@@ -60,6 +61,7 @@ export class ClaudeProvider extends Provider {
     // and injected into each turn (see #augment).
     this.brainCards = [];
     this.brainIndex = null;
+    this.brainGraph = null;
     this.personaText = null;
 
     // Cancellation: the in-flight child process and a flag set by abort().
@@ -109,6 +111,8 @@ export class ClaudeProvider extends Provider {
   setBrainCards(cards) {
     this.brainCards = Array.isArray(cards) ? cards : [];
     this.brainIndex = this.brainCards.length ? buildBrainIndex(this.brainCards) : null;
+    // Precompute the retrieval graph once (reused every turn in #augment).
+    this.brainGraph = this.brainCards.length ? buildBrainGraph(this.brainCards) : null;
   }
 
   /** User voice/characteristics injected on the next fresh session (null to clear). */
@@ -205,7 +209,8 @@ export class ClaudeProvider extends Provider {
   /** Prepend the per-turn brain guidance to a message, or return it unchanged. */
   #augment(text) {
     if (!this.brainCards.length) return text;
-    const block = formatTurnBrain(selectRelevantCards(this.brainCards, text));
+    const cards = selectRelevantCardsGraph(this.brainCards, text, { graph: this.brainGraph });
+    const block = formatTurnBrain(cards);
     return block ? `${block}\n\n${text}` : text;
   }
 

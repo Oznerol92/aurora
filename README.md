@@ -70,6 +70,13 @@ session id on the first turn (`--session-id`) and resumes it on every later turn
 is restricted to read-only + web tools (`WebSearch`, `WebFetch`, `Read`, `Glob`,
 `Grep`) — enough to do real research, but it can't modify your files from a chat.
 
+It writes and researches by a curated **method brain** (`brain/`): each turn, the
+cards most relevant to your message are retrieved and added to context. Retrieval
+is a small **graph** — cards are linked by shared tags and explicit `related:`
+edges, so a match spreads to the rules it's connected to (asking to write an
+article also pulls in the voice and quality-gate rules, even when you didn't name
+them). It's deterministic and offline, no embeddings. See `src/brain/graph.js`.
+
 Config lives at `~/.config/aurora/config.json`.
 
 ## Talking back: questions & finish recaps

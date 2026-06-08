@@ -4,6 +4,7 @@ type: structure
 lang: any
 title: Article skeleton (7 sections)
 tags: [article, structure, writing, blog]
+related: [voice-core, anti-hype, quality-gate, forbidden-words, worked-example]
 source: aurora-method-corpus
 priority: 1
 ---

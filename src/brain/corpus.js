@@ -37,6 +37,7 @@ export function parseCard(raw, path = '') {
     lang: 'any',
     title: '',
     tags: [],
+    related: [], // explicit graph edges to other card ids (see brain/graph.js)
     source: '',
     priority: 2,
   };
@@ -50,8 +51,8 @@ export function parseCard(raw, path = '') {
       if (!kv) continue;
       const key = kv[1];
       const val = kv[2].trim();
-      if (key === 'tags') {
-        card.tags = parseList(val);
+      if (key === 'tags' || key === 'related') {
+        card[key] = parseList(val);
       } else if (key === 'priority') {
         const n = parseInt(val, 10);
         if (Number.isFinite(n)) card.priority = n;
@@ -200,11 +201,18 @@ function anyMatch(token, words) {
  * Returns the top `max` cards scoring at least `minScore`, ties broken by
  * priority (lowest first) then id. An empty/again-stopword query returns [].
  */
-export function selectRelevantCards(cards, query, { max = 3, minScore = 1 } = {}) {
+/**
+ * Score every card against a free-text query: each query token scores against a
+ * card's tags (×3), title (×2), and body (×1). Returns [{card, score}] for ALL
+ * cards (unfiltered) so callers — the top-N selector below and the graph's
+ * spreading activation (brain/graph.js) — can share one deterministic scorer.
+ * Returns [] for an empty corpus or an all-stopword query.
+ */
+export function scoreCards(cards, query) {
   const list = (cards || []).filter(Boolean);
   const tokens = [...new Set(tokenizeWords(query))];
   if (!list.length || !tokens.length) return [];
-  const scored = list.map((c) => {
+  return list.map((c) => {
     const tagW = tokenizeWords((c.tags || []).join(' '));
     const titleW = tokenizeWords(c.title);
     const bodyW = tokenizeWords(c.body);
@@ -216,7 +224,10 @@ export function selectRelevantCards(cards, query, { max = 3, minScore = 1 } = {}
     }
     return { card: c, score };
   });
-  return scored
+}
+
+export function selectRelevantCards(cards, query, { max = 3, minScore = 1 } = {}) {
+  return scoreCards(cards, query)
     .filter((s) => s.score >= minScore)
     .sort(
       (a, b) =>
