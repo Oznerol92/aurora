@@ -349,7 +349,7 @@ export class ClaudeProvider extends Provider {
       throw spawnError;
     }
     if (exitCode !== 0) {
-      throw new Error(`claude exited with code ${exitCode}${stderr ? `:\n${stderr.trim()}` : ''}`);
+      throw new Error(explainExit(exitCode, stderr));
     }
   }
 
@@ -373,6 +373,85 @@ export function isSessionNotFound(message = '') {
     (m.includes('session') && m.includes('not found')) ||
     (m.includes('resume') && m.includes('not found'))
   );
+}
+
+/**
+ * Turn a non-zero `claude` CLI exit into a cause-led, actionable message instead
+ * of a bare "claude exited with code 1". Scans stderr for known signatures and
+ * leads with the likely cause + a remedy; falls back to the raw output, and to a
+ * "no output" hint when stderr is empty (the worst case — the original opaque
+ * error). The raw stderr is still appended (bounded) so diagnostics aren't lost.
+ *
+ * Token-safe: stderr from the CLI doesn't carry secrets, but we bound it anyway
+ * so a stack dump can't flood the REPL.
+ */
+export function explainExit(exitCode, stderr = '') {
+  const raw = String(stderr).trim();
+  const cause = classifyExit(raw);
+  const head = cause
+    ? cause
+    : raw
+      ? `Claude CLI failed (exit ${exitCode}).`
+      : `Claude CLI exited with code ${exitCode} and produced no output — it may have ` +
+        `crashed or been killed. Try running \`claude\` directly to see the underlying error.`;
+  const detail = raw ? `\n${raw.length > 600 ? raw.slice(0, 600) + '…' : raw}` : '';
+  return head + detail;
+}
+
+/** Match stderr against known failure signatures; null when nothing matches. */
+function classifyExit(stderr) {
+  const m = String(stderr).toLowerCase();
+  const has = (...needles) => needles.some((n) => m.includes(n));
+
+  if (
+    has(
+      'not logged in',
+      'unauthorized',
+      'authentication',
+      'invalid api key',
+      'invalid x-api-key',
+    ) ||
+    (has('login') && has('please run', 'run `claude', 'sign in')) ||
+    m.includes('401')
+  ) {
+    return 'Claude isn’t authenticated. Run `claude login` (or `/login` in Claude Code) and try again.';
+  }
+  if (has('usage limit', 'quota')) {
+    return 'You’ve hit your Claude usage limit. Wait for it to reset, or switch to a lower tier.';
+  }
+  if (has('rate limit', 'rate_limit', 'too many requests') || m.includes('429')) {
+    return 'Claude is rate-limiting requests. Wait a few seconds and retry.';
+  }
+  if (has('overloaded') || m.includes('529')) {
+    return 'Claude’s API is overloaded right now. Retry in a moment.';
+  }
+  if (
+    has('prompt is too long', 'context length', 'maximum context', 'too many tokens') ||
+    (has('context') && has('exceed'))
+  ) {
+    return 'The conversation is too long for the model’s context window. Start a fresh session with /new, or trim history.';
+  }
+  if (
+    (has('model') && has('not found', 'invalid', 'unknown', 'does not exist')) ||
+    has('invalid model')
+  ) {
+    return 'The configured model was rejected by the CLI. Check your `model` setting.';
+  }
+  if (
+    has(
+      'econnreset',
+      'enotfound',
+      'etimedout',
+      'econnrefused',
+      'fetch failed',
+      'socket hang up',
+      'network error',
+    )
+  ) {
+    const code = (m.match(/\b(econnreset|enotfound|etimedout|econnrefused)\b/) || [])[1];
+    return `Network error reaching Claude${code ? ` (${code.toUpperCase()})` : ''}. Check your connection and retry.`;
+  }
+  return null;
 }
 
 /** Render seeded turns as a bounded transcript for the fresh-session preamble. */

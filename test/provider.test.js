@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeProvider, isSessionNotFound } from '../src/providers/claude.js';
+import { ClaudeProvider, isSessionNotFound, explainExit } from '../src/providers/claude.js';
 
 /** Pull the value passed to --append-system-prompt out of an args array. */
 function systemPrompt(args) {
@@ -157,4 +157,29 @@ test('isSessionNotFound recognises a stale-resume error but not unrelated ones',
   assert.ok(isSessionNotFound('Error: could not resume — session abcd not found'));
   assert.ok(!isSessionNotFound('claude exited with code 1: rate limit exceeded'));
   assert.ok(!isSessionNotFound(''));
+});
+
+test('explainExit leads with an actionable cause for known failures', () => {
+  assert.match(explainExit(1, 'Error: Not logged in'), /authenticated.*claude login/i);
+  assert.match(explainExit(1, 'You have reached your usage limit'), /usage limit/i);
+  assert.match(explainExit(1, 'HTTP 429: rate_limit_error'), /rate-limit/i);
+  assert.match(explainExit(1, 'overloaded_error: server is busy'), /overloaded/i);
+  assert.match(explainExit(1, 'prompt is too long: 250000 tokens'), /context window.*\/new/i);
+  assert.match(explainExit(1, 'model "claude-xyz" not found'), /model was rejected/i);
+  assert.match(explainExit(1, 'request failed: ECONNRESET'), /Network error.*ECONNRESET/i);
+});
+
+test('explainExit appends the raw stderr (bounded) for diagnostics', () => {
+  const msg = explainExit(1, 'overloaded_error here');
+  assert.match(msg, /overloaded_error here/, 'keeps the original output');
+  const long = explainExit(1, 'x'.repeat(2000));
+  assert.ok(long.length < 700, 'long stderr is truncated');
+  assert.match(long, /…$/, 'truncation marked');
+});
+
+test('explainExit handles the opaque no-output exit (the original bad case)', () => {
+  const msg = explainExit(1, '');
+  assert.match(msg, /no output/i);
+  assert.match(msg, /code 1/);
+  assert.doesNotMatch(msg, /undefined/);
 });

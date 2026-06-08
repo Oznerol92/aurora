@@ -90,6 +90,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Clearer Claude CLI errors.** A failed turn used to surface a bare
+  `claude exited with code 1` (with raw stderr appended, or nothing at all).
+  A new `explainExit()` classifier (`src/providers/claude.js`) now leads with the
+  likely cause and a remedy — not authenticated (run `claude login`), usage limit
+  reached, rate-limited (429), overloaded (529), context window exceeded (start a
+  fresh `/new`), rejected model, or a network error (with the `ECONN*` code) —
+  and, in the worst case of a non-zero exit with **no** output, says so and points
+  you at running `claude` directly. The raw stderr is still appended, bounded to
+  600 chars so a stack dump can't flood the REPL.
 - **Prose questions weren't caught.** The model is told to wrap a question in an
   `aurora:ask` block, but it often just asks in plain prose and stops. Those
   questions slipped through: the turn looked "finished", so over Telegram the
