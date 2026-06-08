@@ -22,6 +22,7 @@ import {
 } from './setup.js';
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
 import { loadSkills, selectSkill, compileSkill } from './skills/corpus.js';
+import { resolveTurnEngine } from './route.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { loadChats, registerChat, removeChat } from './notify/chats.js';
@@ -404,68 +405,100 @@ export async function main(argv = process.argv.slice(2)) {
  */
 async function streamResponse(ctx, text) {
   const { config } = ctx;
-  let message = text; // the current turn's user text (answers on follow-ups)
-  let saveAs = null; // when set, persist this instead of the model-facing message
 
   // Skill selection: a clear trigger match (or an armed `/skill use <id>`)
   // compiles the skill's plan — procedure + named brain rules + template — and
   // prepends it for this turn. The store keeps the user's original text, not the
   // scaffolding (same trick `/read` uses). Applies to the opening message only.
   const applied = applySkillToMessage(ctx, text);
-  if (applied) {
-    message = `${applied.block}\n\n${text}`;
-    saveAs = text;
-    console.log(dim(`  · skill: ${applied.skill.id}`));
-  }
 
-  while (true) {
-    // Persist the user turn up front (before the model is called) so an interrupt
-    // or crash mid-answer can't lose it. Pin the session id now so the user turn
-    // and the assistant turn land under the same conversation.
-    const sessionId = ctx.sessionId || ctx.provider.sessionId || null;
-    ctx.sessionId = sessionId;
-    await saveUserTurn(ctx.store, sessionId, saveAs ?? message);
-    saveAs = null;
+  // Engine routing for THIS task: an `@worker` prefix or the skill's `engine:`
+  // field can borrow a different worker; the interface engine reverts afterward
+  // (route by task, escalate by stakes — see src/route.js). `@worker` strips its
+  // prefix from the message the model sees.
+  const engines = listProviders()
+    .filter((p) => p.implemented)
+    .map((p) => p.id);
+  const route = resolveTurnEngine(text, {
+    skill: applied?.skill,
+    engines,
+    current: ctx.config.provider,
+  });
+  const userText = route.message; // @worker prefix stripped, if any
 
-    const turn = await runTurn(ctx, message);
-    if (turn.errored) return;
-    if (turn.interrupted) {
-      // `/read` mid-answer steer: re-run the SAME turn with the user's nudge and
-      // whatever Aurora had written so far, so the answer adjusts in place. A plain
-      // Ctrl-C interrupt (no steer pending) just stops at the prompt.
-      if (ctx.steerText) {
-        const steer = ctx.steerText;
-        ctx.steerText = null;
-        saveAs = steer; // store the user's `/read` text, not the scaffolding we send
-        message = composeSteer(steer, turn.cleanAnswer);
-        continue;
-      }
-      return;
+  let message = applied ? `${applied.block}\n\n${userText}` : userText;
+  // Persist the user's own words (not the scaffolding or the @worker prefix).
+  let saveAs = message === text ? null : text;
+
+  // Borrow a worker for the duration of this task; the interface engine — what
+  // the user chose with /engine — is restored in the finally below.
+  const interfaceProvider = ctx.provider;
+  let borrowed = false;
+  if (route.engineId && route.engineId !== ctx.config.provider) {
+    try {
+      ctx.provider = await adoptProvider(getProvider(route.engineId, config), ctx);
+      borrowed = true;
+    } catch (e) {
+      console.log('\n' + error(e.message) + '\n');
+      ctx.provider = interfaceProvider;
     }
+  }
+  if (applied) console.log(dim(`  · skill: ${applied.skill.id}`));
+  if (borrowed) console.log(dim(`  · engine: ${route.engineId} (${route.source})`));
 
-    // A pending question takes priority: ask the user, then loop with the answers.
-    // The model is supposed to wrap questions in an `aurora:ask` block; when it
-    // forgets and just asks in prose, parseImplicitAsk catches the trailing
-    // question so it isn't mistaken for a finished turn.
-    const ask = parseAskBlock(turn.fullAnswer) || parseImplicitAsk(turn.fullAnswer);
-    if (ask) {
-      const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer);
-      if (answers == null) {
-        const note = warn('  ⏸ left the question unanswered');
-        if (ctx.printer) ctx.printer.line(note);
-        else console.log('\n' + note + '\n');
+  try {
+    while (true) {
+      // Persist the user turn up front (before the model is called) so an interrupt
+      // or crash mid-answer can't lose it. Pin the session id now so the user turn
+      // and the assistant turn land under the same conversation.
+      const sessionId = ctx.sessionId || ctx.provider.sessionId || null;
+      ctx.sessionId = sessionId;
+      await saveUserTurn(ctx.store, sessionId, saveAs ?? message);
+      saveAs = null;
+
+      const turn = await runTurn(ctx, message);
+      if (turn.errored) return;
+      if (turn.interrupted) {
+        // `/read` mid-answer steer: re-run the SAME turn with the user's nudge and
+        // whatever Aurora had written so far, so the answer adjusts in place. A plain
+        // Ctrl-C interrupt (no steer pending) just stops at the prompt.
+        if (ctx.steerText) {
+          const steer = ctx.steerText;
+          ctx.steerText = null;
+          saveAs = steer; // store the user's `/read` text, not the scaffolding we send
+          message = composeSteer(steer, turn.cleanAnswer);
+          continue;
+        }
         return;
       }
-      message = formatAnswers(ask.questions, answers);
-      continue;
-    }
 
-    // No question → this turn finished the job. Recap to Telegram, previewing
-    // the turn's conclusion (the final result message) rather than the full
-    // narration, whose opening is preamble and reads as stale "old output".
-    const recapText = recapSource(turn.meta?.text, turn.cleanAnswer);
-    await maybeNotify(config, recapText, parseDoneBlock(turn.fullAnswer));
-    return;
+      // A pending question takes priority: ask the user, then loop with the answers.
+      // The model is supposed to wrap questions in an `aurora:ask` block; when it
+      // forgets and just asks in prose, parseImplicitAsk catches the trailing
+      // question so it isn't mistaken for a finished turn.
+      const ask = parseAskBlock(turn.fullAnswer) || parseImplicitAsk(turn.fullAnswer);
+      if (ask) {
+        const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer);
+        if (answers == null) {
+          const note = warn('  ⏸ left the question unanswered');
+          if (ctx.printer) ctx.printer.line(note);
+          else console.log('\n' + note + '\n');
+          return;
+        }
+        message = formatAnswers(ask.questions, answers);
+        continue;
+      }
+
+      // No question → this turn finished the job. Recap to Telegram, previewing
+      // the turn's conclusion (the final result message) rather than the full
+      // narration, whose opening is preamble and reads as stale "old output".
+      const recapText = recapSource(turn.meta?.text, turn.cleanAnswer);
+      await maybeNotify(config, recapText, parseDoneBlock(turn.fullAnswer));
+      return;
+    }
+  } finally {
+    // Hand the conversation back to the interface engine the user chose.
+    if (borrowed) ctx.provider = interfaceProvider;
   }
 }
 
@@ -737,8 +770,9 @@ async function handleCommand(text, ctx) {
       );
       return true;
 
-    case 'provider':
-      await handleProvider(arg, ctx);
+    case 'engine':
+    case 'provider': // back-compat alias for the old name
+      await handleEngine(arg, ctx);
       return true;
 
     case 'model':
@@ -1087,33 +1121,44 @@ async function handlePersona(arg, ctx) {
   );
 }
 
-async function handleProvider(arg, ctx) {
-  const providers = listProviders();
-  const impl = providers.filter((p) => p.implemented); // switchable, numbered 1..N
+// The "engine" is Aurora's interface model — the backend that fronts the
+// conversation and holds its voice. (`/provider` stays as a back-compat alias;
+// the config key is still `provider`.) Workers borrowed per-task via @worker /
+// skill `engine:` are routed separately, in streamResponse — see src/route.js.
+async function handleEngine(arg, ctx) {
+  const engines = listProviders();
+  const impl = engines.filter((p) => p.implemented); // switchable, numbered 1..N
 
   if (arg === 'list') {
-    printProviderList(providers, ctx.config.provider);
+    printEngineList(engines, ctx.config.provider);
     return;
   }
 
-  // Resolve the target backend: a number picks the Nth switchable provider, a
-  // name picks by id, and no argument opens a numbered chooser (TTY only).
+  // Resolve the target engine: a number picks the Nth switchable engine, a name
+  // picks by id, and no argument opens a numbered chooser (TTY only).
   let targetId = null;
   if (/^\d+$/.test(arg)) {
     targetId = impl[Number(arg) - 1]?.id;
     if (!targetId) {
-      console.log('\n' + error(`No provider #${arg}. Run /provider to see the list.`) + '\n');
+      console.log('\n' + error(`No engine #${arg}. Run /engine to see the list.`) + '\n');
       return;
     }
   } else if (arg) {
     targetId = arg;
   } else {
-    printProviderList(providers, ctx.config.provider);
+    printEngineList(engines, ctx.config.provider);
     if (!ctx.printer && !process.stdin.isTTY) return; // non-interactive: just listed
     const options = impl.map((p) => `${p.id} — ${p.label}`);
     const [answer] = await askInTerminal(
       ctx.rl,
-      [{ header: 'Provider', question: 'Switch Aurora’s backend to:', options, multiSelect: false }],
+      [
+        {
+          header: 'Engine',
+          question: 'Set Aurora’s interface engine to:',
+          options,
+          multiSelect: false,
+        },
+      ],
       ctx.printer,
     );
     if (answer == null) return; // stdin closed
@@ -1127,30 +1172,31 @@ async function handleProvider(arg, ctx) {
   }
 
   try {
-    // Build the new backend, then carry the same Aurora onto it. Only make it
-    // current on success — if construction threw, the old provider stays.
+    // Build the new engine, then carry the same Aurora onto it. Only make it
+    // current on success — if construction threw, the old engine stays.
     const next = await adoptProvider(getProvider(targetId, ctx.config), ctx);
     ctx.provider = next;
     ctx.config.provider = targetId;
     saveConfig(ctx.config);
-    console.log('\n' + info('Switched to: ') + next.describe() + '\n');
+    console.log('\n' + info('Interface engine: ') + next.describe() + '\n');
   } catch (e) {
     console.log('\n' + error(e.message) + '\n');
   }
 }
 
-/** Print the providers as a numbered list (only switchable ones get a number). */
-function printProviderList(providers, currentId) {
-  console.log('\n' + info('Providers:'));
+/** Print the engines as a numbered list (only switchable ones get a number). */
+function printEngineList(engines, currentId) {
+  console.log('\n' + info('Engines') + dim('  (the interface model Aurora speaks as)'));
   let n = 0;
-  for (const p of providers) {
+  for (const p of engines) {
     const mark = p.id === currentId ? '●' : '○';
     const num = p.implemented ? warn(`${++n}. `) : '   ';
     const status = p.implemented ? '' : warn(' (planned)');
     const current = p.id === currentId ? warn('  ◀ current') : '';
     console.log(`  ${mark} ${num}${p.id} — ${p.label}${status}${current}`);
   }
-  console.log(info('\n  Switch: ') + '/provider <number|id> — or just /provider to choose\n');
+  console.log(info('\n  Set: ') + '/engine <number|id> — or just /engine to choose');
+  console.log(dim('  Per-task: prefix a message with @<engine>, e.g. @codex …') + '\n');
 }
 
 /**
@@ -1689,7 +1735,7 @@ function printHelp() {
         ['/help', 'show this help'],
         ['/template', 'show the Aurora Research Method again'],
         ['/new', 'start a fresh conversation (clears context)'],
-        ['/provider [n|id]', 'switch backend — pick a number, name, or just /provider'],
+        ['/engine [n|id]', 'set the interface engine (pick a number/name); @worker per task'],
         ['/model [name]', 'show or set the model (/model default to reset)'],
         [
           '/store [id]',

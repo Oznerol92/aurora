@@ -18,6 +18,7 @@ when_to_use: write or draft an article or blog post
 tags: [article, blog]
 brain: [voice-core, quality-gate]
 template: article-skeleton
+engine: codex
 asks: Topic? | Audience?
 ---
 1. Plan. 2. Execute. 3. Verify against the gate.`;
@@ -29,6 +30,7 @@ test('parseSkill reads frontmatter, lists, pipe-delimited asks, and body', () =>
   assert.deepEqual(s.brain, ['voice-core', 'quality-gate']);
   assert.deepEqual(s.tags, ['article', 'blog']);
   assert.equal(s.template, 'article-skeleton');
+  assert.equal(s.engine, 'codex', 'optional engine: field parsed for routing');
   assert.deepEqual(s.asks, ['Topic?', 'Audience?']);
   assert.match(s.body, /Plan\. 2\. Execute/);
 });

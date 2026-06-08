@@ -65,6 +65,7 @@ export function parseSkill(raw, path = '') {
     brain: [],
     template: '',
     asks: [],
+    engine: '', // optional: pin this skill's task to a worker engine (see route.js)
   };
   let body = text.trim();
 

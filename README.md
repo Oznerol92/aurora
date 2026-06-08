@@ -2,7 +2,7 @@
 
 A research-grade AI chat in your terminal. Aurora opens with the **Aurora Research Method** — a 6-module workflow for running serious, well-cited research — then drops you into a chat.
 
-It's **provider-agnostic** by design: the UI talks to a small provider interface, so new AIs slot in without touching anything else. It ships with two backends — **Claude** (via your local `claude` / Claude Code CLI) and **Codex** (via the OpenAI `codex` CLI) — and switching between them with `/provider` keeps the _same Aurora_: identity, voice, and method brain are shared across engines, only the model underneath changes. Both reuse the CLI's own auth, so there's no API key for Aurora to hold.
+It's **engine-agnostic** by design. Aurora is the constant **interface model** you talk to — its identity, voice, and method brain stay the same — while the **engine** underneath is swappable: it ships with **Claude** (via your local `claude` / Claude Code CLI) and **Codex** (via the OpenAI `codex` CLI). Switch with `/engine`; borrow a different **worker** for a single task by prefixing a message with `@codex …`. Both engines reuse the CLI's own auth, so there's no API key for Aurora to hold.
 
 Plain `aurora` also brings up a two-way **Telegram bridge** in the background (when configured), so the same conversation follows you to your phone — one command, terminal and Telegram on one shared session.
 
@@ -50,7 +50,7 @@ chat` opens the REPL.
 | `/help`                                         | show commands                                           |
 | `/template`                                     | show the Aurora Research Method again                   |
 | `/new`                                          | start a fresh conversation (clears context)             |
-| `/provider [id]`                                | list providers, or switch backend                       |
+| `/engine [n\|id]`                               | set the interface engine; `@worker …` routes one task   |
 | `/model [name]`                                 | show or set the model (`/model default` to reset)       |
 | `/store [id]`                                   | switch persistence; `/store scope global\|project`      |
 | `/history`                                      | list saved conversations, with previews (needs a store) |
@@ -254,16 +254,33 @@ This is an open-source repo, so it's built to be safe to publish and share:
 - **Least privilege at runtime.** The Claude backend runs read-only + web tools
   only (see _How it works_), so a chat can't modify your files.
 
-### Providers
+### Engines & workers
 
-`/provider` lists the backends and `/provider <id>` switches; `/provider codex`
-needs the `codex` CLI on your `PATH` and signed in (`codex login`, or an
-`OPENAI_API_KEY` in the environment). Switching mid-conversation re-applies the
-brain and voice and seeds the new engine with the transcript, so it stays one
-Aurora. Both backends run read-only (they won't edit your files from a chat) with
-web search on. `/model` targets the **active** provider — model names aren't
-portable, so it writes to `model` for Claude and `codexModel` for Codex; `/model`
-with no argument shows the current one, `/model default` clears it.
+Aurora's **interface engine** is the backend it speaks as. `/engine` lists the
+engines numbered and switches by number, name, or an interactive pick;
+`/engine codex` needs the `codex` CLI on your `PATH` and signed in (`codex login`,
+or an `OPENAI_API_KEY`). Switching mid-conversation re-applies the brain and voice
+and seeds the new engine with the transcript, so it stays one Aurora. Both run
+read-only (they won't edit your files from a chat) with web search on. `/model`
+targets the **active** engine — model names aren't portable, so it writes to
+`model` for Claude and `codexModel` for Codex.
+
+**Per-task routing.** You don't have to switch engines to use another one for a
+single task. Two predictable, zero-cost signals borrow a **worker** for one task,
+then hand the conversation back to your interface engine:
+
+- **`@worker <message>`** — e.g. `@codex port this function to Rust`. The prefix
+  is stripped before the model sees it.
+- **A skill's `engine:` field** — a skill can pin its task to an engine in
+  frontmatter (e.g. `engine: codex`), so the task always runs on the right tool.
+
+The doctrine is _route by task, escalate by stakes_: easy turns stay on the
+interface; a skill or `@worker` picks a specialist; richer routing (a capability
+router, model-decided delegation, multi-agent debate) is planned — see
+`docs/design/routing.md` on the v0.4.1 branch. Cross-engine memory is best-effort
+today: a borrowed worker is seeded from your saved transcript, but the interface
+engine's _native_ session doesn't absorb the side-call (it's in your store
+regardless).
 
 ## Adding another AI later
 
@@ -276,7 +293,7 @@ To add, say, Gemini:
    `seed()` / `abort()` / `setBrainCards()` / `setPersona()`).
 2. Register it in `src/providers/index.js`.
 
-Nothing in the CLI or UI needs to change — `/provider gemini` will just work.
+Nothing in the CLI or UI needs to change — `/engine gemini` will just work.
 
 ## Benchmark (dev tool)
 
