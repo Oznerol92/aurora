@@ -5,13 +5,13 @@
   "type": "module",
   "license": "MIT",
   "author": "Lorenzo (https://github.com/Oznerol92)",
-  "homepage": "https://github.com/Oznerol92/aurora#readme",
+  "homepage": "https://github.com/Werewolf-Solutions/aurora#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Oznerol92/aurora.git"
+    "url": "git+https://github.com/Werewolf-Solutions/aurora.git"
   },
   "bugs": {
-    "url": "https://github.com/Oznerol92/aurora/issues"
+    "url": "https://github.com/Werewolf-Solutions/aurora/issues"
   },
   "keywords": [
     "cli",

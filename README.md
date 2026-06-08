@@ -328,7 +328,7 @@ merge. Set this once with the GitHub CLI (run for each branch):
 
 ```bash
 for branch in pre-release release; do
-  gh api --method PUT "repos/Oznerol92/aurora/branches/$branch/protection" --input - <<'JSON'
+  gh api --method PUT "repos/Werewolf-Solutions/aurora/branches/$branch/protection" --input - <<'JSON'
 { "required_status_checks": { "strict": true,
     "contexts": ["check (node 18)", "check (node 20)", "check (node 22)"] },
   "enforce_admins": true,
