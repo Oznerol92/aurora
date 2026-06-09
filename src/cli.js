@@ -1915,6 +1915,7 @@ function printHelp() {
         ['/help', 'show this help'],
         ['/template', 'show the Aurora Research Method again'],
         ['/new', 'start a fresh conversation (clears context)'],
+        ['/read <text>', 'steer Aurora mid-answer — fold new text into the turn in flight'],
         ['/engine [n|id]', 'set the interface engine (pick a number/name); @worker per task'],
         ['/context', 'show the cross-engine handoff context for this directory'],
         ['/model [name]', 'show or set the model (/model default to reset)'],
