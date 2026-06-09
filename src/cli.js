@@ -446,10 +446,16 @@ export async function main(argv = process.argv.slice(2)) {
     if (!working) finish();
   });
 
-  // Ctrl-C: cancel an in-flight turn (kill the child, keep the partial answer)
-  // and return to the prompt; pressing it again at an idle prompt quits. Having
-  // this listener also stops readline from killing the process on the first ^C.
+  // Ctrl-C is two-stage and reachable from every state: the first ^C cancels
+  // whatever is in flight — an open aurora:ask popup, else a streaming turn — and
+  // a later ^C at an idle prompt runs the exit procedure. The popup check comes
+  // first because a popup runs *inside* a turn (working === true). Having this
+  // listener also stops readline from killing the process on the first ^C.
   rl.on('SIGINT', () => {
+    if (ctx.askCancel) {
+      ctx.askCancel(); // settle the popup as unanswered → caller returns to prompt
+      return;
+    }
     if (working) {
       ctx.interrupted = true;
       ctx.think?.stop(); // erase the animated indicator before printing below it
@@ -560,7 +566,7 @@ async function streamResponse(ctx, text) {
       // question so it isn't mistaken for a finished turn.
       const ask = parseAskBlock(turn.fullAnswer) || parseImplicitAsk(turn.fullAnswer);
       if (ask) {
-        const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer, ctx.paste);
+        const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer, ctx.paste, ctx);
         if (answers == null) {
           const note = warn('  ⏸ left the question unanswered');
           if (ctx.printer) ctx.printer.line(note);
@@ -761,7 +767,7 @@ async function runTurn(ctx, text) {
  * accepts comma-separated picks. Resolves to an array of answers (aligned to the
  * questions), or null if the input stream closed before answering.
  */
-export function askInTerminal(rl, questions, printer = null, paste = null) {
+export function askInTerminal(rl, questions, printer = null, paste = null, ctx = null) {
   // Interactive (pinned-prompt) mode keeps readline live throughout, so we must
   // not pause/resume around the popup; the question text is printed above the
   // prompt via the printer. Piped mode keeps the old resume-to-read / pause-after
@@ -772,18 +778,30 @@ export function askInTerminal(rl, questions, printer = null, paste = null) {
     const answers = [];
     if (!interactive) rl.resume(); // piped: drain paused us; we need input now
 
+    // Ctrl-C while a question is open: the SIGINT handler calls ctx.askCancel to
+    // abort the in-flight rl.question (its signal tears it down so a stray Enter
+    // can't fire the stale callback) and settle the popup as unanswered, returning
+    // the caller to the prompt. A later ^C at the idle prompt then exits.
+    const ac = new AbortController();
+    let settled = false;
     // If stdin closes mid-question, don't hang the loop. One handler for the
     // whole prompt sequence, removed once we settle, so listeners don't pile up.
-    const onClose = () => resolve(null);
+    const onClose = () => settle(null);
     rl.once('close', onClose);
     const settle = (value) => {
+      if (settled) return; // close, abort and completion can all race to settle
+      settled = true;
       rl.removeListener('close', onClose);
+      if (ctx) ctx.askCancel = null;
+      if (!interactive) rl.pause();
       resolve(value);
     };
+    if (ctx) ctx.askCancel = () => ac.abort();
+    ac.signal.addEventListener('abort', () => settle(null));
 
     const askOne = (i) => {
+      if (settled) return;
       if (i >= questions.length) {
-        if (!interactive) rl.pause();
         settle(answers);
         return;
       }
@@ -797,7 +815,8 @@ export function askInTerminal(rl, questions, printer = null, paste = null) {
           ? '   number(s) (comma-separated) or your own answer ❯ '
           : '   number or your own answer ❯ '
         : '   your answer ❯ ';
-      rl.question(info(prompt), (raw) => {
+      rl.question(info(prompt), { signal: ac.signal }, (raw) => {
+        if (settled) return;
         // Swap any "[Pasted text #N +M lines]" placeholders back to their real text,
         // exactly like the main REPL line handler — otherwise a multi-line paste in
         // an answer is submitted as the literal placeholder, not the pasted content.
@@ -1290,6 +1309,7 @@ async function handleEngine(arg, ctx) {
       ],
       ctx.printer,
       ctx.paste,
+      ctx,
     );
     if (answer == null) return; // stdin closed
     const picked = impl.find((p) => `${p.id} — ${p.label}` === answer);
