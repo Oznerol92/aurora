@@ -326,15 +326,21 @@ export async function main(argv = process.argv.slice(2)) {
     printer,
     paste,
     // Turn mode (intent gate Phase 2): 'auto' decides per turn, 'plan' forces
-    // discuss. `goOnce` is a one-shot `/go` consumed at the next turn.
+    // discuss. `goOnce` is a one-shot ACT flag consumed by the next turn — `/go`
+    // both sets it and enqueues that turn immediately (see the 'go' command).
     mode: isTurnMode(config.turnMode) ? config.turnMode : 'auto',
     goOnce: false,
+    // True once this session has at least one turn to act on (a streamed turn or
+    // a resumed transcript). `/go` with no text uses this to refuse on an empty
+    // session instead of firing a turn against no history.
+    hasContext: false,
   };
 
   // Process input strictly one line at a time. Readline can deliver several
   // 'line' events back-to-back (paste, or piped stdin); without a queue their
   // async handlers would interleave and a trailing /exit could exit mid-answer.
   const queue = [];
+  ctx.queue = queue; // let commands (e.g. `/go`) enqueue a turn to run immediately
   let working = false;
   let exitRequested = false; // /exit: stop now, ignore the rest of the queue
   let eofReached = false; // stdin EOF / Ctrl-D: drain the queue, then quit
@@ -488,6 +494,7 @@ async function streamResponse(ctx, text) {
   // whole turn, including any mid-task `aurora:ask`, so a task isn't stranded.
   const act = turnIsAct(ctx.mode || 'auto', text, { forceGo: ctx.goOnce });
   ctx.goOnce = false;
+  ctx.hasContext = true; // there is now a discussion in this session for `/go` to act on
 
   // Skill selection: a clear trigger match (or an armed `/skill use <id>`)
   // compiles the skill's plan — procedure + named brain rules + template — and
@@ -854,7 +861,7 @@ async function maybeNotify(config, answer, done, engineId) {
   if (!res.ok) console.log(warn('  telegram: ' + res.error));
 }
 
-async function handleCommand(text, ctx) {
+export async function handleCommand(text, ctx) {
   const [cmd, ...rest] = text.slice(1).split(/\s+/);
   const arg = rest.join(' ').trim();
 
@@ -878,16 +885,28 @@ async function handleCommand(text, ctx) {
       );
       return true;
 
-    case 'go':
-      // One-shot: act on the user's next message regardless of session mode.
+    case 'go': {
+      // Act now, not on the next message: `/go` enqueues a turn immediately so
+      // Aurora carries out what was just discussed. `/go <text>` acts on that
+      // text instead. Either way `goOnce` forces this turn into ACT regardless of
+      // session mode; streamResponse consumes it. With no text and nothing
+      // discussed yet, there's nothing to act on — say so rather than fire blind.
+      if (!arg && !ctx.hasContext) {
+        console.log(
+          '\n' +
+            warn('Nothing discussed yet — tell me what to do, or use /go <text>.') +
+            '\n',
+        );
+        return true;
+      }
+      const goMessage = arg || 'Go ahead with what we agreed.';
       ctx.goOnce = true;
+      ctx.queue.push(goMessage); // the drain loop runs this as the next turn
       console.log(
-        '\n' +
-          info('▶ Acting on your next message.') +
-          (arg ? warn('  (send it now — /go takes no inline text)') : '') +
-          '\n',
+        '\n' + info(arg ? '▶ Acting now.' : '▶ Acting on what we discussed.') + '\n',
       );
       return true;
+    }
 
     case 'template':
       console.log('\n' + renderMarkdown(TEMPLATE) + '\n');
@@ -1708,6 +1727,7 @@ async function handleResume(arg, ctx) {
   // Hand the transcript to the provider so a stale native session can fall back
   // to a fresh, seeded one instead of resuming blank.
   ctx.provider.seed?.(turns);
+  ctx.hasContext = true; // a resumed transcript is context `/go` can act on
   const title = previewTitle(target.title || firstUserText(turns));
   replayTurns(turns, `Resuming session ${shortId(sessionId)} · "${title}"`);
   console.log(info('\n  Continuing this conversation. Type your next message.') + '\n');
@@ -2019,7 +2039,7 @@ function printHelp() {
         ['/read <text>', 'steer Aurora mid-answer — fold new text into the turn in flight'],
         ['/plan', 'discuss mode — Aurora proposes and asks, does not act'],
         ['/auto', 'auto mode (default) — act on a clear request, discuss otherwise'],
-        ['/go', 'act on your next message regardless of mode (one-shot)'],
+        ['/go [text]', 'act now on what we discussed (or on <text>) regardless of mode'],
         ['/engine [n|id]', 'set the interface engine (pick a number/name); @worker per task'],
         ['/context', 'show the cross-engine handoff context for this directory'],
         ['/model [name]', 'show or set the model (/model default to reset)'],

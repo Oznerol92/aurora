@@ -77,7 +77,10 @@ for one task, revert in a `finally`), one level up.
 
 - `/plan` — set session mode to `plan` (force discuss).
 - `/auto` — set session mode back to `auto` (release `/plan`).
-- `/go` — act THIS turn regardless of mode, then auto-revert to the session mode.
+- `/go` — act NOW on what was just discussed: it enqueues an ACT turn immediately
+  (no waiting for a next message) and auto-reverts to the session mode afterward.
+  `/go <text>` acts on that text instead. With nothing discussed yet and no text,
+  it declines rather than firing against an empty session.
 
 (No sticky-ACT command on purpose — a "stay acting" mode is exactly the
 charge-ahead behaviour we're removing.)
