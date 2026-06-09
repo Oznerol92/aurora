@@ -55,6 +55,7 @@ import {
   recapSource,
 } from './protocol.js';
 import { createPasteInput, planPlaceholderCleanup } from './paste.js';
+import { turnIsAct, modeFraming, isTurnMode } from './turnmode.js';
 import { PromptPrinter } from './repl-prompt.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
@@ -315,7 +316,20 @@ export async function main(argv = process.argv.slice(2)) {
   }
   terminalMirror.printer = printer; // let the Telegram bridge draw above the prompt
 
-  const ctx = { rl, provider, config, store, hasStore, sessionId, printer, paste };
+  const ctx = {
+    rl,
+    provider,
+    config,
+    store,
+    hasStore,
+    sessionId,
+    printer,
+    paste,
+    // Turn mode (intent gate Phase 2): 'auto' decides per turn, 'plan' forces
+    // discuss. `goOnce` is a one-shot `/go` consumed at the next turn.
+    mode: isTurnMode(config.turnMode) ? config.turnMode : 'auto',
+    goOnce: false,
+  };
 
   // Process input strictly one line at a time. Readline can deliver several
   // 'line' events back-to-back (paste, or piped stdin); without a queue their
@@ -462,11 +476,19 @@ export async function main(argv = process.argv.slice(2)) {
 async function streamResponse(ctx, text) {
   const { config } = ctx;
 
+  // Turn mode (intent gate Phase 2): decide act vs. discuss for THIS turn from the
+  // session mode + the message. A one-shot `/go` is consumed here, so the next turn
+  // reverts to the session mode — there is no sticky ACT. `act` is held for the
+  // whole turn, including any mid-task `aurora:ask`, so a task isn't stranded.
+  const act = turnIsAct(ctx.mode || 'auto', text, { forceGo: ctx.goOnce });
+  ctx.goOnce = false;
+
   // Skill selection: a clear trigger match (or an armed `/skill use <id>`)
   // compiles the skill's plan — procedure + named brain rules + template — and
-  // prepends it for this turn. The store keeps the user's original text, not the
-  // scaffolding (same trick `/read` uses). Applies to the opening message only.
-  const applied = applySkillToMessage(ctx, text);
+  // prepends it for this turn. Auto-selection is suppressed in a discuss (PLAN)
+  // turn; an explicit `/skill use` still fires. The store keeps the user's original
+  // text, not the scaffolding (same trick `/read` uses). Opening message only.
+  const applied = applySkillToMessage(ctx, text, act);
 
   // Engine routing for THIS task: an `@worker` prefix or the skill's `engine:`
   // field can borrow a different worker; the interface engine reverts afterward
@@ -482,9 +504,13 @@ async function streamResponse(ctx, text) {
   });
   const userText = route.message; // @worker prefix stripped, if any
 
-  let message = applied ? `${applied.block}\n\n${userText}` : userText;
+  // Prepend the one-line mode framing (ACT: carry it out · PLAN: discuss + confirm
+  // before acting), then the skill block if any, then the user's message.
+  const framing = modeFraming(act);
+  const scaffold = applied ? `${framing}\n\n${applied.block}` : framing;
+  let message = `${scaffold}\n\n${userText}`;
   // Persist the user's own words (not the scaffolding or the @worker prefix).
-  let saveAs = message === text ? null : text;
+  let saveAs = text;
 
   // Borrow a worker for the duration of this task; the interface engine — what
   // the user chose with /engine — is restored in the finally below.
@@ -819,6 +845,31 @@ async function handleCommand(text, ctx) {
       printHelp();
       return true;
 
+    case 'plan':
+    case 'auto':
+      ctx.mode = cmd; // 'plan' (force discuss) | 'auto' (decide per turn)
+      console.log(
+        '\n' +
+          info(`Mode: ${cmd}`) +
+          ' — ' +
+          (cmd === 'plan'
+            ? 'I’ll discuss and propose, not act, until /auto or /go.'
+            : 'I’ll act on a clear request and discuss otherwise.') +
+          '\n',
+      );
+      return true;
+
+    case 'go':
+      // One-shot: act on the user's next message regardless of session mode.
+      ctx.goOnce = true;
+      console.log(
+        '\n' +
+          info('▶ Acting on your next message.') +
+          (arg ? warn('  (send it now — /go takes no inline text)') : '') +
+          '\n',
+      );
+      return true;
+
     case 'template':
       console.log('\n' + renderMarkdown(TEMPLATE) + '\n');
       return true;
@@ -930,7 +981,7 @@ async function applyBrainAndPersona(provider, store, config) {
  * `/skill use <id>` (ctx.pendingSkill, one-shot) first, then auto-selects by
  * trigger when skills are enabled. Best-effort: any failure just means no skill.
  */
-function applySkillToMessage(ctx, text) {
+function applySkillToMessage(ctx, text, act = true) {
   const forcedId = ctx.pendingSkill || null;
   ctx.pendingSkill = null;
   if (!forcedId && ctx.config.skills?.enabled === false) return null;
@@ -941,7 +992,9 @@ function applySkillToMessage(ctx, text) {
     return null;
   }
   if (!skills.length) return null;
-  const autoOff = ctx.config.skills?.autoFire === false;
+  // No auto-fire in a discuss (PLAN) turn, or when autoFire is configured off. An
+  // explicit `/skill use <id>` (forcedId) always fires regardless.
+  const autoOff = !act || ctx.config.skills?.autoFire === false;
   const skill = forcedId
     ? skills.find((s) => s.id === forcedId)
     : autoOff
@@ -1944,6 +1997,9 @@ function printHelp() {
         ['/template', 'show the Aurora Research Method again'],
         ['/new', 'start a fresh conversation (clears context)'],
         ['/read <text>', 'steer Aurora mid-answer — fold new text into the turn in flight'],
+        ['/plan', 'discuss mode — Aurora proposes and asks, does not act'],
+        ['/auto', 'auto mode (default) — act on a clear request, discuss otherwise'],
+        ['/go', 'act on your next message regardless of mode (one-shot)'],
         ['/engine [n|id]', 'set the interface engine (pick a number/name); @worker per task'],
         ['/context', 'show the cross-engine handoff context for this directory'],
         ['/model [name]', 'show or set the model (/model default to reset)'],

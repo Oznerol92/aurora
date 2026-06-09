@@ -38,6 +38,11 @@ const DEFAULTS = {
   // autoFire:false to require explicit `/skill use <id>` and never auto-select.
   skills: { enabled: true, autoFire: true },
 
+  // Turn mode (intent gate Phase 2): 'auto' decides act vs. discuss per turn (and
+  // rests at discuss), 'plan' always discusses until /auto or /go. Set with
+  // /plan·/auto at runtime; this is the starting mode.
+  turnMode: 'auto',
+
   // The user's voice/characteristics profile. The profile text itself lives in
   // the store (never here — it's personal); config holds only the toggles.
   // `enabled` gates injection; `prompted` records that the one-time setup ran.

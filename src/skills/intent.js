@@ -84,3 +84,31 @@ export function shouldAutoFireSkill(message, skill = null) {
   if (intentIsDiscuss(m)) return false;
   return true;
 }
+
+// Cues that the message is a request to ACT (do work now), not to discuss it. Kept
+// deliberately tight: a clear action signal, so ambiguous messages fall through to
+// 'ambiguous' and rest at PLAN (the turn-mode default) rather than over-acting.
+const ACTION_CUES = [
+  // a leading imperative verb (optionally "please …").
+  /^\s*(please\s+|pls\s+|just\s+)?(fix|add|implement|build|create|make|write|draft|refactor|run|ship|update|change|remove|delete|rename|move|install|wire|hook|generate|commit|push|deploy|apply|migrate|rewrite|do)\b/i,
+  // an explicit go-ahead.
+  /\b(go ahead|do it|just do it|make it so|let'?s do it|go for it|ship it|build it)\b/i,
+];
+
+/** Is the message phrased as a request to act (do work now)? */
+export function intentIsAction(message) {
+  return ACTION_CUES.some((re) => re.test(String(message ?? '')));
+}
+
+/**
+ * Classify a message's intent for turn-mode: 'act' (do it now), 'discuss' (talk it
+ * through), or 'ambiguous' (neither clear). Discuss cues win over action cues — a
+ * question ABOUT doing something ("should we fix X?") is discussion, not a command.
+ */
+export function classifyIntent(message) {
+  const m = String(message ?? '').trim();
+  if (!m) return 'discuss';
+  if (intentIsDiscuss(m)) return 'discuss';
+  if (intentIsAction(m)) return 'act';
+  return 'ambiguous';
+}

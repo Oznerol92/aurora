@@ -107,10 +107,11 @@ the recap. After an ACT turn that completed (emitted a `done` block), set
 intermediate `aurora:ask` (a mid-task clarification) keeps the turn in ACT until its
 `done`, so a multi-step task isn't stranded.
 
-**Display:** the prompt shows the resting mode (`plan ❯`) and ACT excursions
-(`act ❯`), so the user always knows whether the next message will be discussed or
-executed. A dismissed/unanswered picker counts as a discuss signal, never act
-(encodes the `dismissed-choice-not-consent` lesson).
+**Display:** v1 prints a confirmation line when the mode changes (`/plan`·`/auto`·
+`/go`) rather than a live `plan ❯`/`act ❯` prompt indicator — the live indicator
+needs TTY redraw through the pinned-prompt printer and isn't verifiable headless, so
+it's deferred. A dismissed/unanswered picker counts as a discuss signal, never act —
+the PLAN framing states this explicitly (encodes `dismissed-choice-not-consent`).
 
 ### Layer 3 — model-decided (optional, later)
 
@@ -141,14 +142,18 @@ planning step, so gate it on stakes — not every turn.
    Note learned: do NOT match a skill's _title_ as a meta-reference — a title is
    often the natural request ("write an article"), so it would suppress real asks;
    match the hyphenated `id` instead. `test/intent.test.js`.
-2. **Phase 2 (v0.3.11, design locked — next to build):** the auto/plan turn mode
-   above. Session mode `auto`|`plan` (`/auto`·`/plan`) + one-shot `/go`, the
-   deterministic decider with ask-when-ambiguous, the PLAN/ACT system-prompt framing
-   gating skill auto-fire + deliverables (narrow scope for v1), and the auto-revert
-   to PLAN on the turn-end recap hook. Reuses the `adoptProvider` borrow-and-revert
-   pattern. Build order: (a) mode state on `ctx` + `/plan`·`/auto`·`/go` commands +
-   prompt indicator; (b) decider wired to the message; (c) PLAN/ACT framing + gate;
-   (d) auto-revert at the `maybeNotify` turn-end.
+2. **Phase 2 (v0.3.11) — DONE.** `src/turnmode.js` (`turnIsAct`, `modeFraming`,
+   `isTurnMode`) + `classifyIntent`/`intentIsAction` in `src/skills/intent.js`. Wired
+   in `streamResponse`: `act` decided per turn from `ctx.mode` + the message (`/go`
+   consumed there → next turn reverts, so no sticky ACT); the mode framing is
+   prepended to the turn; `applySkillToMessage` takes `act` and suppresses auto-fire
+   in PLAN (explicit `/skill use` still fires). `/plan`·`/auto`·`/go` commands +
+   `config.turnMode` default. Ask-when-ambiguous is handled by the PLAN framing
+   (model asks before acting) rather than a deterministic ask — simpler and avoids
+   nagging. Auto-revert is inherent: `act` is recomputed each turn, so the resting
+   state is always discuss. `test/turnmode.test.js`. NOTE: the live keypress/prompt
+   behaviour (mode indicator) is the deferred display item above; verify the REPL in
+   a terminal (`aurora --solo`).
 3. **Phase 3 (later):** model-decided `aurora:mode`, only if Layers 1–2 are too blunt.
 
 ## Relation to other work
