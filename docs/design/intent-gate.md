@@ -89,9 +89,14 @@ planning step, so gate it on stakes — not every turn.
 
 ## Phasing
 
-1. **Phase 1 (v0.3.11):** Layer-1 classifier + wire it into `selectSkill` (require
-   action intent, suppress on meta-reference). Closes the skill-misfire bug with a
-   pure, testable function. Low blast radius.
+1. **Phase 1 (v0.3.11) — DONE.** `src/skills/intent.js`: a pure classifier
+   (`shouldAutoFireSkill` = meta-reference suppression + discuss-cue detection),
+   wired into `selectSkill` (the `gate` option; the explicit `/skill use` path skips
+   it). Plus `config.skills.autoFire` to disable trigger-based selection entirely.
+   The 2026-06-09 misfire message is now suppressed; genuine requests still fire.
+   Note learned: do NOT match a skill's *title* as a meta-reference — a title is
+   often the natural request ("write an article"), so it would suppress real asks;
+   match the hyphenated `id` instead. `test/intent.test.js`.
 2. **Phase 2 (v0.3.11+):** turn mode (`/plan` · `/go` · inferred) gating
    consequential actions. The behavioural half of item #5.
 3. **Phase 3 (later):** model-decided `aurora:mode`, only if Layers 1–2 are too blunt.

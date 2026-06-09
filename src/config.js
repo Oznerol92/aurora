@@ -33,7 +33,10 @@ const DEFAULTS = {
   // Executable "skills" (see src/skills/ and the skills/ corpus). When enabled,
   // a message that clearly matches a skill's trigger gets that skill's plan
   // (procedure + named brain rules + template) injected for the turn. Non-secret.
-  skills: { enabled: true },
+  // `enabled` gates skills entirely; `autoFire` gates only TRIGGER-based selection
+  // (an intent gate already suppresses skills that are merely discussed). Set
+  // autoFire:false to require explicit `/skill use <id>` and never auto-select.
+  skills: { enabled: true, autoFire: true },
 
   // The user's voice/characteristics profile. The profile text itself lives in
   // the store (never here — it's personal); config holds only the toggles.

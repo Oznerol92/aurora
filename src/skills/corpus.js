@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { selectRelevantCards } from '../brain/corpus.js';
+import { shouldAutoFireSkill } from './intent.js';
 
 /**
  * Aurora "skills": executable method cards.
@@ -138,8 +139,14 @@ export function loadSkills(dirs = skillDirs()) {
  * Pick the single skill whose trigger best matches a free-text message, or null
  * when nothing clears SKILL_MIN_SCORE. Reuses the brain's deterministic scorer
  * by shaping each skill as a pseudo-card (trigger terms as tags + body).
+ *
+ * The score is necessary but not sufficient: a matched skill still passes the
+ * intent gate (`shouldAutoFireSkill`) so a message that merely DISCUSSES the skill
+ * (or is a brainstorm) doesn't auto-fire it — see docs/design/intent-gate.md. Pass
+ * `gate: false` to score only (the explicit `/skill use <id>` path doesn't come
+ * through here, but tests and callers may want the raw match).
  */
-export function selectSkill(skills, query, { minScore = SKILL_MIN_SCORE } = {}) {
+export function selectSkill(skills, query, { minScore = SKILL_MIN_SCORE, gate = true } = {}) {
   const list = (skills || []).filter(Boolean);
   if (!list.length) return null;
   const pseudo = list.map((s) => ({
@@ -150,7 +157,10 @@ export function selectSkill(skills, query, { minScore = SKILL_MIN_SCORE } = {}) 
     priority: 2,
   }));
   const best = selectRelevantCards(pseudo, query, { max: 1, minScore })[0];
-  return best ? list.find((s) => s.id === best.id) || null : null;
+  if (!best) return null;
+  const skill = list.find((s) => s.id === best.id) || null;
+  if (gate && skill && !shouldAutoFireSkill(query, skill)) return null;
+  return skill;
 }
 
 /**

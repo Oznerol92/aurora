@@ -941,7 +941,12 @@ function applySkillToMessage(ctx, text) {
     return null;
   }
   if (!skills.length) return null;
-  const skill = forcedId ? skills.find((s) => s.id === forcedId) : selectSkill(skills, text);
+  const autoOff = ctx.config.skills?.autoFire === false;
+  const skill = forcedId
+    ? skills.find((s) => s.id === forcedId)
+    : autoOff
+      ? null // auto-selection disabled — only explicit /skill use fires a skill
+      : selectSkill(skills, text);
   if (!skill) {
     if (forcedId) console.log('\n' + warn(`  No skill "${forcedId}". Try /skill list.`) + '\n');
     return null;
