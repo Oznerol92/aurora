@@ -13,7 +13,6 @@ Legend: **TODO** = agreed, not started · **REVIEW** = needs a decision before w
 
 | Item | Question | Source |
 |------|----------|--------|
-| Blockless-gist engine | The blockless-turn recap gist (`aiPreview` → `runClaudeOnce`) is hardwired to the free `claude` CLI. Route through the active engine, keep always-claude, or add a `notify.telegram.previewEngine` flag (recommended)? Costs API money per turn under codex. | `src/notify/preview.js`, `src/engines/briefing.js` |
 | `/read` abort-resume | TTY mid-stream steer confirmed "ok for now" by Lorenzo but not formally verified in a real terminal. Re-check via `aurora --solo`. | `src/cli.js` (`composeSteer`) |
 | Research protocol | Fold the distilled research-discipline protocol into the deep-research skill, or leave standalone? Decision pending. | memory: research-protocol-candidate |
 | Cross-engine continuity | Pick Option A (always seed from store), B (re-seed interface after a side-call), or C (shared context object). Prerequisite for routing layers 5–6. | `docs/design/routing.md` |
@@ -24,8 +23,6 @@ Legend: **TODO** = agreed, not started · **REVIEW** = needs a decision before w
 
 | Item | Scope | Source |
 |------|-------|--------|
-| Bench Netlify deploy | Reasoning-benchmark report PROD Netlify deploy is pending an eyeball. | bench scripts |
-| MCP-contestants Phase 2 | Vertical slice: `mcp` adapter + manifest fields + ephemeral-state harness + one reference contestant + isolation test (no cross-run drift). | `docs/design/mcp-contestants.md` |
 | MCP-contestants Phase 3 | Hardening: OS-level sandbox for untrusted servers, full provenance recording, capability/weight-class rendering. | `docs/design/mcp-contestants.md` |
 | Codex stale-resume fallback | Codex provider has no fallback when a native `thread_id` is stale/gone; resume just fails. | `src/providers/codex.js` |
 
@@ -71,11 +68,14 @@ All from `docs/design/routing.md` § "v0.4.x TODO". Layers 2–3 shipped in v0.3
 - **DONE** Telegram recap Stop hook — the "blocked by the auto-mode classifier" note was stale; the hook is registered in `~/.claude/settings.local.json`, the chat registry resolves Lorenzo's chat, and a dry-run rendered the card correctly (2026-06-09). Works for any dev model; only the optional blockless gist is claude-coupled (see REVIEW above).
 - **DONE** TTY features — pinned prompt, paste path, spinner confirmed working by Lorenzo (2026-06-09). `/read` abort-resume moved to REVIEW (parked, "ok for now").
 - **DONE** Codex per-provider `/model` + web search (`c98de59`); the earlier "shared /model targets Claude" limit is resolved.
+- **DONE** Bench Netlify deploy — reasoning report rebuilt and published to production (aurora-bm.netlify.app), verified byte-identical to the fresh build (2026-06-09). It was stale because `report.js` was rewritten Jun 8 but never re-published.
+- **DONE** MCP-contestants Phase 2 — vertical slice shipped (`6b07057`): minimal MCP stdio client/server (no SDK), ephemeral + snapshot/restore isolation harness with env scrubbing, reference contestant, `kind:"mcp"` manifest routing, and the no-drift isolation test. See `docs/design/mcp-contestants.md`. Phase 3 still open above.
+- **DONE** Blockless-gist engine — resolved with the recommended `notify.telegram.previewEngine` flag (`8b7429f`). Default `'claude'` (free CLI, unchanged cost); `'active'` routes the recap/briefing gist through the live engine via stateless per-engine one-shots (`runCodexOnce`) that never touch a conversational session.
 
 ---
 
 ## Not tracked here
 
-Release-process state (v0.3.9 has 8 unpushed commits; promotion to `pre-release`
+Release-process state (v0.3.9 has unpushed commits; promotion to `pre-release`
 pending) lives in the version memories / `version-promotion-workflow`, not this
 backlog — this file is product/design work, not release mechanics.
