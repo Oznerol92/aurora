@@ -50,6 +50,13 @@ const DEFAULTS = {
     telegram: {
       enabled: false,
       notifyOnDone: false,
+      // Which engine writes the one-line gist for a blockless-turn recap (and the
+      // handoff briefing). 'claude' = always the free local `claude` CLI (default,
+      // no out-of-pocket cost). 'active' = the engine currently in use (e.g. codex
+      // → a codex one-shot), so a non-Claude setup still gets an AI gist instead of
+      // the deterministic leading-sentences fallback. Both are stateless one-shots
+      // that never touch an engine's conversational session.
+      previewEngine: 'claude',
     },
   },
 };

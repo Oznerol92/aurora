@@ -27,6 +27,7 @@ import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
 import { loadChats, registerChat, removeChat } from './notify/chats.js';
 import { aiPreview } from './notify/preview.js';
+import { resolvePreviewRunner, resolveOnceRunner } from './notify/once.js';
 import {
   loadLedger,
   saveLedger,
@@ -525,7 +526,12 @@ async function streamResponse(ctx, text) {
       // the turn's conclusion (the final result message) rather than the full
       // narration, whose opening is preamble and reads as stale "old output".
       const recapText = recapSource(turn.meta?.text, turn.cleanAnswer);
-      await maybeNotify(config, recapText, parseDoneBlock(turn.fullAnswer));
+      await maybeNotify(
+        config,
+        recapText,
+        parseDoneBlock(turn.fullAnswer),
+        ctx.provider?.constructor?.id,
+      );
       return;
     }
   } finally {
@@ -755,20 +761,20 @@ function askInTerminal(rl, questions, printer = null) {
 /**
  * Push a styled recap to Telegram when a turn finishes (best-effort). Prefers the
  * model-authored `done` block — a "Done / Next steps" card. For a blockless turn
- * it asks Claude (Sonnet) for a one-line gist of the whole turn (`aiPreview`),
- * falling back to the deterministic `previewText` inside `buildRecap` if the
- * summariser is disabled or fails. Sent with HTML parse mode; all dynamic content
- * is escaped in `buildRecap`. Honors the `/notify` master switch and only fires
- * when Telegram is configured. Disable the AI step with notify.telegram.aiPreview
- * = false (then long turns get the leading-sentences preview instead).
+ * it asks a model for a one-line gist of the whole turn (`aiPreview`), falling back
+ * to the deterministic `previewText` inside `buildRecap` if the summariser is
+ * disabled or fails. The gist engine follows notify.telegram.previewEngine: 'claude'
+ * (default, the free CLI) or 'active' (the engine in `engineId`). Sent with HTML
+ * parse mode; all dynamic content is escaped in `buildRecap`. Honors the `/notify`
+ * master switch and only fires when Telegram is configured. Disable the AI step with
+ * notify.telegram.aiPreview = false (then long turns get the leading-sentences view).
  */
-async function maybeNotify(config, answer, done) {
+async function maybeNotify(config, answer, done, engineId) {
   if (!telegramEnabled(config) || config?.notify?.telegram?.notifyOnDone === false) return;
   let body = answer;
   if (!done && config?.notify?.telegram?.aiPreview !== false) {
-    const gist = await aiPreview(answer, {
-      model: config?.notify?.telegram?.previewModel || 'sonnet',
-    });
+    const { runClaude, model } = resolvePreviewRunner(config, engineId);
+    const gist = await aiPreview(answer, { model, runClaude });
     if (gist) body = gist; // else buildRecap's previewText handles the full answer
   }
   const res = await sendTelegram(buildRecap(body, done), config, { parseMode: 'HTML' });
@@ -1256,9 +1262,18 @@ async function applyHandoffBriefing(next, ctx, { fromId } = {}) {
   }
 
   if (turns.length) console.log(dim(`  · briefing ${toId} on the work so far…`));
-  const summary = turns.length
-    ? await summarizeWork(turns, { model: ctx.config?.briefing?.model || 'sonnet' })
-    : '';
+  // The work was done on the outgoing engine; with previewEngine:'active' summarise
+  // with it (a stateless one-shot), else use the free claude CLI + briefing.model.
+  let runClaude, model;
+  const previewEngine = ctx.config?.notify?.telegram?.previewEngine || 'claude';
+  if (previewEngine === 'active' && fromId && fromId !== 'claude') {
+    const r = resolveOnceRunner(fromId, { codexModel: ctx.config?.codexModel });
+    runClaude = r.runOnce;
+    model = r.model || undefined;
+  } else {
+    model = ctx.config?.briefing?.model || 'sonnet';
+  }
+  const summary = turns.length ? await summarizeWork(turns, { model, runClaude }) : '';
 
   next.setBriefing(composeBriefing({ engineId: toId, isFirst: first, lastRecord, summary }));
 
