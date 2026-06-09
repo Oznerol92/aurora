@@ -32,10 +32,12 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDotenv } from '../src/env.js';
 import { gradeOne, summarize } from './reasoning-grade.js';
+import { runMcpAnswer } from './mcp/client.js';
+import { makeEnv, withEphemeralState, withSnapshotState } from './mcp/isolation.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(join(HERE, p), 'utf8');
@@ -156,13 +158,70 @@ async function runOpenAI(modelCfg, systemPrompt, userPrompt, opts = {}) {
   }
 }
 
-const ADAPTERS = { 'claude-cli': runClaudeCli, 'openai-api': runOpenAI };
+/**
+ * An MCP contestant: a whole wrapper (its own prompt/brain/memory + some model),
+ * reached as a black box over MCP — one `answer(prompt)` call. The bench is the
+ * client; the contestant is a server (manifest: kind:"mcp"). Each invocation is
+ * hermetic: spawned with ONLY its `env_allow` vars (Aurora's keys scrubbed) against
+ * an isolated state dir (ephemeral scratch, or snapshot→run→restore for a persistent
+ * wrapper), so no contestant can corrupt another's results or a future run's input.
+ * See docs/design/mcp-contestants.md. Returns the same shape as the other adapters.
+ */
+export async function runMcpContestant(modelCfg, systemPrompt, userPrompt, opts = {}) {
+  const prompt = `${systemPrompt}\n\n${userPrompt}`;
+  const env = makeEnv(modelCfg.env_allow || [], process.env);
+  // Resolve script-path args relative to bench/ so cwd can be the isolated state dir.
+  const args = (modelCfg.args || []).map((a) =>
+    /\.(mjs|js|cjs)$/.test(a) && !isAbsolute(a) ? join(HERE, a) : a,
+  );
+  const invoke = (stateDir) =>
+    runMcpAnswer({
+      command: modelCfg.command,
+      args,
+      env: { ...env, AURORA_CONTESTANT_STATE: stateDir },
+      cwd: stateDir,
+      prompt,
+      timeoutMs: opts.timeoutMs,
+    });
+
+  let res;
+  if (modelCfg.state?.mode === 'persistent' && modelCfg.state?.dir) {
+    const snap = await withSnapshotState(join(HERE, modelCfg.state.dir), invoke);
+    res = snap.out;
+  } else {
+    const seedDir = modelCfg.state?.seed ? join(HERE, modelCfg.state.seed) : null;
+    res = await withEphemeralState({ seedDir }, invoke);
+  }
+  if (!res.ok) return { ok: false, error: res.error, latency_ms: res.latency_ms };
+  const u = res.usage || {};
+  return {
+    ok: true,
+    text: res.text,
+    cost_usd: u.cost_usd ?? null,
+    tokens_in: u.tokens_in ?? null,
+    tokens_out: u.tokens_out ?? null,
+    latency_ms: res.latency_ms,
+    model_used: res.model_used ?? null,
+  };
+}
+
+const ADAPTERS = { 'claude-cli': runClaudeCli, 'openai-api': runOpenAI, mcp: runMcpContestant };
+
+/** The adapter key for a model/contestant: a kind:"mcp" entry routes to the mcp adapter. */
+export function adapterKey(modelCfg) {
+  return modelCfg.kind === 'mcp' ? 'mcp' : modelCfg.adapter;
+}
 
 /** Is this model runnable right now? (adapter wired here + credentials present) */
-function availability(modelCfg) {
-  if (modelCfg.adapter === 'claude-cli') return { ok: true };
-  if (modelCfg.adapter === 'openai-api')
+export function availability(modelCfg) {
+  const key = adapterKey(modelCfg);
+  if (key === 'claude-cli') return { ok: true };
+  if (key === 'openai-api')
     return process.env.OPENAI_API_KEY ? { ok: true } : { ok: false, why: 'missing OPENAI_API_KEY' };
+  if (key === 'mcp')
+    return modelCfg.command
+      ? { ok: true }
+      : { ok: false, why: 'mcp contestant manifest is missing "command"' };
   return { ok: false, why: `adapter '${modelCfg.adapter}' not wired in the reasoning runner` };
 }
 
@@ -181,8 +240,9 @@ async function pool(items, limit, worker) {
 
 /** Run every question for one model. Returns { records, summary }. */
 async function runModel(modelId, modelCfg, qs, outDir, opts) {
-  const adapter = ADAPTERS[modelCfg.adapter];
-  const gated = modelCfg.adapter === 'openai-api'; // only vendor spend is cost-capped
+  const key = adapterKey(modelCfg);
+  const adapter = ADAPTERS[key];
+  const gated = key === 'openai-api'; // only vendor spend is cost-capped
   let vendorSpent = 0;
   let done = 0;
   console.log(`\n▶ ${modelCfg.label} (${modelId}) — ${qs.length} questions`);
@@ -221,7 +281,7 @@ async function runModel(modelId, modelCfg, qs, outDir, opts) {
   writeFileSync(
     join(outDir, `${modelId}.summary.json`),
     JSON.stringify(
-      { model: modelId, modelLabel: modelCfg.label, adapter: modelCfg.adapter, ...summary },
+      { model: modelId, modelLabel: modelCfg.label, adapter: key, ...summary },
       null,
       2,
     ),
@@ -230,7 +290,7 @@ async function runModel(modelId, modelCfg, qs, outDir, opts) {
     `  = ${modelCfg.label}: ${summary.correct}/${summary.n} = ${pct(summary.accuracy)}  ` +
       `(${Math.round(summary.avg_latency_ms ?? 0)} ms avg)`,
   );
-  return { id: modelId, label: modelCfg.label, adapter: modelCfg.adapter, summary, records };
+  return { id: modelId, label: modelCfg.label, adapter: key, summary, records };
 }
 
 async function main() {
@@ -303,7 +363,10 @@ function pct(x) {
   return x == null ? 'n/a' : (x * 100).toFixed(1) + '%';
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Run only when invoked directly; importing (e.g. from tests) must not start a run.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

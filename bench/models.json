@@ -1,5 +1,5 @@
 {
-  "notes": "Model registry for the benchmark. To add a model, add an entry. `adapter` selects how it is invoked. The 'claude-cli' adapter shells out to the local `claude` CLI with --model, matching how Aurora itself calls Claude. Future adapters (openai-api, gemini-api) would call those vendors' APIs directly from the runner WITHOUT making them first-class Aurora providers, so Aurora stays Claude-only by design.",
+  "notes": "Model registry for the benchmark. To add a model, add an entry. `adapter` selects how it is invoked. The 'claude-cli' adapter shells out to the local `claude` CLI with --model, matching how Aurora itself calls Claude. Future adapters (openai-api, gemini-api) would call those vendors' APIs directly from the runner WITHOUT making them first-class Aurora providers, so Aurora stays Claude-only by design. An entry with `kind:\"mcp\"` is a whole-wrapper CONTESTANT reached over MCP (one answer() tool), run hermetically with only its env_allow vars present and an isolated state dir — see docs/design/mcp-contestants.md.",
   "active": ["opus", "sonnet"],
   "models": {
     "opus": {
@@ -41,6 +41,17 @@
       "label": "Google Gemini 2.5 Flash-Lite (cheap)",
       "price": { "in": 0.1, "out": 0.4 },
       "_price_note": "USD per 1M tokens (input/output). Verify against current Gemini pricing and edit; cost is computed from real usage x these numbers."
+    },
+    "aurora-self": {
+      "kind": "mcp",
+      "label": "Aurora (self, via MCP → Claude)",
+      "command": "node",
+      "args": ["contestants/aurora-mcp.js"],
+      "env_allow": ["ANTHROPIC_API_KEY"],
+      "model_declared": "claude-sonnet-4-6",
+      "capabilities": ["brain", "memory"],
+      "state": { "mode": "ephemeral" },
+      "_note": "Reference MCP contestant (Phase 2 vertical slice). Not in active[] — run explicitly: node bench/reasoning.js --models aurora-self. Spawned with ONLY env_allow vars present (its own key), against a fresh ephemeral state dir each run; Aurora's other keys are scrubbed. Needs the local claude CLI."
     }
   }
 }
