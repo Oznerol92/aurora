@@ -54,7 +54,7 @@ import {
   buildRecap,
   recapSource,
 } from './protocol.js';
-import { createPasteInput } from './paste.js';
+import { createPasteInput, planPlaceholderCleanup } from './paste.js';
 import { PromptPrinter } from './repl-prompt.js';
 import { runServer, startListeners } from './serve.js';
 import { loadConfig, saveConfig, redactConfig, configPath } from './config.js';
@@ -290,6 +290,29 @@ export async function main(argv = process.argv.slice(2)) {
   // unchanged. The printer routes all turn output above the pinned prompt.
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
   const printer = interactive ? new PromptPrinter(rl, process.stdout) : null;
+
+  // Atomic paste-placeholder delete: one Backspace clears the whole
+  // "[Pasted text #N +M lines]" chip and forgets its stored text, instead of
+  // nibbling it into a broken token that no longer expands. readline handles the
+  // keypress first (deleting the token's last char); we then remove the remnant.
+  // TTY-only and best-effort — a failure here must never wedge input. The live
+  // keypress behaviour needs verifying in a real terminal (aurora --solo).
+  if (interactive) {
+    paste.input.on('keypress', (_str, key) => {
+      if (!key || (key.name !== 'backspace' && key.name !== 'delete')) return;
+      if (!paste.store.size) return;
+      try {
+        const plan = planPlaceholderCleanup(rl.line, rl.cursor, paste.store.tokens());
+        if (!plan) return;
+        rl.line = plan.line;
+        rl.cursor = plan.cursor;
+        paste.store.drop(plan.token);
+        rl._refreshLine?.();
+      } catch {
+        /* never let placeholder cleanup break the prompt */
+      }
+    });
+  }
   terminalMirror.printer = printer; // let the Telegram bridge draw above the prompt
 
   const ctx = { rl, provider, config, store, hasStore, sessionId, printer, paste };

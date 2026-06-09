@@ -7,6 +7,7 @@ import {
   PasteStore,
   PasteFilter,
   createPasteInput,
+  planPlaceholderCleanup,
 } from '../src/paste.js';
 
 const START = '\x1b[200~';
@@ -143,4 +144,42 @@ test('createPasteInput is a no-op on non-TTY input', () => {
   const { input, store } = createPasteInput(stdin, { write() {} });
   assert.equal(input, stdin, 'reads stdin directly, unchanged');
   assert.equal(store.size, 0);
+});
+
+test('PasteStore.tokens / drop track the live placeholders', () => {
+  const store = new PasteStore();
+  const t1 = store.register('a\nb');
+  const t2 = store.register('c\nd');
+  assert.deepEqual(store.tokens(), [t1, t2]);
+  assert.equal(store.drop(t1), true);
+  assert.equal(store.drop(t1), false); // already gone
+  assert.deepEqual(store.tokens(), [t2]);
+  assert.equal(store.size, 1);
+});
+
+test('planPlaceholderCleanup collapses the stub left after a Backspace at the chip end', () => {
+  const token = '[Pasted text #1 +3 lines]';
+  const stub = token.slice(0, -1); // readline already removed the trailing ']'
+  // Buffer: "hi <stub>" with the cursor just past the stub.
+  const line = `hi ${stub}`;
+  const plan = planPlaceholderCleanup(line, line.length, [token]);
+  assert.ok(plan, 'detected the broken placeholder');
+  assert.equal(plan.line, 'hi ');
+  assert.equal(plan.cursor, 3);
+  assert.equal(plan.token, token);
+});
+
+test('planPlaceholderCleanup preserves text after the chip and reports the right token', () => {
+  const token = '[Pasted text #2 +5 lines]';
+  const stub = token.slice(0, -1);
+  const line = `before ${stub} after`;
+  const cursor = `before ${stub}`.length; // cursor sits right after the stub
+  const plan = planPlaceholderCleanup(line, cursor, ['[Pasted text #1 +1 line]', token]);
+  assert.equal(plan.line, 'before  after');
+  assert.equal(plan.token, token);
+});
+
+test('planPlaceholderCleanup returns null when the cursor is not past a placeholder', () => {
+  assert.equal(planPlaceholderCleanup('just text', 9, ['[Pasted text #1 +3 lines]']), null);
+  assert.equal(planPlaceholderCleanup('', 0, []), null);
 });

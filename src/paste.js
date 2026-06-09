@@ -88,9 +88,52 @@ export class PasteStore {
   reset() {
     this.items = [];
   }
+  /** The active placeholder tokens, for atomic-delete reconciliation. */
+  tokens() {
+    return this.items.map((it) => it.token);
+  }
+  /** Forget one paste by its token (its placeholder was deleted). Returns true if dropped. */
+  drop(token) {
+    const before = this.items.length;
+    this.items = this.items.filter((it) => it.token !== token);
+    return this.items.length < before;
+  }
   get size() {
     return this.items.length;
   }
+}
+
+/**
+ * Atomic placeholder delete.
+ *
+ * A "[Pasted text #N +M lines]" placeholder should behave like one chip: a single
+ * Backspace clears the whole thing, not one character at a time (which leaves a
+ * broken token that no longer expands and floods the line). readline processes the
+ * Backspace first — removing the token's final char — so the buffer is left holding
+ * the token MINUS its last char (a "stub") right before the cursor. This detects
+ * that stub and returns the line/cursor with the WHOLE remnant removed, plus the
+ * token so the caller can drop its stored paste. Returns null when the cursor isn't
+ * sitting just past a placeholder, so a normal one-char delete is left untouched.
+ *
+ * Pure (no readline/state), so the logic is unit-tested directly; cli.js does the
+ * thin keypress wiring. Known limit: only the common "Backspace at the end of a
+ * placeholder" case is collapsed; editing into a token's middle still breaks it.
+ *
+ * @returns {null | { line: string, cursor: number, token: string }}
+ */
+export function planPlaceholderCleanup(line, cursor, tokens = []) {
+  for (const token of tokens) {
+    const stub = token.slice(0, -1); // token after readline deleted its last char
+    if (!stub) continue;
+    if (cursor >= stub.length && line.slice(cursor - stub.length, cursor) === stub) {
+      return {
+        line: line.slice(0, cursor - stub.length) + line.slice(cursor),
+        cursor: cursor - stub.length,
+        token,
+      };
+    }
+  }
+  return null;
 }
 
 /**
