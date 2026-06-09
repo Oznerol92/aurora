@@ -7,6 +7,18 @@ that owns the detail. This file does not duplicate designs — it makes them fin
 Legend: **TODO** = agreed, not started · **REVIEW** = needs a decision before work ·
 **LIMIT** = known v1 limitation to revisit · **DONE** = closed, kept for trail.
 
+## v0.4.1 scope (plan of record)
+
+The remaining parked work is owned by **v0.4.1** (this branch). The four headline
+items, detailed in their sections below:
+
+1. **MCP-contestants Phase 3** — OS sandbox for untrusted servers, full provenance, capability/weight-class rendering (`docs/design/mcp-contestants.md`).
+2. **Cross-engine continuity decision** — Option A / B / C; the hard prerequisite for routing layers 5–6 (`docs/design/routing.md`).
+3. **Routing ladder layers 4–6** — capability router, model-decided `aurora:route`, multi-agent debate (`docs/design/routing.md`).
+4. **Multi-agent-debate / LLM-consensus paper** — the research track that gates layer 6.
+
+Bug fixes that surface in the meantime go to **v0.3.10** (off `pre-release`), not here.
+
 ---
 
 ## Decisions to make (REVIEW)
