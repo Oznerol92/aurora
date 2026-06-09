@@ -156,13 +156,17 @@ trust posture as installing any npm dependency or MCP server today.
 
 ## Phasing
 
-- **Phase 1 (this doc):** design + threat model + contract. No code.
+- **Phase 1 (this doc):** design + threat model + contract. No code. ✅ done.
 - **Phase 2 (vertical slice):** `mcp` adapter + manifest fields + ephemeral-state
   harness + one reference contestant (Aurora-as-MCP calling Claude) + an
   isolation test proving no cross-run drift (run twice, identical seed → byte-for-
   byte state restore; a contestant that scribbles in its dir can't change the
-  next run's input).
+  next run's input). ✅ **done (v0.3.9)** — `bench/mcp/client.js` (minimal MCP stdio
+  client, no SDK), `bench/mcp/isolation.js` (ephemeral + snapshot/restore + env
+  scrubbing + tree hash), `bench/contestants/aurora-mcp.js` (reference contestant),
+  manifest `kind:"mcp"` routing in `bench/reasoning.js`, sample `aurora-self` entry,
+  and `test/mcp-contestant.test.js` (round-trip, env scrubbing, no-drift, routing).
 - **Phase 3 (hardening):** OS-level sandbox for untrusted servers, full provenance
-  recording, capability/weight-class rendering in the report.
+  recording, capability/weight-class rendering in the report. _Not started._
 
 Aurora stays Claude-only throughout; this lives entirely in the bench.
