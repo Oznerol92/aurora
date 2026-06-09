@@ -292,7 +292,7 @@ export async function main(argv = process.argv.slice(2)) {
   const printer = interactive ? new PromptPrinter(rl, process.stdout) : null;
   terminalMirror.printer = printer; // let the Telegram bridge draw above the prompt
 
-  const ctx = { rl, provider, config, store, hasStore, sessionId, printer };
+  const ctx = { rl, provider, config, store, hasStore, sessionId, printer, paste };
 
   // Process input strictly one line at a time. Readline can deliver several
   // 'line' events back-to-back (paste, or piped stdin); without a queue their
@@ -511,7 +511,7 @@ async function streamResponse(ctx, text) {
       // question so it isn't mistaken for a finished turn.
       const ask = parseAskBlock(turn.fullAnswer) || parseImplicitAsk(turn.fullAnswer);
       if (ask) {
-        const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer);
+        const answers = await askInTerminal(ctx.rl, ask.questions, ctx.printer, ctx.paste);
         if (answers == null) {
           const note = warn('  ⏸ left the question unanswered');
           if (ctx.printer) ctx.printer.line(note);
@@ -712,7 +712,7 @@ async function runTurn(ctx, text) {
  * accepts comma-separated picks. Resolves to an array of answers (aligned to the
  * questions), or null if the input stream closed before answering.
  */
-function askInTerminal(rl, questions, printer = null) {
+export function askInTerminal(rl, questions, printer = null, paste = null) {
   // Interactive (pinned-prompt) mode keeps readline live throughout, so we must
   // not pause/resume around the popup; the question text is printed above the
   // prompt via the printer. Piped mode keeps the old resume-to-read / pause-after
@@ -749,7 +749,12 @@ function askInTerminal(rl, questions, printer = null) {
           : '   number or your own answer ❯ '
         : '   your answer ❯ ';
       rl.question(info(prompt), (raw) => {
-        answers.push(mapChoice(raw, q));
+        // Swap any "[Pasted text #N +M lines]" placeholders back to their real text,
+        // exactly like the main REPL line handler — otherwise a multi-line paste in
+        // an answer is submitted as the literal placeholder, not the pasted content.
+        const expanded = paste?.store?.size ? paste.store.expand(raw) : raw;
+        paste?.store?.reset();
+        answers.push(mapChoice(expanded, q));
         askOne(i + 1);
       });
     };
@@ -1203,6 +1208,7 @@ async function handleEngine(arg, ctx) {
         },
       ],
       ctx.printer,
+      ctx.paste,
     );
     if (answer == null) return; // stdin closed
     const picked = impl.find((p) => `${p.id} — ${p.label}` === answer);
