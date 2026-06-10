@@ -2,6 +2,7 @@
 id: write-article
 title: Write a method/experience article
 when_to_use: write draft or structure an article blog post essay or long-form piece
+category: writing
 tags: [article, writing, blog, post, essay, draft, publish, longform]
 brain: [article-skeleton, voice-core, anti-hype, forbidden-words, worked-example, quality-gate]
 template: article-skeleton

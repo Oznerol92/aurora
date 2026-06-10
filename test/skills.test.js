@@ -91,3 +91,17 @@ test('the built-in write-article skill loads and triggers on a writing request',
   assert.ok(wa, 'write-article ships as a built-in');
   assert.equal(selectSkill(skills, 'draft an article about my workflow')?.id, 'write-article');
 });
+
+test('parseSkill reads the optional category field; absent → empty (grouped as general)', () => {
+  const withCat = parseSkill('---\nid: s\ncategory: dev\n---\nbody');
+  assert.equal(withCat.category, 'dev');
+  const without = parseSkill('---\nid: s\n---\nbody');
+  assert.equal(without.category, '');
+});
+
+test('the built-in roadmap skill loads with category dev', () => {
+  const skills = loadSkills();
+  const rm = skills.find((s) => s.id === 'roadmap');
+  assert.ok(rm, 'roadmap ships as a built-in');
+  assert.equal(rm.category, 'dev');
+});

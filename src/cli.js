@@ -22,7 +22,7 @@ import {
   storeSwitchNote,
 } from './setup.js';
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
-import { loadSkills, selectSkill, compileSkill } from './skills/corpus.js';
+import { loadSkills, selectSkill, compileSkill, skillDirs } from './skills/corpus.js';
 import { resolveTurnEngine } from './route.js';
 import { loadPersonaInstruction, PERSONA_SCOPE, PERSONA_FIELDS } from './persona.js';
 import { sendTelegram, telegramEnabled, fetchTelegramChats } from './notify/telegram.js';
@@ -1160,21 +1160,35 @@ function handleSkill(arg, ctx) {
 
   if (!sub || sub === 'list') {
     const state = ctx.config.skills?.enabled === false ? warn(' (auto-skill off)') : '';
-    console.log('\n' + info('Skills:') + state);
+    console.log('\n' + info('Skills') + dim(` · ${skills.length}`) + state);
     if (!skills.length) {
       console.log(
         '  ' + dim('none found — add a .md to ./.aurora/skills or ~/.config/aurora/skills') + '\n',
       );
       return;
     }
-    for (const s of skills) console.log(`  ${s.id} — ${s.title}\n      ${dim(s.when_to_use)}`);
-    console.log(info('\n  Use: ') + '/skill show <id> · /skill use <id> · /skill on|off\n');
+    // Group by category (skills are already deduped-by-id and id-sorted by
+    // loadSkills); list each group alphabetically with its category as a header.
+    const groups = new Map();
+    for (const s of skills) {
+      const cat = s.category || 'general';
+      (groups.get(cat) || groups.set(cat, []).get(cat)).push(s);
+    }
+    for (const cat of [...groups.keys()].sort()) {
+      console.log('  ' + warn(cat));
+      for (const s of groups.get(cat)) {
+        console.log(`    ${s.id} — ${s.title}\n        ${dim(s.when_to_use)}`);
+      }
+    }
+    console.log(dim('\n  Searched: ' + skillDirs().join('  ·  ')));
+    console.log(info('  Use: ') + '/skill show <id> · /skill use <id> · /skill on|off\n');
     return;
   }
   if (sub === 'show') {
     const s = skills.find((x) => x.id === subArg);
     if (!s) return void console.log('\n' + warn(`  No skill "${subArg}".`) + '\n');
     console.log('\n' + info(`Skill: ${s.id}`) + ` — ${s.title}`);
+    if (s.category) console.log(`  category: ${s.category}`);
     console.log(`  when: ${dim(s.when_to_use)}`);
     if (s.brain?.length) console.log(`  brain: ${s.brain.join(', ')}`);
     if (s.template) console.log(`  template: ${s.template}`);

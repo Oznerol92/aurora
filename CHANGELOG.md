@@ -8,6 +8,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`roadmap` skill (decomposition phase).** A new built-in skill that turns
+  freeform notes into a code-grounded roadmap (`roadmap.md`) and a list of small,
+  single-concern todos (`todos.md`), each grounded in real `file:line` sites with a
+  testable acceptance check — then **stops at a human-review gate before any code is
+  written**. This is the decomposition half only; the implement → verify execute
+  loop is a later phase. See `docs/design/roadmap-skill.md`. `/skill use roadmap`.
+
 - **Telegram exchanges mirror into the terminal.** When a message arrives over
   the Telegram bridge while the REPL is open, the incoming message and Aurora's
   answer (or question) now also render in the terminal — above the pinned prompt,
@@ -156,6 +163,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **`/skill list` groups by category and shows where it looked.** The listing now
+  groups skills under a `category:` header (frontmatter field; defaults to
+  `general`), prints a count, and lists the directories it searched — so "where are
+  my skills / why don't I see one" is answerable. Skills are still deduped by id.
 - **Switching stores mid-thread now warns about the split.** Changing from one
   real store to another (e.g. `/store json` → `/store sqlite`) does **not** copy
   the current conversation's transcript into the new backend, so `/history`,
