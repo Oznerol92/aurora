@@ -1620,9 +1620,35 @@ async function handleStore(arg, ctx) {
   } catch {
     // ignore close errors on the outgoing store
   }
+  const wasStateless = !ctx.hasStore;
   ctx.store = next;
   ctx.config.store = arg_id;
+  ctx.hasStore = next.constructor.id !== 'none';
   saveConfig(ctx.config);
+
+  // Turning persistence on mid-session: the read path (handoff briefing,
+  // /context, replay) keys off ctx.hasStore + the shared active session, both
+  // of which are otherwise set only at launch and gated on hasStore — so a
+  // stateless start leaves them unset. Adopt the live session as the shared
+  // thread and stamp this engine's first visit now, so a later /engine switch
+  // can recall the work so far and frame "first visit" correctly.
+  if (ctx.hasStore && wasStateless && ctx.sessionId) {
+    writeActiveSession(ctx.config, ctx.sessionId);
+    try {
+      const at = new Date().toISOString();
+      const ledger = await loadLedger(ctx.store);
+      await saveLedger(
+        ctx.store,
+        recordVisit(ledger, ctx.provider.constructor.id, process.cwd(), {
+          sessionId: ctx.sessionId,
+          at,
+        }),
+      );
+    } catch {
+      // ledger is an opt-in flourish; never block the store switch on it
+    }
+  }
+
   console.log('\n' + info('Store set to: ') + arg_id + '\n');
 }
 
