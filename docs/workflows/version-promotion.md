@@ -19,14 +19,25 @@ Trigger phrase: **"promote to v0.3.x"** (or "move on to v0.3.x").
    git push origin <work-branch>      # often already in sync — a no-op is fine
    ```
 
-2. **Bring `pre-release` up to date, then fast-forward in the work branch.**
-   The work branch descends from `origin/pre-release`, so both merges are clean fast-forwards:
+2. **Promote into `pre-release` through a PR (the default).**
+   `pre-release` is branch-protected (PR + status checks). Route the promotion through a PR
+   rather than a direct push, so the gate runs instead of being bypassed:
+
+   ```sh
+   gh pr create --base pre-release --head <work-branch> \
+     --title "Promote <work-branch> into pre-release" --fill
+   # wait for required checks to pass, then:
+   gh pr merge <work-branch> --merge        # or --rebase to keep a linear history
+   ```
+
+   **Direct fast-forward is the exception** — only when explicitly confirmed (e.g. a hotfix and
+   protection is intentionally relaxed). It bypasses the gate, so never make it the default:
 
    ```sh
    git checkout pre-release
    git merge --ff-only origin/pre-release     # reconcile any stale local pre-release
    git merge --ff-only <work-branch>
-   git push origin pre-release                # the one remote-touching step — confirm before running
+   git push origin pre-release                # bypasses branch protection — confirm first
    ```
 
    If `--ff-only` fails, stop and inspect — the branches diverged and need a real review/merge,
@@ -43,10 +54,32 @@ Trigger phrase: **"promote to v0.3.x"** (or "move on to v0.3.x").
    Resolve any conflicts (typically `package.json` / `README.md` / `CHANGELOG.md`) by keeping
    the promoted work plus the version branch's unique content.
 
+## Versioning & tagging (sync model)
+
+The version in `package.json` tracks the branch: a `vMAJOR.MINOR.PATCH` work branch keeps
+`package.json` at the matching `MAJOR.MINOR.PATCH`. This is what makes `aurora --version` and
+`/version` honest per branch, and it satisfies `release.yml`'s "tag matches package.json" gate.
+
+- **On a work branch**, bump `package.json` to the branch's number as part of the work (not at
+  the very end), so the running version is never stale.
+- **Tag only at a deliberate release.** A pushed `v*` tag fires `.github/workflows/release.yml`
+  (GitHub Release + npm publish-attempt) — so tag when the line is actually shipped, not on every
+  branch cut:
+
+  ```sh
+  # version already bumped + CHANGELOG stamped; from the released branch:
+  git tag v<version> && git push origin v<version>
+  ```
+
+  The tag must equal `package.json` (the workflow fails otherwise). Branch names alone are **not**
+  releases — `v0.3.1`…`v0.3.12` were branch milestones and were never tagged; the line starts
+  cutting real tags at `v0.3.13`.
+
 ## Guardrails
 
-- **Direct (local) merge only when explicitly confirmed.** Otherwise promote `pre-release`
-  via a GitHub PR (the review-gated default, matching PRs #1–#3).
+- **Promote through a PR by default; direct fast-forward only when explicitly confirmed.**
+  A direct push to `pre-release` bypasses branch protection — the review-gated PR is the default,
+  matching PRs #1–#3.
 - **Pushing the next version branch is not part of this flow** unless explicitly requested.
 - Before creating a new version branch, double-check it is actually the next available
   number across local branches, remote branches, and tags.

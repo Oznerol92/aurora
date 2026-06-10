@@ -88,8 +88,12 @@ export function trailingQuestion(text) {
       .map((s) => s.trim())
       .filter(Boolean)
       .pop() || t;
-  const m = lastLine.match(/[^.!?]*\?['")\]]*$/);
-  return (m ? m[0] : lastLine).trim() || null;
+  // Sentence boundary = .!? followed by whitespace, so a dot *inside* a token —
+  // a version (v0.3.13), decimal, or abbreviation (e.g., etc.) — doesn't split
+  // the question. Keep only the final sentence, for display.
+  const parts = lastLine.split(/(?<=[.!?])\s+/);
+  const sentence = parts[parts.length - 1] || lastLine;
+  return sentence.trim() || null;
 }
 
 /**

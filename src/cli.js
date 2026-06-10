@@ -374,8 +374,16 @@ export async function main(argv = process.argv.slice(2)) {
         continue;
       }
       if (text.startsWith('/')) {
-        const keepGoing = await handleCommand(text, ctx);
-        if (!keepGoing) exitRequested = true;
+        // A command that throws must not crash the REPL — report it like a turn
+        // error and keep the loop alive (same contract as streamResponse below).
+        try {
+          const keepGoing = await handleCommand(text, ctx);
+          if (!keepGoing) exitRequested = true;
+        } catch (e) {
+          const note = error('  ✖ ' + e.message);
+          if (printer) printer.line(note);
+          else console.log(note + '\n');
+        }
       } else {
         // Interactive: leave readline live so the user can type-ahead while the
         // turn streams (the printer keeps the prompt pinned). Piped: pause as
@@ -806,35 +814,113 @@ export function askInTerminal(rl, questions, printer = null, paste = null, ctx =
     if (ctx) ctx.askCancel = () => ac.abort();
     ac.signal.addEventListener('abort', () => settle(null));
 
-    const askOne = (i) => {
+    // Going back and the final review only make sense interactively and with
+    // more than one question. Piped input (tests, scripts) stays forward-only,
+    // so its behaviour is unchanged.
+    const canNavigate = interactive && questions.length > 1;
+    const isBack = (s) => canNavigate && (s === '<' || s.toLowerCase() === ':back');
+
+    // Swap any "[Pasted text #N +M lines]" placeholders back to their real text,
+    // exactly like the main REPL line handler — otherwise a multi-line paste in
+    // an answer is submitted as the literal placeholder, not the pasted content.
+    const expand = (raw) => {
+      const out = paste?.store?.size ? paste.store.expand(raw) : raw;
+      paste?.store?.reset();
+      return out;
+    };
+
+    // Ask the question at `i`, handing the mapped answer — or the sentinel
+    // 'back' — to `then`. Re-asks an option question that came back empty (almost
+    // always an accidental Enter); accepts "<" / ":back" to step back.
+    const askIndex = (i, then) => {
       if (settled) return;
-      if (i >= questions.length) {
-        settle(answers);
-        return;
-      }
       const q = questions[i];
       const head = q.header ? warn(`[${q.header}] `) : '';
       emit('');
       emit(info('❓ ' + head + q.question));
       q.options.forEach((opt, n) => emit(`   ${warn(String(n + 1))}. ${opt}`));
-      const prompt = q.options.length
+      const base = q.options.length
         ? q.multiSelect
-          ? '   number(s) (comma-separated) or your own answer ❯ '
-          : '   number or your own answer ❯ '
-        : '   your answer ❯ ';
+          ? '   number(s) (comma-separated) or your own answer'
+          : '   number or your own answer'
+        : '   your answer';
+      const prompt = base + (canNavigate ? ' (or "<" to go back)' : '') + ' ❯ ';
       rl.question(info(prompt), { signal: ac.signal }, (raw) => {
         if (settled) return;
-        // Swap any "[Pasted text #N +M lines]" placeholders back to their real text,
-        // exactly like the main REPL line handler — otherwise a multi-line paste in
-        // an answer is submitted as the literal placeholder, not the pasted content.
-        const expanded = paste?.store?.size ? paste.store.expand(raw) : raw;
-        paste?.store?.reset();
-        answers.push(mapChoice(expanded, q));
-        askOne(i + 1);
+        const expanded = expand(raw);
+        const trimmed = String(expanded).trim();
+        if (isBack(trimmed)) {
+          then('back');
+          return;
+        }
+        if (interactive && q.options.length && !trimmed) {
+          emit(
+            warn(
+              '   Pick a number or type an answer' +
+                (canNavigate ? ' (or "<" to go back)' : '') +
+                '.',
+            ),
+          );
+          askIndex(i, then);
+          return;
+        }
+        then(mapChoice(expanded, q));
       });
     };
 
-    askOne(0);
+    // Final review: list the answers; Enter confirms, a question number redoes
+    // just that one (then returns here). Interactive multi-question popups only.
+    const review = () => {
+      if (settled) return;
+      emit('');
+      emit(info('Review — Enter to confirm, or a number to change:'));
+      questions.forEach((q, n) => {
+        emit(`   ${warn(String(n + 1))}. ${q.header || `Q${n + 1}`}: ${answers[n]}`);
+      });
+      rl.question(info('   confirm (Enter) or number ❯ '), { signal: ac.signal }, (raw) => {
+        if (settled) return;
+        const t = String(expand(raw)).trim();
+        if (!t) {
+          settle(answers);
+          return;
+        }
+        const pick = Number.parseInt(t, 10);
+        if (Number.isInteger(pick) && pick >= 1 && pick <= questions.length) {
+          askIndex(pick - 1, (result) => {
+            if (result !== 'back') answers[pick - 1] = result;
+            review();
+          });
+          return;
+        }
+        emit(warn('   Enter a question number to change, or just Enter to confirm.'));
+        review();
+      });
+    };
+
+    // Walk the questions in order, honouring back-steps; review (or settle) at
+    // the end.
+    let cursor = 0;
+    const step = () => {
+      if (settled) return;
+      if (cursor >= questions.length) {
+        if (canNavigate) return review();
+        settle(answers);
+        return;
+      }
+      askIndex(cursor, (result) => {
+        if (result === 'back') {
+          cursor = Math.max(0, cursor - 1);
+          answers.length = cursor; // drop answers at/after the cursor; re-collect them
+          step();
+          return;
+        }
+        answers[cursor] = result;
+        cursor += 1;
+        step();
+      });
+    };
+
+    step();
   });
 }
 
@@ -893,18 +979,14 @@ export async function handleCommand(text, ctx) {
       // discussed yet, there's nothing to act on — say so rather than fire blind.
       if (!arg && !ctx.hasContext) {
         console.log(
-          '\n' +
-            warn('Nothing discussed yet — tell me what to do, or use /go <text>.') +
-            '\n',
+          '\n' + warn('Nothing discussed yet — tell me what to do, or use /go <text>.') + '\n',
         );
         return true;
       }
       const goMessage = arg || 'Go ahead with what we agreed.';
       ctx.goOnce = true;
       ctx.queue.push(goMessage); // the drain loop runs this as the next turn
-      console.log(
-        '\n' + info(arg ? '▶ Acting now.' : '▶ Acting on what we discussed.') + '\n',
-      );
+      console.log('\n' + info(arg ? '▶ Acting now.' : '▶ Acting on what we discussed.') + '\n');
       return true;
     }
 
@@ -936,6 +1018,23 @@ export async function handleCommand(text, ctx) {
 
     case 'context':
       await handleContext(ctx);
+      return true;
+
+    case 'version':
+      // The same VERSION as `aurora --version` (single source: package.json),
+      // plus the live engine + session so /version answers "what am I running?".
+      console.log(
+        '\n' +
+          info('aurora ') +
+          VERSION +
+          '\n' +
+          info('engine:  ') +
+          (ctx.provider?.describe?.() ?? ctx.config.provider) +
+          '\n' +
+          info('session: ') +
+          (ctx.provider?.shortSession?.() ?? 'n/a') +
+          '\n',
+      );
       return true;
 
     case 'config':
@@ -1316,7 +1415,9 @@ async function handleEngine(arg, ctx) {
     printEngineList(engines, ctx.config.provider);
     if (!ctx.printer && !process.stdin.isTTY) return; // non-interactive: just listed
     const options = impl.map((p) => `${p.id} — ${p.label}`);
-    const [answer] = await askInTerminal(
+    // askInTerminal resolves to null when the popup is cancelled (Ctrl-C) or
+    // stdin closes — destructure only after that guard, or `[x] = null` throws.
+    const answers = await askInTerminal(
       ctx.rl,
       [
         {
@@ -1330,7 +1431,9 @@ async function handleEngine(arg, ctx) {
       ctx.paste,
       ctx,
     );
-    if (answer == null) return; // stdin closed
+    if (answers == null) return; // cancelled or stdin closed
+    const answer = answers[0];
+    if (answer == null) return;
     const picked = impl.find((p) => `${p.id} — ${p.label}` === answer);
     targetId = picked ? picked.id : String(answer).trim().toLowerCase();
   }
@@ -2081,6 +2184,7 @@ function printHelp() {
         ['/skill [list|show|use|on|off]', 'executable skills Aurora plans and runs a task by'],
         ['/persona [show|set|ingest]', 'shape Aurora to write in your voice'],
         ['/config', 'show config file path and contents'],
+        ['/version', 'show the aurora version, current engine, and session'],
         ['/clear', 'clear the screen'],
         ['/exit', 'quit (or Ctrl-D)'],
       ]

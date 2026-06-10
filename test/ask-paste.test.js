@@ -76,3 +76,43 @@ test('askInTerminal resolves null when cancelled via ctx.askCancel', async () =>
   // or resolve a second time.
   assert.doesNotThrow(() => storedCb('late enter'));
 });
+
+// Multi-question navigation: a fake rl that answers each successive question with
+// the next scripted line (synchronously, like the real callback).
+function scriptedRl(lines) {
+  const queue = [...lines];
+  return {
+    once() {},
+    removeListener() {},
+    pause() {},
+    resume() {},
+    question(_prompt, optsOrCb, maybeCb) {
+      const cb = typeof optsOrCb === 'function' ? optsOrCb : maybeCb;
+      cb(queue.length ? queue.shift() : '');
+    },
+  };
+}
+
+const twoQ = [
+  { header: 'A', question: 'First?', options: [], multiSelect: false },
+  { header: 'B', question: 'Second?', options: [], multiSelect: false },
+];
+
+test('askInTerminal: "<" steps back to revise a previous answer', async () => {
+  // q0='a', at q1 type '<' to go back, redo q0='a2', q1='b', review → Enter.
+  const answers = await askInTerminal(scriptedRl(['a', '<', 'a2', 'b', '']), twoQ, printer);
+  assert.deepEqual(answers, ['a2', 'b']);
+});
+
+test('askInTerminal: final review changes one answer by number', async () => {
+  // q0='a', q1='b', review → '2' redoes the second, 'b2', review → Enter confirms.
+  const answers = await askInTerminal(scriptedRl(['a', 'b', '2', 'b2', '']), twoQ, printer);
+  assert.deepEqual(answers, ['a', 'b2']);
+});
+
+test('askInTerminal re-asks an option question answered with an empty Enter', async () => {
+  const optQ = [{ header: 'E', question: 'Pick', options: ['alpha', 'beta'], multiSelect: false }];
+  // First an accidental empty Enter (re-asked), then pick 1.
+  const answers = await askInTerminal(scriptedRl(['', '1']), optQ, printer);
+  assert.deepEqual(answers, ['alpha']);
+});

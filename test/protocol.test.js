@@ -63,6 +63,16 @@ test('trailingQuestion catches a question only at the very end', () => {
   assert.equal(trailingQuestion('Why does this matter? Because latency adds up.'), null);
   assert.equal(trailingQuestion('A statement with no question.'), null);
   assert.equal(trailingQuestion(''), null);
+  // A dot inside a token (version, decimal, abbreviation) is NOT a sentence
+  // boundary — the question must survive whole, not get cut mid-token.
+  assert.equal(
+    trailingQuestion('Stop after the fast-forward and decide on the `v0.3.13` branch separately?'),
+    'Stop after the fast-forward and decide on the `v0.3.13` branch separately?',
+  );
+  assert.equal(
+    trailingQuestion('Consider the trade-offs, e.g. latency vs cost. Which matters more?'),
+    'Which matters more?',
+  );
 });
 
 test('parseImplicitAsk recovers a prose question the model did not wrap', () => {
