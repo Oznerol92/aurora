@@ -374,8 +374,16 @@ export async function main(argv = process.argv.slice(2)) {
         continue;
       }
       if (text.startsWith('/')) {
-        const keepGoing = await handleCommand(text, ctx);
-        if (!keepGoing) exitRequested = true;
+        // A command that throws must not crash the REPL — report it like a turn
+        // error and keep the loop alive (same contract as streamResponse below).
+        try {
+          const keepGoing = await handleCommand(text, ctx);
+          if (!keepGoing) exitRequested = true;
+        } catch (e) {
+          const note = error('  ✖ ' + e.message);
+          if (printer) printer.line(note);
+          else console.log(note + '\n');
+        }
       } else {
         // Interactive: leave readline live so the user can type-ahead while the
         // turn streams (the printer keeps the prompt pinned). Piped: pause as
@@ -893,18 +901,14 @@ export async function handleCommand(text, ctx) {
       // discussed yet, there's nothing to act on — say so rather than fire blind.
       if (!arg && !ctx.hasContext) {
         console.log(
-          '\n' +
-            warn('Nothing discussed yet — tell me what to do, or use /go <text>.') +
-            '\n',
+          '\n' + warn('Nothing discussed yet — tell me what to do, or use /go <text>.') + '\n',
         );
         return true;
       }
       const goMessage = arg || 'Go ahead with what we agreed.';
       ctx.goOnce = true;
       ctx.queue.push(goMessage); // the drain loop runs this as the next turn
-      console.log(
-        '\n' + info(arg ? '▶ Acting now.' : '▶ Acting on what we discussed.') + '\n',
-      );
+      console.log('\n' + info(arg ? '▶ Acting now.' : '▶ Acting on what we discussed.') + '\n');
       return true;
     }
 
@@ -936,6 +940,23 @@ export async function handleCommand(text, ctx) {
 
     case 'context':
       await handleContext(ctx);
+      return true;
+
+    case 'version':
+      // The same VERSION as `aurora --version` (single source: package.json),
+      // plus the live engine + session so /version answers "what am I running?".
+      console.log(
+        '\n' +
+          info('aurora ') +
+          VERSION +
+          '\n' +
+          info('engine:  ') +
+          (ctx.provider?.describe?.() ?? ctx.config.provider) +
+          '\n' +
+          info('session: ') +
+          (ctx.provider?.shortSession?.() ?? 'n/a') +
+          '\n',
+      );
       return true;
 
     case 'config':
@@ -1316,7 +1337,9 @@ async function handleEngine(arg, ctx) {
     printEngineList(engines, ctx.config.provider);
     if (!ctx.printer && !process.stdin.isTTY) return; // non-interactive: just listed
     const options = impl.map((p) => `${p.id} — ${p.label}`);
-    const [answer] = await askInTerminal(
+    // askInTerminal resolves to null when the popup is cancelled (Ctrl-C) or
+    // stdin closes — destructure only after that guard, or `[x] = null` throws.
+    const answers = await askInTerminal(
       ctx.rl,
       [
         {
@@ -1330,7 +1353,9 @@ async function handleEngine(arg, ctx) {
       ctx.paste,
       ctx,
     );
-    if (answer == null) return; // stdin closed
+    if (answers == null) return; // cancelled or stdin closed
+    const answer = answers[0];
+    if (answer == null) return;
     const picked = impl.find((p) => `${p.id} — ${p.label}` === answer);
     targetId = picked ? picked.id : String(answer).trim().toLowerCase();
   }
@@ -2081,6 +2106,7 @@ function printHelp() {
         ['/skill [list|show|use|on|off]', 'executable skills Aurora plans and runs a task by'],
         ['/persona [show|set|ingest]', 'shape Aurora to write in your voice'],
         ['/config', 'show config file path and contents'],
+        ['/version', 'show the aurora version, current engine, and session'],
         ['/clear', 'clear the screen'],
         ['/exit', 'quit (or Ctrl-D)'],
       ]

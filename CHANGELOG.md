@@ -82,13 +82,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   message (scored locally on tags/title/body — no network) are pulled into
   context. Manage it with `/brain [list | show <id> | why <text> | on | off]`;
   `/brain why <text>` previews which cards a message would pull.
-- **Voice profile (persona).** A one-time, optional questionnaire captures how
-  you write (values, voice rules, do/don't, sample phrases). Aurora then writes
-  in your voice while silently fixing typos — never flattening you into generic
-  AI prose. Stored in the active store (never in `config.json`). Manage with
+- **Voice profile (persona).** A one-time, optional picker offers four starting
+  voice templates (Aurora method · Plain & direct · Technical & precise · Warm &
+  conversational), replacing the earlier free-text questionnaire — one keystroke
+  to choose, or Enter to skip. Aurora then writes in your voice while silently
+  fixing typos — never flattening you into generic AI prose. Stored in the active
+  store (never in `config.json`). Fine-tune later with
   `/persona [show | set <field> <value> | ingest <file> | clear | on | off]`.
+- **`/version` command.** Prints the running aurora version (same single source
+  as `aurora --version`: `package.json`) plus the live engine and session, so the
+  REPL can answer "what am I running?" without leaving the prompt.
 
 ### Fixed
+
+- **Question text mangled at a mid-token dot.** The trailing-question extractor
+  (`trailingQuestion`, `src/protocol.js`) split sentences on any `.!?`, so a
+  question containing a version (`v0.3.13`), decimal, or abbreviation (`e.g.`)
+  was cut mid-token — `…decide on the v0.3.13 branch separately?` surfaced as
+  `13\` branch separately?`. A boundary now requires the punctuation to be
+  followed by whitespace, so mid-token dots no longer split the question.
+- **Ctrl-C on the `/engine` popup crashed the process.** `askInTerminal` resolves
+  to `null` when a popup is cancelled, but `handleEngine` destructured that return
+  before the null-guard (`const [answer] = …`), throwing `TypeError: (intermediate
+  value) is not iterable` and taking down the whole REPL. The caller now guards
+  before destructuring, and the REPL loop wraps `handleCommand` in the same
+  try/catch as a turn — so a throwing command reports the error and keeps running
+  instead of crashing.
+- **Stale resume surfaced a raw "No conversation found" error.** A `--resume` of a
+  session Claude no longer has (e.g. after an engine switch) only recovered when a
+  seed transcript was present; otherwise it threw the raw CLI error. The recovery
+  (`src/providers/claude.js`) now always starts a fresh session on a
+  session-not-found — seeded from the store when a transcript exists, clean
+  otherwise — instead of failing the turn.
 
 - **Clearer Claude CLI errors.** A failed turn used to surface a bare
   `claude exited with code 1` (with raw stderr appended, or nothing at all).

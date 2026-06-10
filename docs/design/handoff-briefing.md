@@ -16,13 +16,13 @@ special treatment for an engine new to the project, and nothing shown to the use
 
 ## Decisions (confirmed with the user, 2026-06-08)
 
-| # | Decision | Choice |
-|---|----------|--------|
-| 1 | Ledger location | **In the store/DB** (`getEngineLedger`/`saveEngineLedger` on the Store contract; json + sqlite). Degrades to in-memory-only under `store: none`. |
-| 2 | Summary production | **On-demand at switch**, one cheap `claude -p` call, degrading to a deterministic digest (title · exchanges · last `aurora:done` recap). |
-| 3 | Registry key ("new" unit) | **Provider id** (`claude` vs `codex`), _not_ model-id. |
-| 4 | Recall scope | **Working directory** (`process.cwd()`) now; topic clustering later. |
-| 5 | Applies to | **`/engine` switches** now; `@worker` first-borrow briefing is a fast follow. |
+| #   | Decision                  | Choice                                                                                                                                           |
+| --- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Ledger location           | **In the store/DB** (`getEngineLedger`/`saveEngineLedger` on the Store contract; json + sqlite). Degrades to in-memory-only under `store: none`. |
+| 2   | Summary production        | **On-demand at switch**, one cheap `claude -p` call, degrading to a deterministic digest (title · exchanges · last `aurora:done` recap).         |
+| 3   | Registry key ("new" unit) | **Provider id** (`claude` vs `codex`), _not_ model-id.                                                                                           |
+| 4   | Recall scope              | **Working directory** (`process.cwd()`) now; topic clustering later.                                                                             |
+| 5   | Applies to                | **`/engine` switches** now; `@worker` first-borrow briefing is a fast follow.                                                                    |
 
 ## Slice 1 — what's built
 

@@ -12,6 +12,8 @@ import {
   personaHasContent,
   DEFAULT_CORRECTION,
   PERSONA_SCOPE,
+  PERSONA_TEMPLATES,
+  resolvePersonaTemplate,
 } from '../src/persona.js';
 
 const require = createRequire(import.meta.url);
@@ -35,6 +37,27 @@ test('renderPersona always includes the correction rule', () => {
 test('renderPersona returns empty for an empty profile', () => {
   assert.equal(renderPersona({}), '');
   assert.equal(renderPersona(null), '');
+});
+
+test('PERSONA_TEMPLATES are four usable, render-ready voice presets', () => {
+  assert.equal(PERSONA_TEMPLATES.length, 4);
+  for (const t of PERSONA_TEMPLATES) {
+    assert.ok(t.id && t.label && t.blurb, 'each template is labelled');
+    assert.ok(t.fields.voiceRules, 'each template carries voice rules');
+    assert.ok(personaHasContent(t.fields), 'each template has substantive content');
+  }
+});
+
+test('resolvePersonaTemplate maps a picker answer to a template, or null to skip', () => {
+  assert.equal(resolvePersonaTemplate('1'), PERSONA_TEMPLATES[0]);
+  assert.equal(resolvePersonaTemplate('4'), PERSONA_TEMPLATES[3]);
+  assert.equal(resolvePersonaTemplate('aurora-method'), PERSONA_TEMPLATES[0]);
+  assert.equal(resolvePersonaTemplate('Plain & direct'), PERSONA_TEMPLATES[1]);
+  // Blank, out-of-range, or unknown answers all mean "skip" (silent default).
+  assert.equal(resolvePersonaTemplate(''), null);
+  assert.equal(resolvePersonaTemplate('  '), null);
+  assert.equal(resolvePersonaTemplate('9'), null);
+  assert.equal(resolvePersonaTemplate('nope'), null);
 });
 
 test('renderPersona injects only a bounded slice of samples', () => {

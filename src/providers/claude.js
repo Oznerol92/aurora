@@ -202,12 +202,15 @@ export class ClaudeProvider extends Provider {
       yield* this.#stream(augmented);
     } catch (e) {
       if (this.#shouldFallback(usedResume, e)) {
-        // The native session is gone. Start fresh, seeded from the store, and
-        // retry once. Nothing streamed yet (resume failures error immediately),
-        // so the user sees a clean recovery rather than a dropped turn.
+        // The native session is gone. Start fresh and retry once — seeded from
+        // the store when we have a transcript, otherwise a clean session.
+        // Nothing streamed yet (resume failures error immediately), so the user
+        // sees a recovery rather than a raw "No conversation found" crash.
         yield {
           type: 'status',
-          text: 'native session unavailable — resuming from saved transcript',
+          text: this.seedTurns?.length
+            ? 'native session unavailable — resuming from saved transcript'
+            : 'native session unavailable — starting a fresh session',
         };
         this.sessionId = randomUUID();
         this.started = false; // buildArgs will create + seed a new session
@@ -226,11 +229,14 @@ export class ClaudeProvider extends Provider {
     return block ? `${block}\n\n${text}` : text;
   }
 
-  /** Whether a failed turn can recover by seeding a fresh session. */
+  /**
+   * Whether a failed turn can recover by starting a fresh session. Fires on any
+   * session-not-found from a resume that streamed nothing yet — with or without
+   * a seed. A seed restores context; without one we still recover (clean
+   * session) instead of surfacing the raw CLI error.
+   */
   #shouldFallback(usedResume, error) {
-    return Boolean(
-      usedResume && !this._sawDelta && this.seedTurns?.length && isSessionNotFound(error?.message),
-    );
+    return Boolean(usedResume && !this._sawDelta && isSessionNotFound(error?.message));
   }
 
   /** One turn against the CLI: spawn, stream events, settle exit status. */

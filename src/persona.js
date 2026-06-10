@@ -18,6 +18,81 @@ export const DEFAULT_CORRECTION =
   'and obviously wrong words. Do not smooth away their style or turn them into ' +
   'generic AI prose.';
 
+/** The hyped/cliché words Aurora's voice avoids — reused across templates. */
+export const HYPED_WORDS =
+  'hyped/cliché words: best practices, leverage, unlock, actionable, synergy, ' +
+  'game-changer, next-level, ultimate, guru, secret sauce';
+
+/**
+ * Starting voice presets offered at first run (the 4-template picker). Each is a
+ * ready-to-use persona the user can fine-tune later with /persona. Listed in
+ * picker order; resolvePersonaTemplate maps a picker answer to one (or null to
+ * skip). All inherit DEFAULT_CORRECTION.
+ */
+export const PERSONA_TEMPLATES = [
+  {
+    id: 'aurora-method',
+    label: 'Aurora method',
+    blurb: 'hook+number openings, anti-patterns→solution, numbers in tables',
+    fields: {
+      voiceRules:
+        'Hook+Number openings; Problem → 3 anti-patterns → Solution; numbers in tables not prose; ' +
+        'shorter sentences in narrative, longer in analysis.',
+      dontList: HYPED_WORDS,
+      correction: DEFAULT_CORRECTION,
+    },
+  },
+  {
+    id: 'plain-direct',
+    label: 'Plain & direct',
+    blurb: 'lead with the answer, short sentences, no jargon',
+    fields: {
+      voiceRules:
+        'Lead with the answer. Short sentences. No jargon or filler. One idea per paragraph.',
+      dontList: HYPED_WORDS,
+      correction: DEFAULT_CORRECTION,
+    },
+  },
+  {
+    id: 'technical-precise',
+    label: 'Technical & precise',
+    blurb: 'exact terms, explicit trade-offs, no marketing',
+    fields: {
+      voiceRules:
+        'Exact terminology. Make trade-offs explicit. Reference specifics (files, commands, ' +
+        'numbers). No marketing tone.',
+      dontList: HYPED_WORDS,
+      correction: DEFAULT_CORRECTION,
+    },
+  },
+  {
+    id: 'warm-conversational',
+    label: 'Warm & conversational',
+    blurb: 'first person, approachable, contractions',
+    fields: {
+      voiceRules:
+        'First person, approachable. Use contractions. Explain as if to a colleague. ' +
+        'Keep it light but accurate.',
+      correction: DEFAULT_CORRECTION,
+    },
+  },
+];
+
+/**
+ * Map a first-run picker answer to a voice template, or null to skip. A number
+ * picks the Nth template; a template id/label also resolves; a blank or unknown
+ * answer means skip (stay on the silent default). Mirrors resolveStoreChoice —
+ * the mapping lives in one tested place.
+ */
+export function resolvePersonaTemplate(answer) {
+  const a = String(answer || '')
+    .trim()
+    .toLowerCase();
+  if (!a) return null;
+  if (/^\d+$/.test(a)) return PERSONA_TEMPLATES[Number(a) - 1] ?? null;
+  return PERSONA_TEMPLATES.find((t) => t.id === a || t.label.toLowerCase() === a) ?? null;
+}
+
 /** Known persona fields, in render order. */
 export const PERSONA_FIELDS = [
   'name',
@@ -44,9 +119,7 @@ export function personaDefaultsFromBrain(cards = loadBrainCards()) {
   const out = { correction: DEFAULT_CORRECTION };
   const ids = new Set((cards || []).map((c) => c.id));
   if (ids.has('forbidden-words')) {
-    out.dontList =
-      'hyped/cliché words: best practices, leverage, unlock, actionable, synergy, ' +
-      'game-changer, next-level, ultimate, guru, secret sauce';
+    out.dontList = HYPED_WORDS;
   }
   if (ids.has('voice-core')) {
     out.voiceRules =

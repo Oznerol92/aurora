@@ -2,7 +2,12 @@ import readline from 'node:readline';
 import { createRequire } from 'node:module';
 import { saveConfig } from './config.js';
 import { info, warn, hint } from './ui.js';
-import { personaDefaultsFromBrain, PERSONA_SCOPE } from './persona.js';
+import {
+  personaDefaultsFromBrain,
+  PERSONA_SCOPE,
+  PERSONA_TEMPLATES,
+  resolvePersonaTemplate,
+} from './persona.js';
 
 const require = createRequire(import.meta.url);
 
@@ -168,10 +173,12 @@ export function shouldRunPersonaSetup(config, hasStore, { isServe, isTty }) {
 }
 
 /**
- * One-time persona questionnaire: a few optional questions so Aurora writes in
- * the user's voice. Seeds sensible defaults from the brain's voice cards, writes
- * the profile to the store (not config), and flips the config toggles. Callers
- * should gate on shouldRunPersonaSetup and pass an open, persona-capable store.
+ * One-time voice picker: choose one of four starting voice templates (or skip).
+ * The chosen preset is merged onto the brain's voice defaults and written to the
+ * store (not config); skipping leaves Aurora on the silent default. Either way it
+ * flips persona.prompted so this runs once. Callers should gate on
+ * shouldRunPersonaSetup and pass an open, persona-capable store. Fine-tune later
+ * with /persona.
  */
 export async function runPersonaSetup(store, config) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -182,30 +189,20 @@ export async function runPersonaSetup(store, config) {
     console.log(
       '\n' + info('Make Aurora write in your voice') + ' ' + warn('(optional, one time)'),
     );
-    console.log(
-      'A few quick questions so Aurora replicates how you write — typos and wrong\n' +
-        'words fixed, your style kept. Press Enter to skip any (or all).\n',
-    );
-    const lang = String(await ask('Primary language (e.g. en / it) [skip]: ')).trim();
-    const voice = String(
-      await ask('In one line, how would you describe your writing voice? [skip]: '),
-    ).trim();
-    const samples = String(
-      await ask('Paste a sentence or two that sound like you [skip]: '),
-    ).trim();
-    const never = String(await ask('Anything you never want to sound like? [skip]: ')).trim();
+    console.log('Pick a starting voice — fine-tune it anytime with /persona.\n');
+    PERSONA_TEMPLATES.forEach((t, i) => {
+      console.log(`  ${warn(String(i + 1))}. ${t.label} — ${hint(t.blurb)}`);
+    });
+    console.log('');
+    const answer = String(await ask('  number, or Enter to skip ❯ ')).trim();
 
     config.persona.prompted = true;
+    const picked = resolvePersonaTemplate(answer);
 
-    if (lang || voice || samples || never) {
-      const fields = { ...personaDefaultsFromBrain() };
-      if (lang) fields.langPrimary = lang;
-      if (voice) fields.voiceRules = fields.voiceRules ? `${voice}\n${fields.voiceRules}` : voice;
-      if (samples) fields.samplePhrases = samples;
-      if (never) fields.dontList = fields.dontList ? `${never}; ${fields.dontList}` : never;
-      await store.savePersona(PERSONA_SCOPE, fields);
+    if (picked) {
+      await store.savePersona(PERSONA_SCOPE, { ...personaDefaultsFromBrain(), ...picked.fields });
       config.persona.enabled = true;
-      console.log('\n' + info('Saved your voice profile. ') + 'View or edit it with /persona.');
+      console.log('\n' + info(`Voice set: ${picked.label}. `) + 'View or edit it with /persona.');
     } else {
       console.log('\n' + info('Skipped. ') + 'Set it up anytime with /persona.');
     }
