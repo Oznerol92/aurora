@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isSqliteAvailable, resolveStoreChoice, shouldRunSetup } from '../src/setup.js';
+import {
+  isSqliteAvailable,
+  resolveStoreChoice,
+  shouldRunSetup,
+  storeSwitchNote,
+} from '../src/setup.js';
 
 test('resolveStoreChoice maps numbered options when SQLite is available', () => {
   assert.equal(resolveStoreChoice('1', true), 'sqlite');
@@ -43,4 +48,22 @@ test('shouldRunSetup only fires for an interactive, un-set-up REPL', () => {
 
 test('isSqliteAvailable returns a boolean without throwing', () => {
   assert.equal(typeof isSqliteAvailable(), 'boolean');
+});
+
+test('storeSwitchNote warns only on a real→real switch between different backends', () => {
+  const live = { wasStateless: false, hasStore: true, hasSession: true };
+  // The case the warning exists for: two real stores, mid-thread.
+  const note = storeSwitchNote('json', 'sqlite', live);
+  assert.match(note, /json/);
+  assert.match(note, /sqlite/);
+  assert.match(note, /isn't copied|won't show/);
+
+  // none→real (just enabled persistence): handled elsewhere, no note.
+  assert.equal(storeSwitchNote('none', 'sqlite', { ...live, wasStateless: true }), null);
+  // real→none (turning persistence off): hasStore is false now, no note.
+  assert.equal(storeSwitchNote('json', 'none', { ...live, hasStore: false }), null);
+  // No live thread to split → nothing to warn about.
+  assert.equal(storeSwitchNote('json', 'sqlite', { ...live, hasSession: false }), null);
+  // Same backend (re-select) → no note.
+  assert.equal(storeSwitchNote('json', 'json', live), null);
 });

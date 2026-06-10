@@ -19,6 +19,7 @@ import {
   shouldRunSetup,
   shouldRunPersonaSetup,
   runPersonaSetup,
+  storeSwitchNote,
 } from './setup.js';
 import { loadBrainCards, selectRelevantCards } from './brain/corpus.js';
 import { loadSkills, selectSkill, compileSkill } from './skills/corpus.js';
@@ -1724,6 +1725,7 @@ async function handleStore(arg, ctx) {
     // ignore close errors on the outgoing store
   }
   const wasStateless = !ctx.hasStore;
+  const fromStore = ctx.config.store; // the outgoing backend, for the switch note
   ctx.store = next;
   ctx.config.store = arg_id;
   ctx.hasStore = next.constructor.id !== 'none';
@@ -1751,6 +1753,15 @@ async function handleStore(arg, ctx) {
       // ledger is an opt-in flourish; never block the store switch on it
     }
   }
+
+  // Switching between two real backends mid-thread doesn't migrate the prior
+  // transcript — warn so the split isn't silent (live context is unaffected).
+  const note = storeSwitchNote(fromStore, arg_id, {
+    wasStateless,
+    hasStore: ctx.hasStore,
+    hasSession: Boolean(ctx.sessionId),
+  });
+  if (note) console.log('\n' + warn(note));
 
   console.log('\n' + info('Store set to: ') + arg_id + '\n');
 }

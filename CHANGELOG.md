@@ -156,6 +156,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Switching stores mid-thread now warns about the split.** Changing from one
+  real store to another (e.g. `/store json` → `/store sqlite`) does **not** copy
+  the current conversation's transcript into the new backend, so `/history`,
+  `/resume` and the seed-fallback are empty for that thread there (the live model
+  context is unaffected — the CLI keeps the native session). `/store` now prints a
+  note saying so instead of leaving the split silent. The transcript still isn't
+  migrated; doing that across backends is a separate, later step.
 - **Release process.** Adopted a two-branch promotion model — work branches →
   `pre-release` → `release`, each gated by an approving PR review. `release` is
   now the stable/default branch and `master` is retired. Versioning is manual at
