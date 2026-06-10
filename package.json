@@ -1,6 +1,6 @@
 {
   "name": "aurora-cli",
-  "version": "0.3.14",
+  "version": "0.3.15",
   "description": "Aurora — a research-oriented AI chat CLI with pluggable AI providers (Claude to start) and a built-in two-way Telegram bridge, so one command lets you chat from the terminal and your phone on one shared session.",
   "type": "module",
   "license": "MIT",
