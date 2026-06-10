@@ -23,6 +23,7 @@ import { shouldAutoFireSkill } from './intent.js';
  *   tags         extra match terms (comma/bracket list)
  *   brain        brain card ids to load in full (comma/space list)
  *   template     a brain card id whose body is the structure to fill (optional)
+ *   category     group label for `/skill list` (optional, defaults to "general")
  *   asks         clarifying questions to raise if unknown (comma list, optional)
  *   <body>       the procedure: plan → execute → verify
  *
@@ -62,6 +63,7 @@ export function parseSkill(raw, path = '') {
     id: '',
     title: '',
     when_to_use: '',
+    category: '', // optional: groups the skill in `/skill list` (defaults to "general")
     tags: [],
     brain: [],
     template: '',

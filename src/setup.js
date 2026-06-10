@@ -53,6 +53,26 @@ export function shouldRunSetup(config, { isServe, isTty }) {
 }
 
 /**
+ * The note to show after a `/store` switch, or null when none is needed.
+ *
+ * Warns only when switching between two DIFFERENT real stores mid-thread: the
+ * prior transcript stays in the old backend and is NOT migrated, so /history,
+ * /resume and the seed-fallback come up empty for this thread in the new store.
+ * (The live model context is unaffected — the CLI keeps the native session.)
+ * none↔real switches are handled elsewhere and need no note. Migrating the
+ * transcript across backends is a deliberate later step, not this warning.
+ */
+export function storeSwitchNote(fromId, toId, { wasStateless, hasStore, hasSession } = {}) {
+  if (wasStateless || !hasStore || !hasSession) return null;
+  if (!fromId || fromId === toId) return null;
+  return (
+    `This thread's history stays in the ${fromId} store and isn't copied — ${toId} starts ` +
+    `fresh here (/history and /resume won't show it; new turns save to ${toId}). ` +
+    `Live context is unaffected.`
+  );
+}
+
+/**
  * Build an `ask(question)` over a readline that queues lines as they arrive, so
  * an already-buffered answer (e.g. piped input) isn't dropped between questions,
  * and EOF resolves a pending prompt with the default rather than hanging.
