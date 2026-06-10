@@ -114,6 +114,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`src/providers/claude.js`) now always starts a fresh session on a
   session-not-found — seeded from the store when a transcript exists, clean
   otherwise — instead of failing the turn.
+- **Couldn't go back or revise in a multi-question popup.** The terminal
+  `aurora:ask` popup (`askInTerminal`) was forward-only: an accidental Enter
+  recorded a blank answer with no way back. It now supports going back (type `<`
+  or `:back` at any prompt) and, after the last question, a review step — Enter
+  confirms, a question number redoes just that one. An empty Enter on a question
+  that has numbered options now re-asks instead of recording "(no answer)".
+  Interactive multi-question popups only; piped input stays forward-only.
+- **Pasting an answer skipped to the next question.** A single-line paste was
+  forwarded with its trailing newline intact, so pasting a value copied with its
+  line break acted as Enter and advanced the popup. The paste filter
+  (`src/paste.js`) now strips a trailing newline from a single-line paste, so the
+  text lands on the line and you press Enter yourself. (Terminals that don't honor
+  bracketed-paste mode can't distinguish a pasted newline from a real Enter.)
 
 - **Clearer Claude CLI errors.** A failed turn used to surface a bare
   `claude exited with code 1` (with raw stderr appended, or nothing at all).

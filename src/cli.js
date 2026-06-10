@@ -814,35 +814,113 @@ export function askInTerminal(rl, questions, printer = null, paste = null, ctx =
     if (ctx) ctx.askCancel = () => ac.abort();
     ac.signal.addEventListener('abort', () => settle(null));
 
-    const askOne = (i) => {
+    // Going back and the final review only make sense interactively and with
+    // more than one question. Piped input (tests, scripts) stays forward-only,
+    // so its behaviour is unchanged.
+    const canNavigate = interactive && questions.length > 1;
+    const isBack = (s) => canNavigate && (s === '<' || s.toLowerCase() === ':back');
+
+    // Swap any "[Pasted text #N +M lines]" placeholders back to their real text,
+    // exactly like the main REPL line handler — otherwise a multi-line paste in
+    // an answer is submitted as the literal placeholder, not the pasted content.
+    const expand = (raw) => {
+      const out = paste?.store?.size ? paste.store.expand(raw) : raw;
+      paste?.store?.reset();
+      return out;
+    };
+
+    // Ask the question at `i`, handing the mapped answer — or the sentinel
+    // 'back' — to `then`. Re-asks an option question that came back empty (almost
+    // always an accidental Enter); accepts "<" / ":back" to step back.
+    const askIndex = (i, then) => {
       if (settled) return;
-      if (i >= questions.length) {
-        settle(answers);
-        return;
-      }
       const q = questions[i];
       const head = q.header ? warn(`[${q.header}] `) : '';
       emit('');
       emit(info('❓ ' + head + q.question));
       q.options.forEach((opt, n) => emit(`   ${warn(String(n + 1))}. ${opt}`));
-      const prompt = q.options.length
+      const base = q.options.length
         ? q.multiSelect
-          ? '   number(s) (comma-separated) or your own answer ❯ '
-          : '   number or your own answer ❯ '
-        : '   your answer ❯ ';
+          ? '   number(s) (comma-separated) or your own answer'
+          : '   number or your own answer'
+        : '   your answer';
+      const prompt = base + (canNavigate ? ' (or "<" to go back)' : '') + ' ❯ ';
       rl.question(info(prompt), { signal: ac.signal }, (raw) => {
         if (settled) return;
-        // Swap any "[Pasted text #N +M lines]" placeholders back to their real text,
-        // exactly like the main REPL line handler — otherwise a multi-line paste in
-        // an answer is submitted as the literal placeholder, not the pasted content.
-        const expanded = paste?.store?.size ? paste.store.expand(raw) : raw;
-        paste?.store?.reset();
-        answers.push(mapChoice(expanded, q));
-        askOne(i + 1);
+        const expanded = expand(raw);
+        const trimmed = String(expanded).trim();
+        if (isBack(trimmed)) {
+          then('back');
+          return;
+        }
+        if (interactive && q.options.length && !trimmed) {
+          emit(
+            warn(
+              '   Pick a number or type an answer' +
+                (canNavigate ? ' (or "<" to go back)' : '') +
+                '.',
+            ),
+          );
+          askIndex(i, then);
+          return;
+        }
+        then(mapChoice(expanded, q));
       });
     };
 
-    askOne(0);
+    // Final review: list the answers; Enter confirms, a question number redoes
+    // just that one (then returns here). Interactive multi-question popups only.
+    const review = () => {
+      if (settled) return;
+      emit('');
+      emit(info('Review — Enter to confirm, or a number to change:'));
+      questions.forEach((q, n) => {
+        emit(`   ${warn(String(n + 1))}. ${q.header || `Q${n + 1}`}: ${answers[n]}`);
+      });
+      rl.question(info('   confirm (Enter) or number ❯ '), { signal: ac.signal }, (raw) => {
+        if (settled) return;
+        const t = String(expand(raw)).trim();
+        if (!t) {
+          settle(answers);
+          return;
+        }
+        const pick = Number.parseInt(t, 10);
+        if (Number.isInteger(pick) && pick >= 1 && pick <= questions.length) {
+          askIndex(pick - 1, (result) => {
+            if (result !== 'back') answers[pick - 1] = result;
+            review();
+          });
+          return;
+        }
+        emit(warn('   Enter a question number to change, or just Enter to confirm.'));
+        review();
+      });
+    };
+
+    // Walk the questions in order, honouring back-steps; review (or settle) at
+    // the end.
+    let cursor = 0;
+    const step = () => {
+      if (settled) return;
+      if (cursor >= questions.length) {
+        if (canNavigate) return review();
+        settle(answers);
+        return;
+      }
+      askIndex(cursor, (result) => {
+        if (result === 'back') {
+          cursor = Math.max(0, cursor - 1);
+          answers.length = cursor; // drop answers at/after the cursor; re-collect them
+          step();
+          return;
+        }
+        answers[cursor] = result;
+        cursor += 1;
+        step();
+      });
+    };
+
+    step();
   });
 }
 

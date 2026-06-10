@@ -206,12 +206,15 @@ export function createPasteInput(stdin = process.stdin, stdout = process.stdout)
   }
 
   // Multi-line pastes collapse to a placeholder; a single-line paste is
-  // forwarded as-is (it never caused the multi-turn/flood problem). Either way
-  // the body is normalized to `\n` so a CR-separated paste is counted — and
-  // forwarded — as the terminal meant it, not split a line per carriage return.
+  // forwarded with any trailing newline stripped, so pasting a value (which a
+  // "copy line" often captures WITH its newline) places the text on the line
+  // without acting as Enter — the user submits it themselves. Without this, a
+  // pasted "answer\n" auto-submits, which inside a multi-question popup skips to
+  // the next question. The body is normalized to `\n` first so a CR-separated
+  // paste is counted and forwarded as the terminal meant it.
   const filter = new PasteFilter((body) => {
     const text = normalizeNewlines(body);
-    return countLines(text) >= 2 ? store.register(text) : text;
+    return countLines(text) >= 2 ? store.register(text) : text.replace(/\n$/, '');
   });
   const tty = new Transform({
     transform(chunk, _enc, cb) {

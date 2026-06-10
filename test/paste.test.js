@@ -139,6 +139,24 @@ test('createPasteInput collapses a CR-separated paste (real terminal body)', asy
   assert.equal(store.expand('[Pasted text #1 +4 lines]'), 'a\nb\nc\nd', 'restored as newlines');
 });
 
+test('createPasteInput strips a trailing newline from a single-line paste (no auto-submit)', async () => {
+  const stdin = new PassThrough();
+  stdin.isTTY = true;
+  stdin.setRawMode = () => {};
+  const { input, store, enable } = createPasteInput(stdin, { write() {} });
+  enable();
+
+  const chunks = [];
+  input.on('data', (d) => chunks.push(d.toString('utf8')));
+  // A "copy line" often captures the value WITH its trailing newline. Forwarding
+  // that newline would act as Enter; it must be stripped so the text just lands.
+  await new Promise((r) => stdin.write(`${START}myanswer\r${END}`, r));
+  await new Promise((r) => process.nextTick(r));
+
+  assert.equal(chunks.join(''), 'myanswer', 'no trailing newline forwarded to readline');
+  assert.equal(store.size, 0, 'single-line paste is not registered as a placeholder');
+});
+
 test('createPasteInput is a no-op on non-TTY input', () => {
   const stdin = new PassThrough(); // no isTTY → piped/test input
   const { input, store } = createPasteInput(stdin, { write() {} });
